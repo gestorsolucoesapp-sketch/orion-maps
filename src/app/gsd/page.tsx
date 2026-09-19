@@ -27,7 +27,7 @@ export default function GsdPage() {
   function exportPlan() {
     if (!result) return;
     const blob = new Blob([JSON.stringify({ parameters: plan, results: result, assumptions: "Nadir; terreno plano; altura da imagem alinhada ao voo. Parâmetros informados pelo usuário." }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "orion-planejamento-gsd.json"; a.click(); URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "orion-planejamento-gsd.json"; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
   return <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
     <header className="flex items-center justify-between border-b border-slate-200 pb-6 print:hidden"><Link href="/painel" className="text-xl font-bold">ORION <span className="font-normal">MAPS</span></Link><Link href="/painel" className="text-sm font-semibold text-emerald-800">← Meus levantamentos</Link></header>
@@ -52,3 +52,4 @@ export default function GsdPage() {
     <footer className="py-8 text-xs leading-6 text-slate-500">Método geométrico: GSD = altura × dimensão do sensor ÷ (focal × pixels), com conversão para cm. <a href="https://support.pix4d.com/hc/en-us/articles/202557469" target="_blank" rel="noreferrer" className="underline">Referência técnica: Pix4D</a>.</footer>
   </main>;
 }
+
