@@ -10,3 +10,5 @@
 .canvas-local-label{position:absolute;top:15px;right:14px;background:#f1eee5ed;border:1px solid #a9b0a6;color:#415057;padding:9px 12px;font:9px monospace;letter-spacing:1px;pointer-events:none}
 
 .mission-map .maplibregl-ctrl-attrib{color:#243133;background:rgba(255,255,255,.94)}.mission-map .maplibregl-ctrl-attrib a{color:#243133;text-decoration:underline}
+
+.map-toolbar .location-button{color:var(--paper);border-color:var(--copper)}.map-search button{white-space:nowrap}
