@@ -7,5 +7,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/painel/:path*"],
+  matcher: ["/painel/:path*", "/processamento/:path*"],
 };
