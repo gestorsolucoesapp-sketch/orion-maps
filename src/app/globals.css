@@ -1,8 +1,19 @@
 @import "tailwindcss";
+@theme {
+  --color-emerald-50: #f8efe7;
+  --color-emerald-100: #f2e1d1;
+  --color-emerald-200: #edd2ba;
+  --color-emerald-300: #e5b393;
+  --color-emerald-500: #db784b;
+  --color-emerald-600: #ba542d;
+  --color-emerald-700: #984326;
+  --color-emerald-800: #793a26;
+  --color-emerald-950: #192126;
+}
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-html { background: #f5f7f4; }
-body { margin: 0; background: #f5f7f4; color: #18352d; font-family: Arial, Helvetica, sans-serif; }
+html { background: #eeece5; }
+body { margin: 0; background: #eeece5; color: #202a30; font-family: Arial, Helvetica, sans-serif; }
 button, input { font: inherit; }
 button { cursor: pointer; }
-::selection { background: #c1e4d2; }
+::selection { background: #edbc9b; color: #192126; }
