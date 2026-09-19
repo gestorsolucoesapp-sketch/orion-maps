@@ -75,7 +75,7 @@ export function ImageWorkspace({ survey, images }: { survey: Survey; images: Sur
 
   function exportInventory() {
     const file = new Blob([JSON.stringify({ survey, exported_at: new Date().toISOString(), processing: "not_connected", images: images.map(image => ({ name: originalName(image.name), storage_name: image.name, size_bytes: image.metadata?.size, uploaded_at: image.created_at })) }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(file); const a = document.createElement("a"); a.href = url; a.download = `levantamento-${survey.id}.json`; a.click(); URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(file); const a = document.createElement("a"); a.href = url; a.download = `levantamento-${survey.id}.json`; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
   return <div className="space-y-6">
@@ -101,4 +101,5 @@ export function SurveySearch({ surveys, activeId }: { surveys: Survey[]; activeI
   const filtered = surveys.filter(s => `${s.name} ${s.location}`.toLowerCase().includes(search.toLowerCase()));
   return <><input aria-label="Buscar levantamentos" className={input} placeholder="Buscar levantamento ou local…" value={search} onChange={event => setSearch(event.target.value)} /><div className="mt-4 space-y-2">{filtered.map(s => <Link key={s.id} href={`/painel?levantamento=${s.id}`} className={`block rounded-xl border p-4 ${activeId === s.id ? "border-emerald-500 bg-emerald-50" : "border-slate-200 bg-white hover:border-emerald-300"}`}><p className="break-words font-semibold">{s.name}</p><p className="mt-1 text-xs text-slate-500">{s.location || "Local não informado"}</p><p className="mt-2 text-xs text-slate-500">{s.flight_date?.split("-").reverse().join("/") || "Data a definir"}</p></Link>)}{filtered.length === 0 && <p className="py-6 text-sm text-slate-500">{surveys.length ? "Nenhum resultado para esta busca." : "Seu primeiro levantamento começa aqui."}</p>}</div></>;
 }
+
 
