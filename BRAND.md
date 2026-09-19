@@ -1,0 +1,6 @@
+# Proposta de identidade Orion Maps
+
+Asset: public/orion-drone-concept.png. Gerado com a ferramenta image_gen integrada, sem uso de chave de API externa. Proposta visual de drone visto de cima com abertura de câmera e orientação. Paleta: grafite #192126, mineral #F1EEE5, cobre #DB784B. Não é um registro de marca nem arquivo vetorial mestre.
+
+## Prompt final da revisão
+Refine this exact drone brand symbol into a clean flat professional application icon. Keep quadcopter silhouette, four circular broken rotors, central aperture and small orange navigation arrow. Remove ALL surface textures, noise, flecks, speckles, scratches, shadows, bevel, metallic edges, outlines, and gradients. Remove topographic squiggles from aperture: central aperture should be clean simple solid copper orange hexagon opening surrounded by ivory camera iris. Only two perfectly uniform flat colors ivory #F1EEE5 and copper #DB784B, no variation. Precisely antialiased smooth edges, transparent background completely clear inside rotor rings and outside mark. Scale symbol to occupy 85% of square canvas. No text. This is an export-ready simple logo that must remain readable at 40 pixels. Flat vector-style graphic, not metallic rendering.

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "public/maplibre/**", // Generated vendor worker, copied at build time.
+    ".npm-cache/**",
   ]),
 ]);
 

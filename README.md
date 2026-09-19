@@ -2,6 +2,10 @@
 
 Plataforma pessoal de fotogrametria e levantamentos com drone. Aplicação publicada em https://orion-maps.vercel.app.
 
+## Planejamento de voo
+
+Prévia em `/waypoints`: pontos manuais, grades simples/dupla, importação KML/KMZ/GeoJSON, planos locais e exportações para revisão. Consulte `WAYPOINTS.md` para limitações e validações. O mapa-base externo aguarda autorização; o KMZ não é executável DJI Fly.
+
 ## Recursos implementados
 
 - Next.js App Router, TypeScript e Tailwind CSS.
@@ -49,4 +53,5 @@ Sem credenciais, fotos ou arquivos de voo no repositório privado. `.env*` é ig
 Verificados: quatro testes da geometria GSD (exemplo publicado Pix4D, escala, dois eixos e entradas inválidas), lint, build TypeScript e isolamento RLS de criação, leitura e edição por proprietário, com transação de teste revertida. O fluxo de upload no navegador autenticado requer validação com uma pequena imagem antes de enviar um voo completo.
 
 Testes matemáticos (Node.js 22.6+): `node --experimental-strip-types --test tests/gsd.test.mjs`.
+
 
