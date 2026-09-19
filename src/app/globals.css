@@ -1,19 +1,21 @@
 @import "tailwindcss";
 @theme {
-  --color-emerald-50: #f8efe7;
-  --color-emerald-100: #f2e1d1;
-  --color-emerald-200: #edd2ba;
-  --color-emerald-300: #e5b393;
-  --color-emerald-500: #db784b;
-  --color-emerald-600: #ba542d;
-  --color-emerald-700: #984326;
-  --color-emerald-800: #793a26;
-  --color-emerald-950: #192126;
+  --color-emerald-50: #f0f6e9;
+  --color-emerald-100: #e2edda;
+  --color-emerald-200: #c4d9b6;
+  --color-emerald-300: #9cbd88;
+  --color-emerald-500: #4f8150;
+  --color-emerald-600: #38683e;
+  --color-emerald-700: #2c5734;
+  --color-emerald-800: #264c30;
+  --color-emerald-950: #1d3e29;
 }
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
-html { background: #eeece5; }
-body { margin: 0; background: #eeece5; color: #202a30; font-family: Arial, Helvetica, sans-serif; }
+html { background: #cfdfc5; }
+body { margin: 0; background: #cfdfc5; color: #264632; font-family: Arial, Helvetica, sans-serif; }
 button, input { font: inherit; }
 button { cursor: pointer; }
-::selection { background: #edbc9b; color: #192126; }
+::selection { background: #bdd6a7; color: #1d3e29; }
+
+body{font-family:"Segoe UI",Arial,Helvetica,sans-serif}main:not(.flight-main) .bg-white{box-shadow:0 6px 20px #244f7510}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #477a40;outline-offset:3px}@media print{html,body{background:white}main .bg-white{box-shadow:none}}
