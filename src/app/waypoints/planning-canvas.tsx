@@ -12,7 +12,7 @@ const basemaps={
  relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:'Shaded relief © 2014 <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>'}
 } as const;
 type Basemap=keyof typeof basemaps;
-type Props={userPosition:{point:Coordinate;accuracy:number}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
+type Props={adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
@@ -38,7 +38,7 @@ export default function PlanningCanvas(props:Props){
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
     m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setReady(true);
    });
-   m.on("click",e=>{if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
+   m.on("click",e=>{if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
   }catch{
    // A failed external WebGL initialization must surface in the UI once.
    // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -58,15 +58,16 @@ export default function PlanningCanvas(props:Props){
   const m=map.current;if(!m||!ready)return;
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
   (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:props.legs}});
-  const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:true}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
-  m.getCanvas().style.cursor=props.drawing?"crosshair":"grab";return()=>markers.forEach(m=>m.remove());
- },[ready,props.points,props.legs,props.polygon,props.drawing]);
+  const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
+  m.getCanvas().style.cursor=(props.drawing||props.adjustingPosition)?"crosshair":"grab";return()=>markers.forEach(m=>m.remove());
+ },[ready,props.points,props.legs,props.polygon,props.drawing,props.adjustingPosition]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready||!props.userPosition)return;
-  const {point,accuracy}=props.userPosition,ring=accuracyRing(point,accuracy);
+  const {point,accuracy,source}=props.userPosition,manual=source==="manual",ring=manual?[]:accuracyRing(point,accuracy);
+  const locationLabel=manual?"Posição informada por você":"Localização aproximada";
   (m.getSource("location-accuracy") as GeoJSONSource).setData({type:"FeatureCollection",features:ring.length?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[ring]}}]:[]});
-  const element=document.createElement("div");element.className="user-location-marker";element.setAttribute("role","img");element.setAttribute("aria-label","Sua localização aproximada");
-  const dot=document.createElement("span"),label=document.createElement("span");dot.className="user-location-dot";label.className="user-location-label";label.textContent="Você está aqui";element.append(dot,label);
+  const element=document.createElement("div");element.className=`user-location-marker${manual?" manual-position":""}`;element.setAttribute("role","img");element.setAttribute("aria-label",locationLabel);
+  const dot=document.createElement("span"),label=document.createElement("span");dot.className="user-location-dot";label.className="user-location-label";label.textContent=locationLabel;element.append(dot,label);
   const marker=new maplibregl.Marker({element}).setLngLat(point).addTo(m);
   return()=>{marker.remove();};
  },[ready,props.userPosition]);
