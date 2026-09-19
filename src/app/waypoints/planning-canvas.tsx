@@ -14,8 +14,10 @@ export default function PlanningCanvas(props:Props){
   let m:maplibregl.Map;
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-   // Local geometry only. No tiles, remote styles, fonts or external map requests.
-   m=new maplibregl.Map({container:el.current,center:[0,0],zoom:17,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,style:{version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}}]}});map.current=m;
+   // Only visible map tiles are requested; browser caching follows the provider headers.
+   m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
+   m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
+   m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("O mapa de fundo não carregou. Confira sua conexão e recarregue. Seus pontos continuam no editor.");});
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
    m.on("load",()=>{
     const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
@@ -41,5 +43,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.points,props.legs,props.polygon,props.drawing]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Editor geográfico local de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<div className="canvas-local-label">EDITOR LOCAL · SEM MAPA-BASE EXTERNO</div><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div>;
+ return <div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<div className="canvas-local-label">MAPA · OPENSTREETMAP</div><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div>;
 }
