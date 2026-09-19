@@ -1,0 +1,58 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { getSupabaseConfig } from "@/lib/supabase/config";
+import { imageBucket, requireSurvey, supabaseRequest, surveySession, type Survey } from "@/lib/supabase/surveys";
+
+type Result = { error?: string; success?: string };
+const errorText = (error: unknown) => error instanceof Error ? error.message : "Não foi possível concluir a operação.";
+
+export async function saveSurvey(_state: Result, form: FormData): Promise<Result> {
+  let id = String(form.get("id") ?? "");
+  try {
+    const { user, token } = await surveySession();
+    const name = String(form.get("name") ?? "").trim();
+    const location = String(form.get("location") ?? "").trim();
+    const drone = String(form.get("drone") ?? "").trim();
+    const notes = String(form.get("notes") ?? "").trim();
+    const date = String(form.get("flight_date") ?? "");
+    if (name.length < 2 || name.length > 120) return { error: "Informe um nome entre 2 e 120 caracteres." };
+    if (location.length > 200 || drone.length > 100 || notes.length > 3000) return { error: "Um dos campos ultrapassou o limite de texto." };
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) return { error: "Informe uma data válida." };
+    const data = { name, location, drone, notes, flight_date: date || null };
+    if (id) {
+      await requireSurvey(id, token);
+      await supabaseRequest(`/rest/v1/surveys?id=eq.${id}`, token, { method: "PATCH", body: JSON.stringify(data) });
+    } else {
+      const rows = await supabaseRequest<Survey[]>("/rest/v1/surveys", token, { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ ...data, owner_id: user.id }) });
+      id = rows[0].id;
+    }
+  } catch (error) { return { error: errorText(error) }; }
+  revalidatePath("/painel");
+  redirect(`/painel?levantamento=${id}`);
+}
+
+export async function prepareImageUpload(id: string, filename: string, type: string, size: number): Promise<{ url?: string; error?: string }> {
+  try {
+    const { user, token } = await surveySession();
+    await requireSurvey(id, token);
+    if (!["image/jpeg", "image/png"].includes(type) || !/\.(jpe?g|png)$/i.test(filename)) throw new Error("Envie imagens JPG ou PNG.");
+    if (!Number.isFinite(size) || size <= 0 || size > 50 * 1024 * 1024) throw new Error("Cada foto deve ter no máximo 50 MB.");
+    const clean = filename.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/\.{2,}/g, "_").slice(-150);
+    const path = `${user.id}/${id}/${crypto.randomUUID()}_${clean}`;
+    const response = await supabaseRequest<{ url: string }>(`/storage/v1/object/upload/sign/${imageBucket}/${path}`, token, { method: "POST", body: "{}" });
+    return { url: `${getSupabaseConfig().url}/storage/v1${response.url}` };
+  } catch (error) { return { error: errorText(error) }; }
+}
+
+export async function openImage(id: string, name: string): Promise<{ url?: string; error?: string }> {
+  try {
+    const { user, token } = await surveySession();
+    await requireSurvey(id, token);
+    if (!name || name.includes("/") || name.includes("\\") || name.includes("..")) throw new Error("Arquivo inválido.");
+    const path = `${user.id}/${id}/${encodeURIComponent(name)}`;
+    const response = await supabaseRequest<{ signedURL: string }>(`/storage/v1/object/sign/${imageBucket}/${path}`, token, { method: "POST", body: JSON.stringify({ expiresIn: 120 }) });
+    return { url: `${getSupabaseConfig().url}/storage/v1${response.signedURL}` };
+  } catch (error) { return { error: errorText(error) }; }
+}
