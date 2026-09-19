@@ -12,3 +12,7 @@
 .mission-map .maplibregl-ctrl-attrib{color:#243133;background:rgba(255,255,255,.94)}.mission-map .maplibregl-ctrl-attrib a{color:#243133;text-decoration:underline}
 
 .map-toolbar .location-button{color:var(--paper);border-color:var(--copper)}.map-search button{white-space:nowrap}
+
+.user-location-marker{width:22px;height:22px;pointer-events:none;z-index:2}.user-location-dot{display:block;width:22px;height:22px;background:#087eb8;border:3px solid white;border-radius:50%;box-shadow:0 0 0 3px #087eb855,0 2px 6px #0006}.user-location-label{position:absolute;left:50%;top:30px;transform:translateX(-50%);white-space:nowrap;color:#12303e;background:#fff;padding:5px 8px;border:1px solid #087eb8;border-radius:3px;font:600 11px Arial}
+
+.basemap-selector{position:absolute;top:12px;right:12px;background:#f1eee5f5;color:#243133;border:1px solid #737e80;border-radius:4px;padding:8px 10px;font:10px Arial;max-width:180px;box-shadow:0 2px 8px #0002}.basemap-selector select{display:block;width:100%;margin-top:5px;padding:7px 24px 7px 7px;border:1px solid #8b9597;border-radius:3px;background:white;color:#243133;font:600 12px Arial}.basemap-selector small{display:block;line-height:1.5;margin-top:6px}.mission-map .maplibregl-ctrl-attrib{max-width:min(100%,480px);font:9px/1.4 Arial}.mission-map .maplibregl-ctrl-bottom-right{max-width:100%}.map-key{bottom:65px}

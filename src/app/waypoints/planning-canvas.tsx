@@ -4,10 +4,19 @@ import * as maplibregl from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Coordinate } from "@/lib/flight-plan";
-type Props={points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
+import { accuracyRing } from "@/lib/location-circle";
+const basemaps={
+ streets:{label:"Mapa",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'},
+ satellite:{label:"Satélite",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:'Imagery © <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, Vantor, Earthstar Geographics, GIS User Community'},
+ topo:{label:"Topográfico",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:'Sources: Esri, HERE, Garmin, Intermap, increment P Corp., GEBCO, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), © OpenStreetMap contributors, GIS User Community'},
+ relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:'Shaded relief © 2014 <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>'}
+} as const;
+type Basemap=keyof typeof basemaps;
+type Props={userPosition:{point:Coordinate;accuracy:number}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
+ const [basemap,setBasemap]=useState<Basemap>("streets");
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
   if(!el.current)return;
@@ -21,6 +30,9 @@ export default function PlanningCanvas(props:Props){
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
    m.on("load",()=>{
     const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
+    m.addSource("location-accuracy",{type:"geojson",data:empty});
+    m.addLayer({id:"location-accuracy-fill",type:"fill",source:"location-accuracy",paint:{"fill-color":"#1387bd","fill-opacity":0.14}});
+    m.addLayer({id:"location-accuracy-line",type:"line",source:"location-accuracy",paint:{"line-color":"#1387bd","line-width":2}});
     m.addSource("boundary",{type:"geojson",data:empty});m.addSource("legs",{type:"geojson",data:empty});
     m.addLayer({id:"area",type:"fill",source:"boundary",paint:{"fill-color":"#dd784b","fill-opacity":0.15}});
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
@@ -36,12 +48,29 @@ export default function PlanningCanvas(props:Props){
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
+  const selected=basemaps[basemap];
+  // Replace only the background: mission geometry, location and camera stay intact.
+  m.removeLayer("basemap");m.removeSource("basemap");
+  m.addSource("basemap",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});
+  m.addLayer({id:"basemap",type:"raster",source:"basemap"},"location-accuracy-fill");
+ },[ready,basemap]);
+ useEffect(()=>{
+  const m=map.current;if(!m||!ready)return;
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
   (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:props.legs}});
   const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:true}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
   m.getCanvas().style.cursor=props.drawing?"crosshair":"grab";return()=>markers.forEach(m=>m.remove());
  },[ready,props.points,props.legs,props.polygon,props.drawing]);
+ useEffect(()=>{
+  const m=map.current;if(!m||!ready||!props.userPosition)return;
+  const {point,accuracy}=props.userPosition,ring=accuracyRing(point,accuracy);
+  (m.getSource("location-accuracy") as GeoJSONSource).setData({type:"FeatureCollection",features:ring.length?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[ring]}}]:[]});
+  const element=document.createElement("div");element.className="user-location-marker";element.setAttribute("role","img");element.setAttribute("aria-label","Sua localização aproximada");
+  const dot=document.createElement("span"),label=document.createElement("span");dot.className="user-location-dot";label.className="user-location-label";label.textContent="Você está aqui";element.append(dot,label);
+  const marker=new maplibregl.Marker({element}).setLngLat(point).addTo(m);
+  return()=>{marker.remove();};
+ },[ready,props.userPosition]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<div className="canvas-local-label">MAPA · OPENSTREETMAP</div><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div>;
+ return <div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="relief"&&<small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div>;
 }
