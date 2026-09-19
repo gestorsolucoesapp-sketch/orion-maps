@@ -41,7 +41,11 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
-  const response = NextResponse.next({ request });
+  if (refreshedSession) {
+    request.cookies.set(authCookieNames.access, refreshedSession.access_token);
+    request.cookies.set(authCookieNames.refresh, refreshedSession.refresh_token);
+  }
+  const response = NextResponse.next({ request: { headers: request.headers } });
   setSessionCookies(response, refreshedSession);
   return response;
 }
