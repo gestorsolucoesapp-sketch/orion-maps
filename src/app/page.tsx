@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const etapas = [
   ["01", "Clientes e projetos", "Organize cada levantamento e suas informações."],
   ["02", "Imagens e processamento", "Reúna as fotos do voo e acompanhe a geração dos resultados."],
@@ -9,7 +11,10 @@ export default function Home() {
     <main className="mx-auto min-h-screen max-w-6xl px-6 py-10 sm:px-12 sm:py-14">
       <header className="flex flex-wrap items-center justify-between gap-4 border-b border-emerald-900/15 pb-7">
         <span className="text-xl font-bold tracking-tight">ORION <span className="font-normal">MAPS</span></span>
-        <span className="rounded-full bg-emerald-100 px-4 py-2 text-xs font-semibold text-emerald-900">Projeto em desenvolvimento</span>
+        <div className="flex items-center gap-3">
+          <span className="hidden rounded-full bg-emerald-100 px-4 py-2 text-xs font-semibold text-emerald-900 sm:inline">Projeto em desenvolvimento</span>
+          <Link href="/entrar" className="rounded-xl bg-emerald-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-900">Entrar</Link>
+        </div>
       </header>
       <section className="max-w-3xl py-16 sm:py-24">
         <p className="mb-5 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Do voo à informação</p>
