@@ -4,7 +4,7 @@ Plataforma própria de fotogrametria e gestão de levantamentos com drone.
 
 ## Estado atual
 
-Base mínima com Next.js (App Router), TypeScript, Tailwind CSS e ESLint. A página inicial apresenta o produto e as etapas previstas. Ainda não há autenticação, banco, upload, mapas ou processamento implementados. Nenhum serviço de Supabase ou Vercel foi criado.
+Base com Next.js (App Router), TypeScript e Tailwind CSS conectada ao Supabase. O MVP já inclui cadastro por e-mail, login, logout, renovação de sessão, rota protegida e leitura do perfil com RLS. Clientes, projetos, upload, mapas e processamento ainda serão implementados. Nenhum serviço da Vercel foi criado.
 
 ## Executar localmente
 
@@ -26,8 +26,8 @@ npm start
 
 ## Próximas etapas
 
-1. Orientar a configuração do Supabase: região, plano, autenticação, modelo de clientes/projetos e políticas de acesso por usuário.
-2. Implementar login, clientes e projetos com persistência e isolamento de dados.
+1. Modelar clientes e projetos com persistência e políticas de acesso por proprietário.
+2. Construir as telas para cadastrar e acompanhar clientes e projetos.
 3. Definir armazenamento, limites e upload de fotos antes de aceitar arquivos reais.
 4. Integrar OpenDroneMap/NodeODM em infraestrutura separada, com fila e acompanhamento de processamento.
 5. Exibir ortomosaicos em mapa, adicionar medições e relatórios.
