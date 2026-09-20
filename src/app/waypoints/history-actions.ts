@@ -20,6 +20,19 @@ export async function listMissionVersions(){
  try {const {token}=await surveySession();return {rows:await supabaseRequest<{id:string;name:string;kind:string;created_at:string}[]>("/rest/v1/mission_versions?select=id,name,kind,created_at&order=created_at.desc&limit=100",token),error:""};}
  catch(e){return {rows:[],error:e instanceof Error?e.message:"Não foi possível consultar o histórico."};}
 }
+
+export async function archiveControllerMission(name:string,plan:unknown,target:string,base64:string,kind:"device_backup"|"wpml_unverified"){
+ try{
+  const {user,token}=await surveySession();
+  if(typeof name!=="string"||!name.trim()||name.length>120||!/^\w{8}(-\w{4}){3}-\w{12}$/.test(target)||!["device_backup","wpml_unverified"].includes(kind))throw new Error("Missão inválida.");
+  if(typeof base64!=="string"||base64.length>600000||!/^[A-Za-z0-9+/]+={0,2}$/.test(base64)||JSON.stringify(plan).length>150000)throw new Error("Arquivo excede o limite.");
+  const bytes=Buffer.from(base64,"base64");
+  const files=unzipSync(bytes,{filter:f=>["wpmz/template.kml","wpmz/waylines.wpml"].includes(f.name)&&f.originalSize<2000000});
+  if(!files['wpmz/template.kml']||!files['wpmz/waylines.wpml'])throw new Error("Arquivo sem os dois documentos de missão.");
+  const rows=await supabaseRequest<{id:string}[]>("/rest/v1/mission_versions",token,{method:"POST",headers:{Prefer:"return=representation"},body:JSON.stringify({user_id:user.id,name:name.trim(),kind,plan,target_id:target,kmz_base64:base64,sha256:createHash("sha256").update(bytes).digest("hex")})});
+  return {id:rows[0].id,error:""};
+ }catch(e){return {id:"",error:e instanceof Error?e.message:"Não foi possível arquivar a missão."};}
+}
 export async function readMissionVersion(id:string){
  try {
   if(!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))throw new Error("Versão inválida.");

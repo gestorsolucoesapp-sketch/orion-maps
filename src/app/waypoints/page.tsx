@@ -10,6 +10,7 @@ import {routeMetrics,formatFlightTime} from "@/lib/mission-metrics";
 import {calculateGsd} from "@/lib/gsd";
 import {missionCsv,previewKmz} from "@/lib/mission-export";
 import "./waypoints.css";
+import RcTransfer from "./rc-transfer";
 import {saveMissionVersion,listMissionVersions,readMissionVersion} from "./history-actions";
 const PlanningCanvas=dynamic(()=>import("./planning-canvas"),{ssr:false,loading:()=> <div className="mission-map loading-map">Preparando editor…</div>});
 type Mode="manual"|"grid"|"double";
@@ -154,8 +155,9 @@ export default function WaypointsPage(){
  <p className="muted">Estimativa em terreno plano, com o lado menor da foto na direção do voo. Confirme a orientação da câmera. Configure o intervalo no DJI Fly; o Orion ainda não inicia fotos automaticamente no ponto 1.</p></section>
  <section className="control-section"><label>Minutos úteis por bateria<input type="number" min={1} max={180} value={batteryMinutes} onChange={e=>{const value=Number(e.target.value);if(Number.isFinite(value)&&value>=1&&value<=180)setBatteryMinutes(value);}}/></label><p className="muted">27 min é uma referência editável, não a autonomia garantida do drone. Ajuste para sua bateria, condições e reserva.</p></section>
  <section className="control-section"><div className="section-heading"><span>03</span><h2>Arquivos do plano</h2></div><label className="import-button">Importar área ou plano<input aria-label="Importar KML, KMZ, GeoJSON ou plano Orion JSON" type="file" accept=".json,.geojson,.kml,.kmz" onChange={e=>{const f=e.target.files?.[0];if(f)void importFile(f);e.target.value="";}}/></label><p className="muted">Área: KML, KMZ ou GeoJSON. Plano editável: JSON Orion.</p><div className="export-buttons"><button disabled={cloudBusy||!calculation.legs.length||!!calculation.error} onClick={exportWithHistory}>{cloudBusy?"Aguarde…":"Gerar KMZ de revisão + guardar versão ↗"}</button><button disabled={!calculation.legs.length||!!calculation.error} onClick={()=>download(missionCsv(calculation.legs,settings.height,settings.speed,settings.gimbal),"text/csv;charset=utf-8",`${filename}.csv`)}>CSV · coordenadas ↗</button><button disabled={!points.length} onClick={exportPlan}>JSON · plano editável ↗</button></div><div className="compatibility"><b>Revisão da cobertura</b><p>O KMZ inclui limite da área, faixas, conexões propostas e uma pasta de fotos de referência. Essas posições seguem a sobreposição calculada, não o temporizador da câmera. Decolagem, retorno e obstáculos não são calculados.</p>{mode!=="manual" && calculation.legs.length>0 && calculation.legs.length<(mode==="double"?6:3) && <p>Poucas faixas nesta área: a altura e o espaçamento geraram um percurso curto. Isso não confirma cobertura suficiente nas bordas nem reconstrução do relevo. Revise a captura antes do voo.</p>}<b>DJI Fly / missão executável</b><p>A DJI não oferece importação KML no DJI Fly. Transferências alternativas ainda não foram validadas no Orion para Mini 5 Pro + RC 2. Este KMZ é apenas para revisão no Google Earth.</p></div></section>
- </aside></div><footer className="flight-footer"><span>ORION MAPS · PLANEJAMENTO DE CAMPO</span><span>WGS84 / COORDENADAS GEOGRÁFICAS</span></footer></main></div>;
+ <RcTransfer plan={plan} route={calculation.legs.flat()} disabled={!calculation.legs.length||!!calculation.error}/></aside></div><footer className="flight-footer"><span>ORION MAPS · PLANEJAMENTO DE CAMPO</span><span>WGS84 / COORDENADAS GEOGRÁFICAS</span></footer></main></div>;
 }
+
 
 
 
