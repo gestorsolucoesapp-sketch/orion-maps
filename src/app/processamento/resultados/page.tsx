@@ -29,7 +29,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
         <div className="mt-4 overflow-hidden rounded-[28px] bg-[#071b20] text-white shadow-[0_14px_36px_rgba(10,45,31,.18)]">
           <div className="flex min-h-[112px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
             <Link href="/painel" className="min-w-0">
-              <Image src="/orion-maps-brand.svg" width={300} height={75} alt="Orion Maps Drones" className="h-auto w-[220px] sm:w-[300px]"/>
+              <Image src="/orion-maps-logo.jpg" width={96} height={96} alt="Orion Maps Drones" className="h-[76px] w-[76px] rounded-2xl object-cover shadow-sm sm:h-[88px] sm:w-[88px]"/>
             </Link>
             <Link href={projectHref} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold">← Projeto</Link>
           </div>
