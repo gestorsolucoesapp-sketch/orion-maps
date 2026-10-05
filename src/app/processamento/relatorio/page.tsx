@@ -4,6 +4,8 @@ import {listImages,requireSurvey} from "@/lib/supabase/surveys";
 import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
 import {listProcessingResults} from "@/lib/supabase/processing-results";
 import PrintProjectButton from "./print-button";
+import ReportPerspectives from "./report-perspectives";
+import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
 
 function n(v:unknown){
   return typeof v==="number"&&Number.isFinite(v)?v:null;
@@ -31,7 +33,19 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const reference=currentResults[0];
   const meta=reference?.metadata||{};
   const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m),projectArea=n(meta.project_area_m2),projectPerimeter=n(meta.project_perimeter_m);
-  const ortho=currentResults.find(r=>r.kind==="orthophoto"&&r.preview_url);
+  const bounds=(()=>{
+    for(const item of currentResults){
+      const raw=item.metadata?.bounds_wgs84 as {west?:number;south?:number;east?:number;north?:number}|undefined;
+      if(raw&&[raw.west,raw.south,raw.east,raw.north].every(v=>typeof v==="number"&&Number.isFinite(v)))return raw as {west:number;south:number;east:number;north:number};
+    }
+    return null;
+  })();
+  let planBoundary:null|{name:string;points:[number,number][]}=null;
+  try{
+    const missions=await listMissionPlanCandidates(token);
+    const match=findMissionBoundaryForBounds(missions,bounds);
+    if(match)planBoundary={name:match.name,points:match.points};
+  }catch{}
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
     <div className="print-hide mb-6 flex justify-end"><PrintProjectButton/></div>
@@ -62,12 +76,9 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </section>}
 
-    {ortho?.preview_url&&<section className="mt-8">
-      <h2 className="text-xl font-semibold">Ortofoto do projeto</h2>
-      <img src={ortho.preview_url} alt="Ortofoto do levantamento" className="mt-3 w-full rounded-xl border border-slate-200"/>
-    </section>}
+    <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
 
-    <section className="mt-8">
+    <section className="mt-8 break-before-page">
       <h2 className="text-xl font-semibold">Produtos gerados</h2>
       <table className="mt-3 w-full border-collapse text-sm">
         <thead><tr className="border-b border-emerald-200 text-left"><th className="py-2">Produto</th><th className="py-2">Formato</th><th className="py-2">Tamanho</th><th className="py-2">CRS</th></tr></thead>
