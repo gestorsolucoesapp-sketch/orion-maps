@@ -25,7 +25,7 @@ function readBounds(results:ProcessingResult[]):Bounds|null{
 export default function ResultsMap({results}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false);
-  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:true,hillshade:false,hypsometry:false,slope:false});
+  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:true,hillshade:false,hypsometry:false,slope:false,project:true});
   const bounds=useMemo(()=>readBounds(results),[results]);
 
   useEffect(()=>{
@@ -103,25 +103,37 @@ export default function ResultsMap({results}:Props){
       const id=`result-${key}`;
       if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");
     }
+    for(const id of ["project-boundary-fill","project-boundary-line"]){
+      if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
+    }
   },[visible,ready]);
 
   if(!bounds)return <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Os resultados existem, mas ainda não há limites geográficos suficientes para abrir o mapa.</div>;
 
   const controls=[
     ["orthophoto","Ortofoto"],
+    ["project","Área do projeto"],
     ["contours","Curvas 0,50 m"],
     ["hillshade","Relevo sombreado"],
     ["hypsometry","Hipsometria"],
     ["slope","Declividade"],
   ] as const;
 
+  const geometryResult=results.find(r=>r.metadata?.project_boundary_geojson);
+  const projectArea=typeof geometryResult?.metadata?.project_area_m2==="number"?geometryResult.metadata.project_area_m2:null;
+  const projectPerimeter=typeof geometryResult?.metadata?.project_perimeter_m==="number"?geometryResult.metadata.project_perimeter_m:null;
+
   return <div>
+    {(projectArea!==null||projectPerimeter!==null)&&<div className="mb-4 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-slate-600">Área do projeto</span><strong className="mt-1 block text-xl">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-xs text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
+      <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
+    </div>}
     <div className="mb-3 flex flex-wrap gap-2">
       {controls.map(([key,label])=><button key={key} type="button" onClick={()=>setVisible(v=>({...v,[key]:!v[key]}))} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${visible[key]?"border-emerald-700 bg-emerald-700 text-white":"border-emerald-200 bg-white text-emerald-900"}`}>{label}</button>)}
     </div>
     <div className="overflow-hidden rounded-xl border border-emerald-200 bg-slate-100">
       <div ref={el} className="h-[560px] w-full min-h-[420px]" aria-label="Mapa dos resultados do processamento"/>
     </div>
-    <p className="mt-2 text-xs leading-5 text-slate-500">Visualização web em WGS84. Os produtos técnicos originais continuam disponíveis para download no CRS registrado em cada arquivo.</p>
+    <p className="mt-2 text-xs leading-5 text-slate-500">Visualização web em WGS84. A linha fina marca o limite do projeto quando a geometria do processamento está disponível. Os produtos técnicos originais continuam disponíveis para download no CRS registrado em cada arquivo.</p>
   </div>;
 }
