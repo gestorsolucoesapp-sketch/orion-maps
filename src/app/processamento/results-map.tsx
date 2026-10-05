@@ -129,7 +129,7 @@ export default function ResultsMap({results}:Props){
       <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </div>}
     <div className="mb-3 flex flex-wrap gap-2">
-      {controls.map(([key,label])=><button key={key} type="button" onClick={()=>setVisible(v=>({...v,[key]:!v[key]}))} className={`rounded-lg border px-3 py-2 text-xs font-semibold ${visible[key]?"border-emerald-700 bg-emerald-700 text-white":"border-emerald-200 bg-white text-emerald-900"}`}>{label}</button>)}
+      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>setVisible(v=>({...v,[key]:!v[key]}))} className={`rounded-lg border px-3 py-2 text-xs font-semibold shadow-sm ${visible[key]?"border-emerald-700 bg-emerald-700 text-white":"border-emerald-200 bg-white text-emerald-900"}`}>{visible[key]?"✓ ":""}{label}</button>)}
     </div>
     <div className="overflow-hidden rounded-xl border border-emerald-200 bg-slate-100">
       <div ref={el} className="h-[560px] w-full min-h-[420px]" aria-label="Mapa dos resultados do processamento"/>
