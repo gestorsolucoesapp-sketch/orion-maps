@@ -196,6 +196,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
     const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
+    if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",visible.contours?0.58:0.9);
   },[visible,ready]);
 
   if(!bounds)return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Os resultados existem, mas ainda não há limites geográficos suficientes para abrir o mapa.</div>;
@@ -234,6 +235,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Perímetro</span><strong className="mt-1 block text-xl text-slate-950">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </div>}
 
+    {visible.contours&&<div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900"><strong>Curvas de nível 0,50 m ativas.</strong> Cada linha representa a mesma cota de terreno; a ortofoto fica mais transparente para destacar as curvas.</div>}
     <p className="mt-3 text-[11px] leading-5 text-slate-500">{planCoverage?"A linha branca tracejada usa o contorno salvo do plano de voo.":"Nenhum plano de voo compatível foi encontrado; a linha usa uma estimativa da cobertura processada."}</p>
   </div>;
 }
