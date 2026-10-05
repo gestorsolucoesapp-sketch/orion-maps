@@ -80,7 +80,7 @@ async function transparentBorderNoData(url:string):Promise<string>{
   const image=ctx.getImageData(0,0,w,h),d=image.data,seen=new Uint8Array(w*h),queue:number[]=[];
   const candidate=(p:number)=>{
     const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
-    return d[i+3]>0&&mx<78&&(mx-mn)<18;
+    return d[i+3]>0&&mx<105&&(mx-mn)<32;
   };
   const push=(p:number)=>{if(p>=0&&p<w*h&&!seen[p]&&candidate(p)){seen[p]=1;queue.push(p);}};
   for(let x=0;x<w;x++){push(x);push((h-1)*w+x);}
@@ -89,7 +89,19 @@ async function transparentBorderNoData(url:string):Promise<string>{
     const p=queue[q],x=p%w,y=Math.floor(p/w);
     if(x>0)push(p-1);if(x<w-1)push(p+1);if(y>0)push(p-w);if(y<h-1)push(p+w);
   }
-  for(let p=0;p<seen.length;p++)if(seen[p])d[p*4+3]=0;
+
+  // Remove a small 2 px halo around the detected NoData edge. This clears
+  // JPEG compression residue without applying transparency to the interior.
+  const border=new Uint8Array(seen);
+  for(let p=0;p<seen.length;p++){
+    if(!seen[p])continue;
+    const x=p%w,y=Math.floor(p/w);
+    for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){
+      const nx=x+dx,ny=y+dy;
+      if(nx>=0&&nx<w&&ny>=0&&ny<h)border[ny*w+nx]=1;
+    }
+  }
+  for(let p=0;p<border.length;p++)if(border[p])d[p*4+3]=0;
   ctx.putImageData(image,0,0);
   return canvas.toDataURL("image/png");
 }
