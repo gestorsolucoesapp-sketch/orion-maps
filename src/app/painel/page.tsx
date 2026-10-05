@@ -55,7 +55,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
         <div className="mt-4 overflow-hidden rounded-[28px] bg-[#071b20] text-white shadow-[0_14px_36px_rgba(10,45,31,.18)]">
           <div className="relative flex min-h-[132px] items-center justify-between gap-5 px-5 py-5 sm:px-8">
             <div className="min-w-0">
-              <Image src="/orion-maps-brand.svg" width={330} height={82} alt="Orion Maps Drones · Mapeamento de precisão" className="h-auto w-[240px] sm:w-[330px]"/>
+              <Image src="/orion-maps-logo.jpg" width={120} height={120} alt="Orion Maps Drones · Mapeamento de precisão" className="h-[96px] w-[96px] rounded-2xl object-cover shadow-sm sm:h-[112px] sm:w-[112px]"/>
             </div>
             <div className="hidden items-center gap-3 sm:flex">
               <span className="max-w-56 truncate text-xs text-white/55">{user.email}</span>
