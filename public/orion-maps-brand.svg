@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-label="Orion Maps Drones">
+  <defs>
+    <linearGradient id="silver" x1="0" x2="1"><stop offset="0" stop-color="#f7fbff"/><stop offset=".5" stop-color="#a9b7c7"/><stop offset="1" stop-color="#ffffff"/></linearGradient>
+    <linearGradient id="blue" x1="0" x2="1"><stop offset="0" stop-color="#28b7ff"/><stop offset="1" stop-color="#0075ff"/></linearGradient>
+  </defs>
+  <rect width="720" height="180" rx="28" fill="#061319"/>
+  <g transform="translate(22 18)">
+    <circle cx="70" cy="70" r="54" fill="none" stroke="url(#silver)" stroke-width="12"/>
+    <ellipse cx="70" cy="70" rx="72" ry="25" fill="none" stroke="url(#blue)" stroke-width="6" transform="rotate(-18 70 70)"/>
+    <circle cx="70" cy="70" r="12" fill="#0c1620" stroke="#e9f5ff" stroke-width="5"/>
+    <path d="M70 48 76 64 93 70 76 76 70 93 64 76 47 70 64 64Z" fill="url(#blue)"/>
+  </g>
+  <text x="150" y="77" fill="url(#silver)" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="62" letter-spacing="12">ORION</text>
+  <line x1="150" y1="101" x2="245" y2="101" stroke="#29b8ff" stroke-width="4"/>
+  <text x="270" y="113" fill="url(#blue)" font-family="Arial,Helvetica,sans-serif" font-weight="700" font-size="34" letter-spacing="14">MAPS</text>
+  <line x1="485" y1="101" x2="585" y2="101" stroke="#29b8ff" stroke-width="4"/>
+  <text x="308" y="142" fill="#e9eef4" font-family="Arial,Helvetica,sans-serif" font-weight="600" font-size="16" letter-spacing="10">DRONES</text>
+  <text x="150" y="166" fill="#aebbc5" font-family="Arial,Helvetica,sans-serif" font-size="14" letter-spacing="6">MAPEAMENTO DE PRECISÃO</text>
+</svg>
