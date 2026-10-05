@@ -1,8 +1,8 @@
 export default function AppVersion(){
   const sha=process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7)||"local";
-  return <div className="app-version-badge" title={`Orion Maps v0.3.0 · build ${sha}`}>
+  return <div className="app-version-badge" title={`Orion Maps v0.3.1 · build ${sha}`}>
     <span className="app-version-name">Orion Maps</span>
-    <strong>v0.3.0</strong>
+    <strong>v0.3.1</strong>
     <span className="app-version-build">build {sha}</span>
   </div>;
 }
