@@ -28,7 +28,7 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
 
   const projectHref=active?`/painel?levantamento=${active.id}`:"/painel";
   const productsHref=active?`/processamento?levantamento=${active.id}`:"/processamento";
-  const resultsHref=active?`/processamento?levantamento=${active.id}#resultados`:"/processamento";
+  const resultsHref=active?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
 
   return <main className="min-h-screen bg-[#edf3ea] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-4 pb-10 sm:px-7 lg:px-9">
