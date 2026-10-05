@@ -143,6 +143,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
 
   useEffect(()=>{
     if(!el.current||!bounds)return;
+    setReady(false);
     maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
     const bm=baseMaps[basemap];
     const m=new maplibregl.Map({
@@ -178,7 +179,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       m.fitBounds([[bounds.west,bounds.south],[bounds.east,bounds.north]],{padding:34,maxZoom:19});
       setReady(true);
     });
-    return()=>{m.remove();map.current=null;};
+    return()=>{setReady(false);m.remove();map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho]);
 
