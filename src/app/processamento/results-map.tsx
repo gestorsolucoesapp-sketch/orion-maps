@@ -151,7 +151,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
   useEffect(()=>{
     if(!orthophoto?.preview_url){setTransparentOrtho(null);return;}
     let cancelled=false;
-    transparentOrthophoto(orthophoto.preview_url).then(url=>{if(!cancelled)setTransparentOrtho(url)}).catch(()=>{if(!cancelled)setTransparentOrtho(orthophoto.preview_url!)});
+    transparentBorderNoData(orthophoto.preview_url).then(url=>{if(!cancelled)setTransparentOrtho(url)}).catch(()=>{if(!cancelled)setTransparentOrtho(orthophoto.preview_url!)});
     return()=>{cancelled=true};
   },[orthophoto?.preview_url]);
 
