@@ -11,19 +11,18 @@ type GeoTiffModule={
   }>;
 };
 
+function mix(a:[number,number,number],b:[number,number,number],t:number):[number,number,number]{
+  const x=Math.max(0,Math.min(1,t));
+  return [Math.round(a[0]+(b[0]-a[0])*x),Math.round(a[1]+(b[1]-a[1])*x),Math.round(a[2]+(b[2]-a[2])*x)];
+}
+
 function ramp(t:number,palette:Palette):[number,number,number]{
   const x=Math.max(0,Math.min(1,t));
-  if(palette==="dsm"){
-    if(x<0.25)return [36,99+Math.round(x*260),171+Math.round(x*200)];
-    if(x<0.5)return [34+Math.round((x-.25)*520),164+Math.round((x-.25)*180),154-Math.round((x-.25)*220)];
-    if(x<0.75)return [164+Math.round((x-.5)*300),209-Math.round((x-.5)*300),80-Math.round((x-.5)*160)];
-    return [239,134-Math.round((x-.75)*260),91+Math.round((x-.75)*340)];
-  }
-  if(x<0.2)return [33,112+Math.round(x*180),63];
-  if(x<0.4)return [58+Math.round((x-.2)*400),148+Math.round((x-.2)*270),73];
-  if(x<0.6)return [138+Math.round((x-.4)*390),202-Math.round((x-.4)*120),78];
-  if(x<0.8)return [216+Math.round((x-.6)*100),178-Math.round((x-.6)*210),73-Math.round((x-.6)*70)];
-  return [236-Math.round((x-.8)*250),136-Math.round((x-.8)*170),72-Math.round((x-.8)*80)];
+  const stops:([number,number,number])[]=palette==="dtm"
+    ? [[34,94,57],[104,158,76],[194,194,86],[220,149,72],[132,80,55]]
+    : [[44,95,160],[58,151,176],[91,168,120],[215,190,82],[182,82,64]];
+  const scaled=x*(stops.length-1),i=Math.min(stops.length-2,Math.floor(scaled));
+  return mix(stops[i],stops[i+1],scaled-i);
 }
 
 async function loadGeoTiff():Promise<GeoTiffModule>{
