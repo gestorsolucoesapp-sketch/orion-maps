@@ -5,6 +5,7 @@ import * as maplibregl from "maplibre-gl";
 import type {GeoJSONSource} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import {renderGeoTiffToDataUrl} from "./geotiff-preview";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
@@ -110,12 +111,15 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
-  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,project:true});
+  const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
+  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:true});
   const bounds=useMemo(()=>readBounds(results),[results]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
+  const dtm=results.find(r=>r.kind==="dtm"&&r.download_url);
+  const dsm=results.find(r=>r.kind==="dsm"&&r.download_url);
 
   useEffect(()=>{
     if(!orthophoto?.preview_url){setTransparentOrtho(null);return;}
@@ -133,13 +137,25 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
 
   useEffect(()=>{
     if(!focusKind)return;
-    const next={orthophoto:false,contours:false,hillshade:false,hypsometry:false,slope:false,project:true};
+    const next={orthophoto:false,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:true};
     if(focusKind==="contours"){next.orthophoto=true;next.contours=true;}
     else if(focusKind==="orthophoto")next.orthophoto=true;
-    else if(focusKind in next)next[focusKind as keyof typeof next]=true;
+    else if(focusKind==="dtm"){
+      next.dtm=true;
+      if(!dtmPreview&&dtm?.download_url){
+        setElevationBusy("dtm");setElevationError("");
+        renderGeoTiffToDataUrl(dtm.download_url,"dtm").then(v=>setDtmPreview(v.url)).catch(()=>setElevationError("Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(null));
+      }
+    }else if(focusKind==="dsm"){
+      next.dsm=true;
+      if(!dsmPreview&&dsm?.download_url){
+        setElevationBusy("dsm");setElevationError("");
+        renderGeoTiffToDataUrl(dsm.download_url,"dsm").then(v=>setDsmPreview(v.url)).catch(()=>setElevationError("Não foi possível abrir o DSM no navegador.")).finally(()=>setElevationBusy(null));
+      }
+    }else if(focusKind in next)next[focusKind as keyof typeof next]=true;
     setVisible(v=>({...v,...next}));
     requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));
-  },[focusKind]);
+  },[focusKind,dtmPreview,dsmPreview,dtm?.download_url,dsm?.download_url]);
 
   useEffect(()=>{
     if(!el.current||!bounds)return;
@@ -170,6 +186,14 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
         m.addSource(`result-${kind}`,{type:"image",url:sourceUrl,coordinates:corners});
         m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":kind==="orthophoto"?0.9:0.78},layout:{visibility:visible[kind]?"visible":"none"}});
       }
+      if(dtmPreview){
+        m.addSource("result-dtm",{type:"image",url:dtmPreview,coordinates:corners});
+        m.addLayer({id:"result-dtm",type:"raster",source:"result-dtm",paint:{"raster-opacity":0.88},layout:{visibility:visible.dtm?"visible":"none"}});
+      }
+      if(dsmPreview){
+        m.addSource("result-dsm",{type:"image",url:dsmPreview,coordinates:corners});
+        m.addLayer({id:"result-dsm",type:"raster",source:"result-dsm",paint:{"raster-opacity":0.88},layout:{visibility:visible.dsm?"visible":"none"}});
+      }
       const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
       if(contours?.preview_url)fetch(contours.preview_url).then(r=>r.json()).then(data=>{
         if(!map.current||!map.current.isStyleLoaded())return;
@@ -181,7 +205,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
     });
     return()=>{setReady(false);m.remove();map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho]);
+  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho,dtmPreview,dsmPreview]);
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready||!coverage)return;
@@ -194,19 +218,19 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
-    for(const key of [...rasterKinds,"contours"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
+    for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
     if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",visible.contours?0.58:0.9);
   },[visible,ready]);
 
   if(!bounds)return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Os resultados existem, mas ainda não há limites geográficos suficientes para abrir o mapa.</div>;
 
-  const controls=[["orthophoto","Ortofoto"],["project","Plano de voo"],["contours","Curvas 0,50 m"],["hillshade","Relevo sombreado"],["hypsometry","Hipsometria"],["slope","Declividade"]] as const;
+  const controls=[["orthophoto","Ortofoto"],["project","Plano de voo"],["contours","Curvas 0,50 m"],["hillshade","Relevo sombreado"],["hypsometry","Hipsometria"],["slope","Declividade"],["dtm","DTM"],["dsm","DSM"]] as const;
   const projectArea=coverage?.areaM2??null,projectPerimeter=coverage?.perimeterM??null;
 
   return <div>
     <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>setVisible(v=>({...v,[key]:!v[key]}))} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{label}</button>)}
+      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>{if(key==="dtm"||key==="dsm"){if((key==="dtm"&&!dtmPreview)||(key==="dsm"&&!dsmPreview)){const item=key==="dtm"?dtm:dsm;if(item?.download_url){setElevationBusy(key);setElevationError("");renderGeoTiffToDataUrl(item.download_url,key).then(v=>{if(key==="dtm")setDtmPreview(v.url);else setDsmPreview(v.url);setVisible(s=>({...s,[key]:true,orthophoto:false,dtm:key==="dtm",dsm:key==="dsm"}));}).catch(()=>setElevationError("Não foi possível abrir "+key.toUpperCase()+" no navegador.")).finally(()=>setElevationBusy(null));}return;}}setVisible(v=>({...v,[key]:!v[key]}));}} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
     </div>
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
@@ -235,7 +259,10 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Perímetro</span><strong className="mt-1 block text-xl text-slate-950">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </div>}
 
+    {elevationError&&<div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{elevationError}</div>}
     {visible.contours&&<div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900"><strong>Curvas de nível 0,50 m ativas.</strong> Cada linha representa a mesma cota de terreno; a ortofoto fica mais transparente para destacar as curvas.</div>}
+    {visible.dtm&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"><strong>DTM ativo.</strong> Mostra o modelo estimado do terreno, removendo ao máximo árvores e construções.</div>}
+    {visible.dsm&&<div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"><strong>DSM ativo.</strong> Mostra a superfície observada, incluindo vegetação, telhados e outros objetos.</div>}
     <p className="mt-3 text-[11px] leading-5 text-slate-500">{planCoverage?"A linha branca tracejada usa o contorno salvo do plano de voo.":"Nenhum plano de voo compatível foi encontrado; a linha usa uma estimativa da cobertura processada."}</p>
   </div>;
 }
