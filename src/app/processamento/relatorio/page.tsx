@@ -32,7 +32,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const currentResults=completed?results.filter(r=>r.job_id===completed.id):results;
   const reference=currentResults[0];
   const meta=reference?.metadata||{};
-  const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m),projectArea=n(meta.project_area_m2),projectPerimeter=n(meta.project_perimeter_m);
+  const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m);
   const bounds=(()=>{
     for(const item of currentResults){
       const raw=item.metadata?.bounds_wgs84 as {west?:number;south?:number;east?:number;north?:number}|undefined;
@@ -46,6 +46,26 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
     const match=findMissionBoundaryForBounds(missions,bounds);
     if(match)planBoundary={name:match.name,points:match.points};
   }catch{}
+
+  function measurePlan(points:[number,number][]){
+    if(points.length<3)return null;
+    const lat0=points.reduce((sum,p)=>sum+p[1],0)/points.length;
+    const mx=111320*Math.cos(lat0*Math.PI/180),my=110574;
+    const closed=[...points,points[0]];
+    let twice=0,perimeter=0;
+    for(let i=0;i<closed.length-1;i++){
+      const [x1,y1]=closed[i],[x2,y2]=closed[i+1];
+      twice+=(x1*mx)*(y2*my)-(x2*mx)*(y1*my);
+      perimeter+=Math.hypot((x2-x1)*mx,(y2-y1)*my);
+    }
+    return {area:Math.abs(twice)/2,perimeter};
+  }
+  const measuredPlan=planBoundary?measurePlan(planBoundary.points):null;
+  const projectArea=measuredPlan?.area??null;
+  const projectPerimeter=measuredPlan?.perimeter??null;
+  const coverageArea=n(meta.project_area_m2),coveragePerimeter=n(meta.project_perimeter_m);
+  const confidence=planBoundary&&images.length>=20&&min!==null&&max!==null?8:6;
+  const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
     <div className="print-hide mb-6 flex justify-end"><PrintProjectButton/></div>
@@ -76,13 +96,31 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </section>}
 
-    <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
+    <section className="report-perspective mt-8 break-before-page">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Análise técnica</p>
+      <h2 className="mt-1 text-2xl font-semibold">Resumo e confiabilidade do levantamento</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><span className="text-xs text-slate-600">Confiabilidade geral indicativa</span><strong className="mt-1 block text-3xl">{confidence}/10</strong><p className="mt-2 text-xs leading-5 text-slate-600">Avaliação do conjunto fotogramétrico disponível no Orion Maps; não equivale a certificação de acurácia topográfica.</p></div>
+        <div className="rounded-xl border border-slate-200 p-4"><span className="text-xs text-slate-600">Amplitude altimétrica</span><strong className="mt-1 block text-2xl">{range!==null?range.toLocaleString("pt-BR",{maximumFractionDigits:2})+" m":"—"}</strong><p className="mt-2 text-xs leading-5 text-slate-600">{min!==null&&max!==null?`Cotas processadas entre ${min.toLocaleString("pt-BR",{maximumFractionDigits:2})} m e ${max.toLocaleString("pt-BR",{maximumFractionDigits:2})} m.`:"Dados altimétricos insuficientes."}</p></div>
+      </div>
+      <div className="mt-4 rounded-xl border border-slate-200 p-5 text-sm leading-6 text-slate-700">
+        <p><strong>Área analisada:</strong> {projectArea!==null?`${(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})} ha (${projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²)`:"não calculada"}{planBoundary?" — calculada a partir do contorno salvo do plano de voo.":""}</p>
+        <p className="mt-2"><strong>Perímetro:</strong> {projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"não calculado"}.</p>
+        <p className="mt-2"><strong>Altimetria:</strong> o desnível representa a diferença entre as cotas mínima e máxima do modelo processado; não corresponde à altura de voo do drone.</p>
+        <p className="mt-2"><strong>DTM:</strong> representa uma estimativa do terreno. Em vegetação, sua confiabilidade é inferior à da ortofoto e requer validação quando houver finalidade topográfica ou legal.</p>
+        <p className="mt-2"><strong>DSM:</strong> representa a superfície observada e pode incluir vegetação, edificações e outros objetos.</p>
+        <p className="mt-2"><strong>Limitação:</strong> não há, nos dados exibidos neste relatório, evidência suficiente de RTK, PPK, GCP ou pontos de checagem para declarar precisão centimétrica ou acurácia absoluta certificada.</p>
+      </div>
+      {coverageArea!==null&&projectArea!==null&&Math.abs(coverageArea-projectArea)/Math.max(projectArea,1)>.15&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"><strong>Controle de consistência:</strong> a cobertura fotogramétrica processada é maior que o contorno efetivamente medido. O relatório usa o plano de voo para Área/Perímetro e mantém a cobertura apenas como extensão do processamento.</div>}
+    </section>
+
+        <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
 
     <section className="mt-8 break-before-page">
       <h2 className="text-xl font-semibold">Produtos gerados</h2>
       <table className="mt-3 w-full border-collapse text-sm">
         <thead><tr className="border-b border-emerald-200 text-left"><th className="py-2">Produto</th><th className="py-2">Formato</th><th className="py-2">Tamanho</th><th className="py-2">CRS</th></tr></thead>
-        <tbody>{currentResults.map(item=><tr key={item.id} className="border-b border-slate-100"><td className="py-2 font-semibold">{item.display_name||item.kind}</td><td className="py-2">{item.mime_type||"—"}</td><td className="py-2">{bytes(item.size_bytes)}</td><td className="py-2">{item.source_crs||"—"}</td></tr>)}</tbody>
+        <tbody>{currentResults.map(item=><tr key={item.id} className="border-b border-slate-100"><td className="py-2 font-semibold">{item.display_name||item.kind}</td><td className="py-2">{formats[item.mime_type||""]||item.mime_type||"—"}</td><td className="py-2">{bytes(item.size_bytes)}</td><td className="py-2">{item.source_crs||"—"}</td></tr>)}</tbody>
       </table>
     </section>
 
@@ -97,7 +135,8 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
     {survey.notes&&<section className="mt-8"><h2 className="text-xl font-semibold">Observações</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{survey.notes}</p></section>}
 
     <footer className="mt-10 border-t border-slate-200 pt-5 text-xs leading-5 text-slate-500">
-      <p>Documento gerado pelo Orion Maps. Produtos derivados por fotogrametria devem ser validados conforme a finalidade técnica.</p>
+      <p>Documento gerado pelo Orion Maps. Confiabilidade indicativa do conjunto: {confidence}/10. Esta nota avalia a completude e coerência dos produtos disponíveis, não certifica acurácia topográfica.</p>
+      <p className="mt-1">Produtos derivados por fotogrametria devem ser validados conforme a finalidade técnica.</p>
       <p className="mt-1">Em áreas vegetadas, o DTM representa uma estimativa da superfície do terreno e não substitui validação topográfica quando exigida.</p>
     </footer>
   </main>;
