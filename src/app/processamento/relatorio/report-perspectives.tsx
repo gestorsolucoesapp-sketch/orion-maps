@@ -34,13 +34,16 @@ export default function ReportPerspectives({results,planBoundary}:Props){
       <img src={ortho.preview_url} alt="Ortofoto do levantamento" className="w-full rounded-xl border border-slate-200"/>
     </Perspective>}
 
-    {ortho?.preview_url&&<Perspective title="Plano de voo" subtitle={planBoundary?"Plano de voo associado: "+planBoundary.name+". O contorno permanece disponível no mapa interativo do aplicativo.":"Plano compatível não localizado."}>
-      <img src={ortho.preview_url} alt="Base da ortofoto para plano de voo" className="w-full rounded-xl border border-slate-200"/>
+    {ortho?.preview_url&&<Perspective title="Plano de voo" subtitle={planBoundary?"Plano de voo associado: "+planBoundary.name+". O contorno técnico é usado para os cálculos de área e perímetro deste relatório.":"Plano compatível não localizado."}>
+      <div className="relative overflow-hidden rounded-xl border border-slate-200">
+        <img src={ortho.preview_url} alt="Base da ortofoto para plano de voo" className="w-full"/>
+        <div className="absolute inset-x-3 bottom-3 rounded-lg bg-black/65 px-3 py-2 text-xs text-white">Contorno do plano disponível no mapa interativo do Orion Maps · cálculos deste relatório usam o polígono salvo.</div>
+      </div>
     </Perspective>}
 
-    {contours&&<Perspective title="Curvas de nível · 0,50 m" subtitle="Produto vetorial com linhas de mesma cota altimétrica. A visualização interativa permanece disponível no mapa do aplicativo.">
-      <div className="rounded-xl border border-orange-200 bg-orange-50 p-5 text-sm text-orange-900">
-        Curvas de nível geradas com intervalo vertical de 0,50 m.
+    {contours&&<Perspective title="Curvas de nível · 0,50 m" subtitle="Produto vetorial com linhas de mesma cota altimétrica.">
+      <div className="rounded-xl border border-orange-200 bg-orange-50 p-5 text-sm leading-6 text-orange-900">
+        <strong>Equidistância vertical: 0,50 m.</strong><br/>As curvas permitem interpretar a geometria do relevo: maior concentração de linhas indica variação altimétrica mais rápida. A visualização vetorial completa permanece disponível no mapa interativo do Orion Maps.
       </div>
     </Perspective>}
 
