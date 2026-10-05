@@ -30,7 +30,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const currentResults=completed?results.filter(r=>r.job_id===completed.id):results;
   const reference=currentResults[0];
   const meta=reference?.metadata||{};
-  const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m);
+  const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m),projectArea=n(meta.project_area_m2),projectPerimeter=n(meta.project_perimeter_m);
   const ortho=currentResults.find(r=>r.kind==="orthophoto"&&r.preview_url);
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
@@ -56,6 +56,11 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-slate-600">Altitude máxima</span><strong className="mt-1 block text-2xl">{max!==null?max.toLocaleString("pt-BR",{maximumFractionDigits:2})+" m":"—"}</strong></div>
       <div className="rounded-xl bg-emerald-50 p-4"><span className="text-xs text-slate-600">Desnível</span><strong className="mt-1 block text-2xl">{range!==null?range.toLocaleString("pt-BR",{maximumFractionDigits:2})+" m":"—"}</strong></div>
     </section>
+
+    {(projectArea!==null||projectPerimeter!==null)&&<section className="mt-4 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Área do projeto</span><strong className="mt-1 block text-2xl">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-xs text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
+      <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
+    </section>}
 
     {ortho?.preview_url&&<section className="mt-8">
       <h2 className="text-xl font-semibold">Ortofoto do projeto</h2>
