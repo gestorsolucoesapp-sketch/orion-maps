@@ -69,6 +69,31 @@ async function deriveCoverage(url:string,bounds:Bounds):Promise<Coverage|null>{
   const polygon=[...left,...right.reverse()];polygon.push(polygon[0]);
   return {feature:{type:"Feature",properties:{source:"orthophoto-visible-footprint",estimated:true},geometry:{type:"Polygon",coordinates:[polygon]}},...measure(polygon)};
 }
+async function transparentBorderNoData(url:string):Promise<string>{
+  const response=await fetch(url,{cache:"no-store"});if(!response.ok)return url;
+  const bitmap=await createImageBitmap(await response.blob());
+  const maxSide=1800,scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));
+  const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
+  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return url;
+  ctx.drawImage(bitmap,0,0,w,h);
+  const image=ctx.getImageData(0,0,w,h),d=image.data,seen=new Uint8Array(w*h),queue:number[]=[];
+  const candidate=(p:number)=>{
+    const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+    return d[i+3]>0&&mx<78&&(mx-mn)<18;
+  };
+  const push=(p:number)=>{if(p>=0&&p<w*h&&!seen[p]&&candidate(p)){seen[p]=1;queue.push(p);}};
+  for(let x=0;x<w;x++){push(x);push((h-1)*w+x);}
+  for(let y=0;y<h;y++){push(y*w);push(y*w+w-1);}
+  for(let q=0;q<queue.length;q++){
+    const p=queue[q],x=p%w,y=Math.floor(p/w);
+    if(x>0)push(p-1);if(x<w-1)push(p+1);if(y>0)push(p-w);if(y<h-1)push(p+w);
+  }
+  for(let p=0;p<seen.length;p++)if(seen[p])d[p*4+3]=0;
+  ctx.putImageData(image,0,0);
+  return canvas.toDataURL("image/png");
+}
+
 async function transparentOrthophoto(url:string):Promise<string>{
   const response=await fetch(url,{cache:"no-store"});
   if(!response.ok)return url;
@@ -111,7 +136,8 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
-  const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
+  const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
+  const [dtmRange,setDtmRange]=useState<{min:number;max:number}|null>(null),[dsmRange,setDsmRange]=useState<{min:number;max:number}|null>(null);
   const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:true});
   const bounds=useMemo(()=>readBounds(results),[results]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
@@ -120,6 +146,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
   const dtm=results.find(r=>r.kind==="dtm"&&r.download_url);
   const dsm=results.find(r=>r.kind==="dsm"&&r.download_url);
+  const slope=results.find(r=>r.kind==="slope"&&r.preview_url);
 
   useEffect(()=>{
     if(!orthophoto?.preview_url){setTransparentOrtho(null);return;}
@@ -127,6 +154,13 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
     transparentOrthophoto(orthophoto.preview_url).then(url=>{if(!cancelled)setTransparentOrtho(url)}).catch(()=>{if(!cancelled)setTransparentOrtho(orthophoto.preview_url!)});
     return()=>{cancelled=true};
   },[orthophoto?.preview_url]);
+
+  useEffect(()=>{
+    if(!slope?.preview_url){setProcessedSlope(null);return;}
+    let cancelled=false;
+    transparentBorderNoData(slope.preview_url).then(url=>{if(!cancelled)setProcessedSlope(url)}).catch(()=>{if(!cancelled)setProcessedSlope(slope.preview_url!)});
+    return()=>{cancelled=true};
+  },[slope?.preview_url]);
 
   useEffect(()=>{
     if(planCoverage||savedCoverage||!bounds||!orthophoto?.preview_url)return;
@@ -144,13 +178,13 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       next.dtm=true;
       if(!dtmPreview&&dtm?.download_url){
         setElevationBusy("dtm");setElevationError("");
-        renderGeoTiffToDataUrl(dtm.download_url,"dtm").then(v=>setDtmPreview(v.url)).catch(()=>setElevationError("Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(null));
+        renderGeoTiffToDataUrl(dtm.download_url,"dtm").then(v=>{setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});}).catch(()=>setElevationError("Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(null));
       }
     }else if(focusKind==="dsm"){
       next.dsm=true;
       if(!dsmPreview&&dsm?.download_url){
         setElevationBusy("dsm");setElevationError("");
-        renderGeoTiffToDataUrl(dsm.download_url,"dsm").then(v=>setDsmPreview(v.url)).catch(()=>setElevationError("Não foi possível abrir o DSM no navegador.")).finally(()=>setElevationBusy(null));
+        renderGeoTiffToDataUrl(dsm.download_url,"dsm").then(v=>{setDsmPreview(v.url);setDsmRange({min:v.min,max:v.max});}).catch(()=>setElevationError("Não foi possível abrir o DSM no navegador.")).finally(()=>setElevationBusy(null));
       }
     }else if(focusKind in next)next[focusKind as keyof typeof next]=true;
     setVisible(v=>({...v,...next}));
@@ -182,7 +216,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       ];
       for(const kind of rasterKinds){
         const item=results.find(r=>r.kind===kind&&r.preview_url);if(!item?.preview_url)continue;
-        const sourceUrl=kind==="orthophoto"?(transparentOrtho||item.preview_url):item.preview_url;
+        const sourceUrl=kind==="orthophoto"?(transparentOrtho||item.preview_url):kind==="slope"?(processedSlope||item.preview_url):item.preview_url;
         m.addSource(`result-${kind}`,{type:"image",url:sourceUrl,coordinates:corners});
         m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":kind==="orthophoto"?0.9:0.78},layout:{visibility:visible[kind]?"visible":"none"}});
       }
@@ -198,14 +232,14 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       if(contours?.preview_url)fetch(contours.preview_url).then(r=>r.json()).then(data=>{
         if(!map.current||!map.current.isStyleLoaded())return;
         map.current.addSource("result-contours",{type:"geojson",data});
-        map.current.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#f28a3b","line-width":1.15,"line-opacity":0.88},layout:{visibility:visible.contours?"visible":"none"}});
+        map.current.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#ff7a00","line-width":2.4,"line-opacity":1},layout:{visibility:visible.contours?"visible":"none"}});
       }).catch(()=>{});
       m.fitBounds([[bounds.west,bounds.south],[bounds.east,bounds.north]],{padding:34,maxZoom:19});
       setReady(true);
     });
     return()=>{setReady(false);m.remove();map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho,dtmPreview,dsmPreview]);
+  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho,processedSlope,dtmPreview,dsmPreview]);
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready||!coverage)return;
@@ -230,7 +264,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
 
   return <div>
     <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
-      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>{if(key==="dtm"||key==="dsm"){if((key==="dtm"&&!dtmPreview)||(key==="dsm"&&!dsmPreview)){const item=key==="dtm"?dtm:dsm;if(item?.download_url){setElevationBusy(key);setElevationError("");renderGeoTiffToDataUrl(item.download_url,key).then(v=>{if(key==="dtm")setDtmPreview(v.url);else setDsmPreview(v.url);setVisible(s=>({...s,[key]:true,orthophoto:false,dtm:key==="dtm",dsm:key==="dsm"}));}).catch(()=>setElevationError("Não foi possível abrir "+key.toUpperCase()+" no navegador.")).finally(()=>setElevationBusy(null));}return;}}setVisible(v=>({...v,[key]:!v[key]}));}} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
+      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>{if(key==="dtm"||key==="dsm"){if((key==="dtm"&&!dtmPreview)||(key==="dsm"&&!dsmPreview)){const item=key==="dtm"?dtm:dsm;if(item?.download_url){setElevationBusy(key);setElevationError("");renderGeoTiffToDataUrl(item.download_url,key).then(v=>{if(key==="dtm"){setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});}else{setDsmPreview(v.url);setDsmRange({min:v.min,max:v.max});}setVisible(s=>({...s,[key]:true,orthophoto:false,dtm:key==="dtm",dsm:key==="dsm"}));}).catch(()=>setElevationError("Não foi possível abrir "+key.toUpperCase()+" no navegador.")).finally(()=>setElevationBusy(null));}return;}}setVisible(v=>({...v,[key]:!v[key]}));}} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
     </div>
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
@@ -261,8 +295,14 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
 
     {elevationError&&<div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{elevationError}</div>}
     {visible.contours&&<div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs text-orange-900"><strong>Curvas de nível 0,50 m ativas.</strong> Cada linha representa a mesma cota de terreno; a ortofoto fica mais transparente para destacar as curvas.</div>}
-    {visible.dtm&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"><strong>DTM ativo.</strong> Mostra o modelo estimado do terreno, removendo ao máximo árvores e construções.</div>}
-    {visible.dsm&&<div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-900"><strong>DSM ativo.</strong> Mostra a superfície observada, incluindo vegetação, telhados e outros objetos.</div>}
+    {visible.dtm&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-xs text-emerald-900">
+      <strong>DTM ativo.</strong> Mostra o modelo estimado do terreno, removendo ao máximo árvores e construções.
+      {dtmRange&&<div className="mt-2"><div className="h-2 rounded-full" style={{background:"linear-gradient(90deg,#225e39,#68a04c,#c2c256,#dc9548,#845037)"}}/><div className="mt-1 flex justify-between text-[10px]"><span>{dtmRange.min.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span><span>{dtmRange.max.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span></div></div>}
+    </div>}
+    {visible.dsm&&<div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3 text-xs text-indigo-900">
+      <strong>DSM ativo.</strong> Mostra a superfície observada, incluindo vegetação, telhados e outros objetos.
+      {dsmRange&&<div className="mt-2"><div className="h-2 rounded-full" style={{background:"linear-gradient(90deg,#2c5fa0,#3a97b0,#5ba878,#d7be52,#b65240)"}}/><div className="mt-1 flex justify-between text-[10px]"><span>{dsmRange.min.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span><span>{dsmRange.max.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span></div></div>}
+    </div>}
     <p className="mt-3 text-[11px] leading-5 text-slate-500">{planCoverage?"A linha branca tracejada usa o contorno salvo do plano de voo.":"Nenhum plano de voo compatível foi encontrado; a linha usa uma estimativa da cobertura processada."}</p>
   </div>;
 }
