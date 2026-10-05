@@ -17,9 +17,9 @@ type Props={
 
 const rasterKinds=["orthophoto","hillshade","hypsometry","slope"] as const;
 const baseMaps={
+  streets:{label:"Padrão",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:"© OpenStreetMap contributors"},
   satellite:{label:"Satélite",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:"Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community"},
-  streets:{label:"Mapa",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:"© OpenStreetMap contributors"},
-  topo:{label:"Topográfico",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:"Sources: Esri, HERE, Garmin, © OpenStreetMap contributors"}
+  relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:"Shaded relief © Esri"}
 } as const;
 type BaseMap=keyof typeof baseMaps;
 
@@ -68,6 +68,26 @@ async function deriveCoverage(url:string,bounds:Bounds):Promise<Coverage|null>{
   const polygon=[...left,...right.reverse()];polygon.push(polygon[0]);
   return {feature:{type:"Feature",properties:{source:"orthophoto-visible-footprint",estimated:true},geometry:{type:"Polygon",coordinates:[polygon]}},...measure(polygon)};
 }
+async function transparentOrthophoto(url:string):Promise<string>{
+  const response=await fetch(url,{cache:"no-store"});
+  if(!response.ok)return url;
+  const bitmap=await createImageBitmap(await response.blob());
+  const maxSide=1800;
+  const scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));
+  const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
+  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return url;
+  ctx.drawImage(bitmap,0,0,w,h);
+  const image=ctx.getImageData(0,0,w,h),d=image.data;
+  for(let i=0;i<d.length;i+=4){
+    const r=d[i],g=d[i+1],b=d[i+2];
+    if(r<28&&g<28&&b<28)d[i+3]=0;
+    else if(r<45&&g<45&&b<45)d[i+3]=Math.min(d[i+3],Math.round(((Math.max(r,g,b)-28)/17)*255));
+  }
+  ctx.putImageData(image,0,0);
+  return canvas.toDataURL("image/png");
+}
+
 function readBounds(results:ProcessingResult[]):Bounds|null{
   for(const item of results){
     const raw=item.metadata?.bounds_wgs84 as Partial<Bounds>|undefined;
@@ -89,13 +109,20 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
 export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
-  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false);
+  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,project:true});
   const bounds=useMemo(()=>readBounds(results),[results]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
+
+  useEffect(()=>{
+    if(!orthophoto?.preview_url){setTransparentOrtho(null);return;}
+    let cancelled=false;
+    transparentOrthophoto(orthophoto.preview_url).then(url=>{if(!cancelled)setTransparentOrtho(url)}).catch(()=>{if(!cancelled)setTransparentOrtho(orthophoto.preview_url!)});
+    return()=>{cancelled=true};
+  },[orthophoto?.preview_url]);
 
   useEffect(()=>{
     if(planCoverage||savedCoverage||!bounds||!orthophoto?.preview_url)return;
@@ -138,7 +165,8 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       ];
       for(const kind of rasterKinds){
         const item=results.find(r=>r.kind===kind&&r.preview_url);if(!item?.preview_url)continue;
-        m.addSource(`result-${kind}`,{type:"image",url:item.preview_url,coordinates:corners});
+        const sourceUrl=kind==="orthophoto"?(transparentOrtho||item.preview_url):item.preview_url;
+        m.addSource(`result-${kind}`,{type:"image",url:sourceUrl,coordinates:corners});
         m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":kind==="orthophoto"?0.9:0.78},layout:{visibility:visible[kind]?"visible":"none"}});
       }
       const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
@@ -152,7 +180,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
     });
     return()=>{m.remove();map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap]);
+  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho]);
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready||!coverage)return;
