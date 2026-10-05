@@ -64,7 +64,6 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const projectArea=measuredPlan?.area??null;
   const projectPerimeter=measuredPlan?.perimeter??null;
   const coverageArea=n(meta.project_area_m2),coveragePerimeter=n(meta.project_perimeter_m);
-  const confidence=planBoundary&&images.length>=20&&min!==null&&max!==null?8:6;
   const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
@@ -96,25 +95,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </section>}
 
-    <section className="report-perspective mt-8 break-before-page">
-      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Análise técnica</p>
-      <h2 className="mt-1 text-2xl font-semibold">Resumo e confiabilidade do levantamento</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><span className="text-xs text-slate-600">Confiabilidade geral indicativa</span><strong className="mt-1 block text-3xl">{confidence}/10</strong><p className="mt-2 text-xs leading-5 text-slate-600">Avaliação do conjunto fotogramétrico disponível no Orion Maps; não equivale a certificação de acurácia topográfica.</p></div>
-        <div className="rounded-xl border border-slate-200 p-4"><span className="text-xs text-slate-600">Amplitude altimétrica</span><strong className="mt-1 block text-2xl">{range!==null?range.toLocaleString("pt-BR",{maximumFractionDigits:2})+" m":"—"}</strong><p className="mt-2 text-xs leading-5 text-slate-600">{min!==null&&max!==null?`Cotas processadas entre ${min.toLocaleString("pt-BR",{maximumFractionDigits:2})} m e ${max.toLocaleString("pt-BR",{maximumFractionDigits:2})} m.`:"Dados altimétricos insuficientes."}</p></div>
-      </div>
-      <div className="mt-4 rounded-xl border border-slate-200 p-5 text-sm leading-6 text-slate-700">
-        <p><strong>Área analisada:</strong> {projectArea!==null?`${(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})} ha (${projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²)`:"não calculada"}{planBoundary?" — calculada a partir do contorno salvo do plano de voo.":""}</p>
-        <p className="mt-2"><strong>Perímetro:</strong> {projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"não calculado"}.</p>
-        <p className="mt-2"><strong>Altimetria:</strong> o desnível representa a diferença entre as cotas mínima e máxima do modelo processado; não corresponde à altura de voo do drone.</p>
-        <p className="mt-2"><strong>DTM:</strong> representa uma estimativa do terreno. Em vegetação, sua confiabilidade é inferior à da ortofoto e requer validação quando houver finalidade topográfica ou legal.</p>
-        <p className="mt-2"><strong>DSM:</strong> representa a superfície observada e pode incluir vegetação, edificações e outros objetos.</p>
-        <p className="mt-2"><strong>Limitação:</strong> não há, nos dados exibidos neste relatório, evidência suficiente de RTK, PPK, GCP ou pontos de checagem para declarar precisão centimétrica ou acurácia absoluta certificada.</p>
-      </div>
-      {coverageArea!==null&&projectArea!==null&&Math.abs(coverageArea-projectArea)/Math.max(projectArea,1)>.15&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"><strong>Controle de consistência:</strong> a cobertura fotogramétrica processada é maior que o contorno efetivamente medido. O relatório usa o plano de voo para Área/Perímetro e mantém a cobertura apenas como extensão do processamento.</div>}
-    </section>
-
-        <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
+    <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
 
     <section className="mt-8 break-before-page">
       <h2 className="text-xl font-semibold">Produtos gerados</h2>
@@ -135,8 +116,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
     {survey.notes&&<section className="mt-8"><h2 className="text-xl font-semibold">Observações</h2><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{survey.notes}</p></section>}
 
     <footer className="mt-10 border-t border-slate-200 pt-5 text-xs leading-5 text-slate-500">
-      <p>Documento gerado pelo Orion Maps. Confiabilidade indicativa do conjunto: {confidence}/10. Esta nota avalia a completude e coerência dos produtos disponíveis, não certifica acurácia topográfica.</p>
-      <p className="mt-1">Produtos derivados por fotogrametria devem ser validados conforme a finalidade técnica.</p>
+      <p>Documento gerado pelo Orion Maps. Produtos derivados por fotogrametria devem ser interpretados conforme os dados e controles disponíveis no levantamento.</p>
       <p className="mt-1">Em áreas vegetadas, o DTM representa uma estimativa da superfície do terreno e não substitui validação topográfica quando exigida.</p>
     </footer>
   </main>;
