@@ -288,8 +288,10 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
     colors.write_text("\n".join(f"{zmin + (zmax-zmin)*f:.2f} {rgb}" for f, rgb in steps) + "\nnv 0 0 0 0\n", encoding="utf-8")
     run(mount + ["gdaldem", "color-relief", "/data/dtm.tif", "/data/cores.txt", "/data/hipsometria.tif", "-alpha"])
 
-    run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", "/data/orthophoto.tif", "/data/web/orthophoto_4326.tif"])
-    run(mount + ["gdal_translate", "-of", "JPEG", "-co", "QUALITY=90", "/data/web/orthophoto_4326.tif", "/data/web/orthophoto_web.jpg"])
+    # Preserve the orthophoto mask/NoData as alpha so empty pixels stay transparent
+    # over the basemap instead of becoming black/white blocks when zooming.
+    run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", "-dstalpha", "/data/orthophoto.tif", "/data/web/orthophoto_4326.tif"])
+    run(mount + ["gdal_translate", "-of", "PNG", "/data/web/orthophoto_4326.tif", "/data/web/orthophoto_web.png"])
     for src, dst in [("hillshade.tif","hillshade_web.png"),("hipsometria.tif","hipsometria_web.png"),("slope_pct.tif","slope_web.png")]:
         stem = src.replace(".tif","_4326.tif")
         run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", f"/data/{src}", f"/data/web/{stem}"])
@@ -328,7 +330,7 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     return {
-        "orthophoto": web / "orthophoto_web.jpg",
+        "orthophoto": web / "orthophoto_web.png",
         "hillshade": web / "hillshade_web.png",
         "hypsometry": web / "hipsometria_web.png",
         "slope": web / "slope_web.png",
@@ -359,7 +361,7 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
         "preview_crs": "EPSG:4326",
     }
     specs = {
-        "orthophoto": ("Ortofoto", "image/jpeg", True),
+        "orthophoto": ("Ortofoto", "image/png", True),
         "hillshade": ("Relevo sombreado", "image/png", True),
         "hypsometry": ("Hipsometria", "image/png", True),
         "slope": ("Declividade", "image/png", True),
