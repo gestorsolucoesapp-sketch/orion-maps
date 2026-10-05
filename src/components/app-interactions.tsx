@@ -1,14 +1,13 @@
 "use client";
 
 import {useEffect,useState} from "react";
-import {usePathname,useSearchParams} from "next/navigation";
+import {usePathname} from "next/navigation";
 
 export default function AppInteractions(){
   const pathname=usePathname();
-  const search=useSearchParams();
-  const [navigating,setNavigating]=useState(false);
+    const [navigating,setNavigating]=useState(false);
 
-  useEffect(()=>{setNavigating(false);},[pathname,search]);
+  useEffect(()=>{setNavigating(false);},[pathname]);
 
   useEffect(()=>{
     function onClick(event:MouseEvent){
@@ -21,6 +20,7 @@ export default function AppInteractions(){
       if(url.origin!==window.location.origin)return;
       if(url.pathname===window.location.pathname&&url.search===window.location.search&&url.hash)return;
       setNavigating(true);
+      window.setTimeout(()=>setNavigating(false),1600);
     }
     function onSubmit(){setNavigating(true);}
     document.addEventListener("click",onClick,true);
