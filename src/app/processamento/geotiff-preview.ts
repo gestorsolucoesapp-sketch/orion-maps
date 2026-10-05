@@ -1,6 +1,15 @@
-import {fromUrl} from "geotiff";
-
 type Palette="dtm"|"dsm";
+
+type GeoTiffModule={
+  fromUrl:(url:string)=>Promise<{
+    getImage:()=>Promise<{
+      getWidth:()=>number;
+      getHeight:()=>number;
+      getGDALNoData:()=>number|string|null|undefined;
+      readRasters:(options:{width:number;height:number;resampleMethod:string})=>Promise<ArrayLike<ArrayLike<number>>>;
+    }>;
+  }>;
+};
 
 function ramp(t:number,palette:Palette):[number,number,number]{
   const x=Math.max(0,Math.min(1,t));
@@ -17,7 +26,13 @@ function ramp(t:number,palette:Palette):[number,number,number]{
   return [236-Math.round((x-.8)*250),136-Math.round((x-.8)*170),72-Math.round((x-.8)*80)];
 }
 
+async function loadGeoTiff():Promise<GeoTiffModule>{
+  const importer=new Function("u","return import(u)") as (url:string)=>Promise<GeoTiffModule>;
+  return importer("https://cdn.jsdelivr.net/npm/geotiff@2.1.3/+esm");
+}
+
 export async function renderGeoTiffToDataUrl(url:string,palette:Palette){
+  const {fromUrl}=await loadGeoTiff();
   const tiff=await fromUrl(url);
   const image=await tiff.getImage();
   const sourceW=image.getWidth(),sourceH=image.getHeight();
@@ -25,7 +40,7 @@ export async function renderGeoTiffToDataUrl(url:string,palette:Palette){
   const scale=Math.min(1,maxSide/Math.max(sourceW,sourceH));
   const width=Math.max(1,Math.round(sourceW*scale)),height=Math.max(1,Math.round(sourceH*scale));
   const rasters=await image.readRasters({width,height,resampleMethod:"bilinear"});
-  const band=rasters[0] as ArrayLike<number>;
+  const band=rasters[0];
   const noDataRaw=image.getGDALNoData();
   const noData=noDataRaw==null?null:Number(noDataRaw);
 
@@ -33,8 +48,7 @@ export async function renderGeoTiffToDataUrl(url:string,palette:Palette){
   for(let i=0;i<band.length;i++){
     const v=Number(band[i]);
     if(!Number.isFinite(v)||(noData!==null&&Math.abs(v-noData)<1e-6)||v<-9000)continue;
-    if(v<min)min=v;
-    if(v>max)max=v;
+    if(v<min)min=v;if(v>max)max=v;
   }
   if(!Number.isFinite(min)||!Number.isFinite(max)||max<=min)throw new Error("GeoTIFF sem valores válidos.");
 
@@ -44,10 +58,7 @@ export async function renderGeoTiffToDataUrl(url:string,palette:Palette){
   const imageData=ctx.createImageData(width,height);
   for(let i=0;i<band.length;i++){
     const v=Number(band[i]),o=i*4;
-    if(!Number.isFinite(v)||(noData!==null&&Math.abs(v-noData)<1e-6)||v<-9000){
-      imageData.data[o+3]=0;
-      continue;
-    }
+    if(!Number.isFinite(v)||(noData!==null&&Math.abs(v-noData)<1e-6)||v<-9000){imageData.data[o+3]=0;continue;}
     const [r,g,b]=ramp((v-min)/(max-min),palette);
     imageData.data[o]=r;imageData.data[o+1]=g;imageData.data[o+2]=b;imageData.data[o+3]=235;
   }
