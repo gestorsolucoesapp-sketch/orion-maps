@@ -60,6 +60,11 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
       requestAnimationFrame(()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"}));
       return;
     }
+    if(item.kind==="point_cloud"){
+      setSelectedKind("point_cloud");
+      requestAnimationFrame(()=>document.getElementById("nuvem-pontos")?.scrollIntoView({behavior:"smooth",block:"center"}));
+      return;
+    }
     void forceDownload(item);
   }
 
@@ -103,7 +108,24 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap results={results} planBoundary={planBoundary} focusKind={selectedKind}/></div>
+      <div className="mt-6"><ResultsMap results={results} planBoundary={planBoundary} focusKind={selectedKind==="point_cloud"?null:selectedKind}/></div>
+
+      {selectedKind==="point_cloud"&&(()=>{
+        const cloud=sorted.find(item=>item.kind==="point_cloud");
+        if(!cloud)return null;
+        return <section id="nuvem-pontos" className="mt-5 scroll-mt-24 rounded-2xl border border-slate-200 bg-[#f5f8f4] p-5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Nuvem de pontos</p>
+          <h3 className="mt-1 text-lg font-semibold text-slate-950">Produto 3D em formato LAZ</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Esta é a nuvem de pontos gerada pelo processamento. O arquivo está pronto para uso em softwares GIS/CAD e para o futuro visualizador 3D do Orion Maps.</p>
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl bg-white p-3"><span className="text-[11px] text-slate-500">Formato</span><strong className="mt-1 block">LAZ</strong></div>
+            <div className="rounded-xl bg-white p-3"><span className="text-[11px] text-slate-500">Tamanho</span><strong className="mt-1 block">{fmtBytes(cloud.size_bytes)}</strong></div>
+            <div className="col-span-2 rounded-xl bg-white p-3 sm:col-span-1"><span className="text-[11px] text-slate-500">CRS</span><strong className="mt-1 block">{cloud.source_crs||"—"}</strong></div>
+          </div>
+          <button type="button" onClick={()=>void forceDownload(cloud)} disabled={downloading!==null} className="mt-4 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{downloading===cloud.id?"Preparando…":"Baixar nuvem LAZ ↓"}</button>
+          <p className="mt-3 text-[11px] leading-5 text-slate-500">O PDF completo registra a existência da nuvem de pontos e seus dados técnicos. Uma visualização 3D interativa não é incorporada ao PDF.</p>
+        </section>;
+      })()}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <a href={"/processamento/relatorio?levantamento="+encodeURIComponent(reportSurveyId)} target="_blank" rel="noreferrer" className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">Exportar PDF ↗</a>
