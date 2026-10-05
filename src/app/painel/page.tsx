@@ -46,7 +46,7 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
   } catch {}
 
   const activeStatus = active ? statuses[active.id] : undefined;
-  const activeResultsHref = active ? `/processamento?levantamento=${active.id}#resultados` : "/processamento";
+  const activeResultsHref = active ? `/processamento/resultados?levantamento=${active.id}` : "/processamento";
   const activeProductsHref = active ? `/processamento?levantamento=${active.id}` : "/processamento";
 
   return <main className="min-h-screen bg-[#edf3ea] text-slate-900">
