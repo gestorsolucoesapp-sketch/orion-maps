@@ -6,7 +6,7 @@ import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
 
-type Props={results:ProcessingResult[];error?:string;surveyId?:string};
+type Props={results:ProcessingResult[];error?:string;surveyId?:string;planBoundary?:{name:string;points:[number,number][]}|null};
 
 function fmtBytes(value:number|null){
   if(!value)return "—";
@@ -27,8 +27,9 @@ const labels:Record<string,string>={
 };
 const short:Record<string,string>={orthophoto:"ORTO",contours:"CURVAS",hillshade:"RELEVO",hypsometry:"HIPS",slope:"SLOPE",dtm:"DTM",dsm:"DSM",point_cloud:"LAZ",report:"PDF",mesh:"3D",other:"ARQ"};
 
-export default function ProcessingResults({results,error,surveyId}:Props){
+export default function ProcessingResults({results,error,surveyId,planBoundary}:Props){
   const [downloading,setDownloading]=useState<string|null>(null);
+  const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted[0];
@@ -53,9 +54,13 @@ export default function ProcessingResults({results,error,surveyId}:Props){
   }
 
   function openResult(item:ProcessingResult){
-    const visual=!!item.preview_url&&(item.mime_type==="image/jpeg"||item.mime_type==="image/png");
-    if(visual)window.open(item.preview_url!,"_blank","noopener,noreferrer");
-    else void forceDownload(item);
+    const mapKinds=["orthophoto","contours","hillshade","hypsometry","slope"];
+    if(mapKinds.includes(item.kind)){
+      setSelectedKind(item.kind);
+      requestAnimationFrame(()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"}));
+      return;
+    }
+    void forceDownload(item);
   }
 
   if(error)return <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
@@ -87,7 +92,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
             return <button key={item.id} type="button" onClick={()=>openResult(item)} disabled={downloading!==null} className="group min-w-[168px] max-w-[190px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm disabled:opacity-60">
               <div className="relative h-24 overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-800 to-slate-900">
                 {visual?<img src={item.preview_url!} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
-                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{visual?"Visualizar":"Baixar"}</span>
+                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{["orthophoto","contours","hillshade","hypsometry","slope"].includes(item.kind)?"Mostrar no mapa":"Baixar"}</span>
               </div>
               <div className="p-3">
                 <strong className="block truncate text-sm text-slate-900">{item.display_name||labels[item.kind]||item.kind}</strong>
@@ -98,7 +103,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap results={results}/></div>
+      <div className="mt-6"><ResultsMap results={results} planBoundary={planBoundary} focusKind={selectedKind}/></div>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <a href={"/processamento/relatorio?levantamento="+encodeURIComponent(reportSurveyId)} target="_blank" rel="noreferrer" className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">Exportar PDF ↗</a>
