@@ -94,26 +94,6 @@ async function transparentBorderNoData(url:string):Promise<string>{
   return canvas.toDataURL("image/png");
 }
 
-async function transparentOrthophoto(url:string):Promise<string>{
-  const response=await fetch(url,{cache:"no-store"});
-  if(!response.ok)return url;
-  const bitmap=await createImageBitmap(await response.blob());
-  const maxSide=1800;
-  const scale=Math.min(1,maxSide/Math.max(bitmap.width,bitmap.height));
-  const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
-  const canvas=document.createElement("canvas");canvas.width=w;canvas.height=h;
-  const ctx=canvas.getContext("2d",{willReadFrequently:true});if(!ctx)return url;
-  ctx.drawImage(bitmap,0,0,w,h);
-  const image=ctx.getImageData(0,0,w,h),d=image.data;
-  for(let i=0;i<d.length;i+=4){
-    const r=d[i],g=d[i+1],b=d[i+2];
-    if(r<28&&g<28&&b<28)d[i+3]=0;
-    else if(r<45&&g<45&&b<45)d[i+3]=Math.min(d[i+3],Math.round(((Math.max(r,g,b)-28)/17)*255));
-  }
-  ctx.putImageData(image,0,0);
-  return canvas.toDataURL("image/png");
-}
-
 function readBounds(results:ProcessingResult[]):Bounds|null{
   for(const item of results){
     const raw=item.metadata?.bounds_wgs84 as Partial<Bounds>|undefined;
