@@ -111,49 +111,44 @@ export function SurveySearch({
   activeId?: string;
   statuses?: Record<string, SurveyStatus>;
 }) {
-  const [search, setSearch] = useState("");
-  const filtered = surveys.filter(s => `${s.name} ${s.location}`.toLowerCase().includes(search.toLowerCase()));
+  const [search,setSearch]=useState("");
+  const filtered=surveys.filter(s=>`${s.name} ${s.location}`.toLowerCase().includes(search.toLowerCase()));
 
-  function badge(status: SurveyStatus | undefined) {
-    if (!status || status.status === "none") return null;
-    if (status.status === "completed") return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">✓ Concluído</span>;
-    if (status.status === "error") return <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-800">Atenção</span>;
-    return <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700">{status.status === "queued" ? "Na fila" : `Processando · ${status.progress}%`}</span>;
+  function badge(status:SurveyStatus|undefined){
+    if(!status||status.status==="none")return <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">Rascunho</span>;
+    if(status.status==="completed")return <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800">● Concluído</span>;
+    if(status.status==="error")return <span className="rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-bold text-red-800">● Atenção</span>;
+    return <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{status.status==="queued"?"Na fila":`Processando · ${status.progress}%`}</span>;
   }
 
-  return <div className="space-y-4">
+  return <div className="space-y-3">
     <div className="relative">
-      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-      <input
-        aria-label="Buscar levantamentos"
-        className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-10 pr-4 text-sm text-slate-800 shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-        placeholder="Buscar levantamento ou local…"
-        value={search}
-        onChange={event => setSearch(event.target.value)}
-      />
+      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg text-slate-400">⌕</span>
+      <input aria-label="Buscar levantamentos" className="w-full rounded-2xl border border-white bg-white/95 py-3.5 pl-11 pr-4 text-sm text-slate-800 shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100" placeholder="Buscar levantamento ou local…" value={search} onChange={event=>setSearch(event.target.value)}/>
     </div>
 
-    <div className="space-y-3">
-      {filtered.map(s => {
-        const status = statuses[s.id];
-        return <article key={s.id} className={`rounded-2xl border bg-white p-4 shadow-sm transition ${activeId===s.id?"border-emerald-500 ring-1 ring-emerald-200":"border-slate-200"}`}>
-          <div className="flex items-start justify-between gap-3">
+    <div className="space-y-2.5">
+      {filtered.map(s=>{
+        const status=statuses[s.id];
+        const selected=activeId===s.id;
+        return <article key={s.id} className={`rounded-[20px] border bg-white p-3.5 shadow-sm ${selected?"border-emerald-500 ring-1 ring-emerald-200":"border-white"}`}>
+          <div className="flex items-start gap-3">
+            <Link href={`/painel?levantamento=${s.id}`} className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-100 to-slate-100 text-lg text-emerald-900">⌖</Link>
             <Link href={`/painel?levantamento=${s.id}`} className="min-w-0 flex-1">
-              <h3 className="truncate text-base font-semibold text-slate-900">{s.name}</h3>
-              <p className="mt-1 text-sm text-slate-500">⌖ {s.location || "Local não informado"}</p>
-              <p className="mt-1 text-xs text-slate-400">▣ {s.flight_date?.split("-").reverse().join("/") || "Data a definir"}</p>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="truncate text-sm font-semibold text-slate-900">{s.name}</h3>
+                {badge(status)}
+              </div>
+              <p className="mt-1 truncate text-xs text-slate-500">⌖ {s.location||"Local não informado"}</p>
+              <p className="mt-1 text-[11px] text-slate-400">▣ {s.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
             </Link>
-            <span className="text-xl leading-none text-slate-400">⋮</span>
           </div>
-
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            {badge(status) || <span className="text-[11px] text-slate-400">Sem processamento</span>}
-            {status?.status==="completed" ? <Link href={`/processamento/resultados?levantamento=${s.id}`} className="rounded-xl border border-emerald-600 px-3 py-2 text-xs font-semibold text-emerald-800">Ver resultados →</Link> : <Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
+          <div className="mt-3 flex justify-end">
+            {status?.status==="completed"?<Link href={`/processamento/resultados?levantamento=${s.id}`} className="rounded-xl bg-emerald-900 px-3 py-2 text-xs font-semibold text-white">Ver resultados →</Link>:<Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
           </div>
         </article>;
       })}
-      {filtered.length === 0 && <p className="rounded-2xl border border-dashed border-slate-300 bg-white/60 py-8 text-center text-sm text-slate-500">{surveys.length ? "Nenhum resultado para esta busca." : "Seu primeiro levantamento começa aqui."}</p>}
+      {filtered.length===0&&<p className="rounded-2xl border border-dashed border-slate-300 bg-white/60 py-8 text-center text-sm text-slate-500">{surveys.length?"Nenhum resultado para esta busca.":"Seu primeiro levantamento começa aqui."}</p>}
     </div>
   </div>;
 }
-
