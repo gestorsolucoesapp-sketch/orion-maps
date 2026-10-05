@@ -16,7 +16,7 @@ export function SurveyForm({ survey }: { survey?: Survey }) {
     <label className="block text-sm font-semibold">Drone / câmera<input className={input} name="drone" maxLength={100} defaultValue={survey?.drone} placeholder="Modelo utilizado no levantamento" /></label>
     <label className="block text-sm font-semibold">Anotações<textarea className={input} name="notes" rows={4} maxLength={3000} defaultValue={survey?.notes} placeholder="Objetivo, condições do voo e observações de campo" /></label>
     {state.error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}
-    <button disabled={pending} className="rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Salvando…" : survey ? "Salvar alterações" : "Criar levantamento"}</button>
+    <button disabled={pending} aria-busy={pending} className="rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Salvando" : survey ? "Salvar alterações" : "Criar levantamento"}</button>
   </form>;
 }
 
@@ -87,7 +87,7 @@ export function ImageWorkspace({ survey, images }: { survey: Survey; images: Sur
         if (files.length > 200) { setMessage("Selecione no máximo 200 fotos por lote."); event.target.value = ""; return; }
         setQueue(files.map(file => ({ file, progress: 0, status: "aguardando" }))); setMessage("");
       }} />
-      {queue.length > 0 && <><p className="mt-3 text-sm">{queue.length} fotos · {sizeLabel(queue.reduce((sum, item) => sum + item.file.size, 0))}</p><button disabled={busy || queue.every(item => item.status === "concluído")} onClick={upload} className="mt-4 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Enviando fotos…" : "Enviar fotos"}</button></>}
+      {queue.length > 0 && <><p className="mt-3 text-sm">{queue.length} fotos · {sizeLabel(queue.reduce((sum, item) => sum + item.file.size, 0))}</p><button disabled={busy || queue.every(item => item.status === "concluído")} aria-busy={busy} onClick={upload} className="mt-4 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{busy ? "Enviando fotos" : "Enviar fotos"}</button></>}
     </div>
     {queue.length > 0 && <ul className="max-h-64 space-y-3 overflow-auto rounded-xl border border-slate-200 p-4 print:hidden">{queue.map((item, index) => <li key={index} className="text-sm"><div className="flex justify-between gap-3"><span className="truncate">{item.file.name}</span><span>{item.status} {item.status === "enviando" ? `${item.progress}%` : ""}</span></div>{item.status === "enviando" && <progress aria-label={`Envio de ${item.file.name}`} className="mt-1 w-full accent-emerald-700" max={100} value={item.progress} />}{item.error && <p className="mt-1 text-red-700">{item.error}</p>}</li>)}</ul>}
     {message && <p role="status" className="rounded-xl bg-slate-100 p-4 text-sm">{message}</p>}
@@ -148,7 +148,7 @@ export function SurveySearch({
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             {badge(status) || <span className="text-[11px] text-slate-400">Sem processamento</span>}
-            {status?.status==="completed" ? <Link href={`/processamento?levantamento=${s.id}`} className="rounded-xl border border-emerald-600 px-3 py-2 text-xs font-semibold text-emerald-800">Ver resultados →</Link> : <Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
+            {status?.status==="completed" ? <Link href={`/processamento/resultados?levantamento=${s.id}`} className="rounded-xl border border-emerald-600 px-3 py-2 text-xs font-semibold text-emerald-800">Ver resultados →</Link> : <Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
           </div>
         </article>;
       })}
