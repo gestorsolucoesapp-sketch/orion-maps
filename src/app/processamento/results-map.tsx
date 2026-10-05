@@ -109,7 +109,7 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
 export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
-  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
+  const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,project:true});
   const bounds=useMemo(()=>readBounds(results),[results]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
