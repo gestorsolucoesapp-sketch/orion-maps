@@ -8,6 +8,7 @@ import {listProcessingDevices} from "@/lib/supabase/processing-devices";
 import {listProcessingResults,type ProcessingResult} from "@/lib/supabase/processing-results";
 import {signOutAction} from "./actions";
 import {ImageWorkspace,SurveyForm,SurveySearch,type SurveyStatus} from "./workspace";
+import ForceUpdateButton from "@/components/force-update-button";
 
 type RecentResult={survey:Survey;result:ProcessingResult};
 
@@ -71,9 +72,10 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
               <Link href="/painel" className="min-w-0">
                 <Image src="/orion-maps-logo.jpg" width={420} height={180} alt="Orion Maps Drones · Mapeamento de precisão" className="h-[105px] w-[230px] rounded-2xl object-contain object-left sm:h-[122px] sm:w-[290px]"/>
               </Link>
-              <div className="hidden items-center gap-3 sm:flex">
-                <span className="max-w-56 truncate text-xs text-white/60">{user.email}</span>
-                <form action={signOutAction}><button className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm text-white">Sair</button></form>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <ForceUpdateButton/>
+                <span className="hidden max-w-56 truncate text-xs text-white/60 sm:inline">{user.email}</span>
+                <form action={signOutAction} className="hidden sm:block"><button className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm text-white">Sair</button></form>
               </div>
             </div>
             <p className="relative mt-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-100/65">Levantar · Processar · Transformar</p>
