@@ -35,15 +35,8 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
       <header className="print:hidden">
         <div className="mt-4 overflow-hidden rounded-[28px] bg-[#071b20] text-white shadow-[0_14px_36px_rgba(10,45,31,.18)]">
           <div className="flex min-h-[112px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
-            <Link href="/painel" className="flex min-w-0 items-center gap-4">
-              <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-[#0d2a31]">
-                <Image src="/orion-drone-concept.png" width={56} height={56} alt="Orion Maps Drones" className="h-12 w-12 object-contain"/>
-              </div>
-              <div>
-                <div className="text-xl font-bold tracking-[.2em] sm:text-2xl">ORION</div>
-                <div className="text-[10px] font-semibold tracking-[.38em] text-sky-300">MAPS · DRONES</div>
-                <div className="mt-1 text-xs text-white/55">Processamento fotogramétrico</div>
-              </div>
+            <Link href="/painel" className="min-w-0">
+              <Image src="/orion-maps-brand.svg" width={300} height={75} alt="Orion Maps Drones" className="h-auto w-[220px] sm:w-[300px]"/>
             </Link>
             <Link href={projectHref} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold">← Projeto</Link>
           </div>
