@@ -9,13 +9,14 @@ import {products,readDrafts,validateDraft,type Draft} from './drafts';
 import ProcessingResults from './processing-results';
 import type {ProcessingResult} from '@/lib/supabase/processing-results';
 import type {ProcessingJob} from '@/lib/supabase/processing-jobs';
+import type {ProcessingDevice} from '@/lib/supabase/processing-devices';
 import {queueProcessing} from './job-actions';
 
 const card='rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7';
 const field='mt-2 block w-full rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-sm text-slate-800';
 const button='rounded-lg bg-emerald-800 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50';
-type Props={userId:string;surveys:Survey[];active?:Survey;images:SurveyImage[];imageError?:string;results:ProcessingResult[];resultsError?:string;jobs:ProcessingJob[];jobsError?:string;draftId?:string};
-export default function ProcessingWorkspace({userId,surveys,active,images,imageError,results,resultsError,jobs,jobsError,draftId}:Props){
+type Props={userId:string;surveys:Survey[];active?:Survey;images:SurveyImage[];imageError?:string;results:ProcessingResult[];resultsError?:string;jobs:ProcessingJob[];jobsError?:string;devices:ProcessingDevice[];devicesError?:string;draftId?:string};
+export default function ProcessingWorkspace({userId,surveys,active,images,imageError,results,resultsError,jobs,jobsError,devices,devicesError,draftId}:Props){
  const router=useRouter(),storageKey=`orion-processing-v1:${userId}`;
  const [drafts,setDrafts]=useState<Draft[]>([]),[message,setMessage]=useState(''),[storageReady,setStorageReady]=useState(false),[queueBusy,setQueueBusy]=useState(false);
  const [id,setId]=useState(''),[title,setTitle]=useState(active?.name||''),[product,setProduct]=useState('complete'),[quality,setQuality]=useState('medium'),[resolution,setResolution]=useState('5'),[gcp,setGcp]=useState(false),[notes,setNotes]=useState('');
@@ -51,7 +52,7 @@ export default function ProcessingWorkspace({userId,surveys,active,images,imageE
   finally{setQueueBusy(false);}
  }
  return <><section className="mission-title"><div><div className="eyebrow">DAS FOTOS AOS RESULTADOS</div><h1>Processamento de imagens.</h1><p>Reúna o voo, escolha os produtos e prepare a reconstrução da área.</p></div><Link className="flight-button primary" href="/painel?novo=1">+ Novo levantamento</Link></section>
- <EnginePanel/>
+ <EnginePanel devices={devices} error={devicesError}/>
  {active&&<ProcessingResults results={results} error={resultsError}/>} 
  <div className="mb-6 grid gap-3 sm:grid-cols-3">{[['Levantamentos',surveys.length],['Rascunhos neste navegador',drafts.length],['Fotos da área selecionada',imageError?'Indisponível':active?images.length:'—']].map(([label,value])=><div key={label} className={card}><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-3xl font-semibold">{value}</p></div>)}</div>
  <details className={`${card} mb-6`}><summary className="cursor-pointer font-semibold">Antes de enviar as imagens</summary><ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-600"><li>Use fotos originais do mesmo levantamento, com sobreposição e nitidez. Preserve os metadados do drone.</li><li>Envie JPG ou PNG: até 50 MB por arquivo e 200 fotos por lote. Fotos de mensageiros, capturas de tela e imagens sem sobreposição não são adequadas para reconstrução.</li><li>A resolução solicitada não garante acurácia. GCP, RTK e qualidade do voo precisam ser verificados antes do processamento.</li><li>As fotos ficam no armazenamento privado da sua conta. Os rascunhos desta aba ficam somente neste navegador; exporte uma cópia.</li></ul></details>
