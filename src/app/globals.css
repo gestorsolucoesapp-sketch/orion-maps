@@ -19,3 +19,31 @@ button { cursor: pointer; }
 ::selection { background: #bdd6a7; color: #1d3e29; }
 
 body{font-family:"Segoe UI",Arial,Helvetica,sans-serif}main:not(.flight-main) .bg-white{box-shadow:0 6px 20px #244f7510}button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #477a40;outline-offset:3px}@media print{html,body{background:white}main .bg-white{box-shadow:none}}
+
+
+.app-version-badge{
+  position:fixed;
+  top:10px;
+  right:12px;
+  z-index:9999;
+  display:flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 10px;
+  border:1px solid #b8cbb6;
+  border-radius:999px;
+  background:rgba(255,255,255,.94);
+  color:#214d3c;
+  box-shadow:0 3px 12px #244d3018;
+  backdrop-filter:blur(8px);
+  font:600 11px/1 "Segoe UI",Arial,sans-serif;
+}
+.app-version-badge strong{font-size:11px}
+.app-version-name{font-weight:700}
+.app-version-build{color:#617461;font:10px/1 ui-monospace,SFMono-Regular,Menlo,monospace}
+@media(max-width:700px){
+  .app-version-badge{top:8px;right:8px;padding:6px 9px}
+  .app-version-name{display:none}
+  .app-version-build{font-size:9px}
+}
+@media print{.app-version-badge{display:none}}
