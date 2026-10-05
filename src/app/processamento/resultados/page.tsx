@@ -7,6 +7,7 @@ import {listProcessingResults} from "@/lib/supabase/processing-results";
 import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
 import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
 import ProcessingResults from "../processing-results";
+import EditSurveyHeader from "./edit-survey-header";
 
 export default async function ProcessingResultsPage({searchParams}:{searchParams:Promise<{levantamento?:string}>}){
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
@@ -68,6 +69,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Resultado do levantamento</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{active.name}</h1>
             <p className="mt-2 text-sm text-slate-500">{active.location||"Local a definir"} · {active.drone||"Drone a definir"} · {active.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
+            <EditSurveyHeader survey={active}/>
           </div>
           <Link href={`/processamento/relatorio?levantamento=${active.id}`} target="_blank" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Exportar PDF ↗</Link>
         </div>
