@@ -54,15 +54,8 @@ export default async function PainelPage({ searchParams }: { searchParams: Promi
       <header className="print:hidden">
         <div className="mt-4 overflow-hidden rounded-[28px] bg-[#071b20] text-white shadow-[0_14px_36px_rgba(10,45,31,.18)]">
           <div className="relative flex min-h-[132px] items-center justify-between gap-5 px-5 py-5 sm:px-8">
-            <div className="flex min-w-0 items-center gap-4">
-              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-[#0d2a31]">
-                <Image src="/orion-drone-concept.png" width={64} height={64} alt="Orion Maps Drones" className="h-14 w-14 object-contain"/>
-              </div>
-              <div className="min-w-0">
-                <div className="text-2xl font-bold tracking-[.2em] sm:text-3xl">ORION</div>
-                <div className="mt-1 text-xs font-semibold tracking-[.45em] text-sky-300">MAPS · DRONES</div>
-                <div className="mt-2 text-xs text-white/60">Mapeamento de precisão</div>
-              </div>
+            <div className="min-w-0">
+              <Image src="/orion-maps-brand.svg" width={330} height={82} alt="Orion Maps Drones · Mapeamento de precisão" className="h-auto w-[240px] sm:w-[330px]"/>
             </div>
             <div className="hidden items-center gap-3 sm:flex">
               <span className="max-w-56 truncate text-xs text-white/55">{user.email}</span>
