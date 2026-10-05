@@ -4,6 +4,7 @@ import {useEffect,useRef} from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import GeoTiffReportImage from "./geotiff-report-image";
 
 type Coord=[number,number];
 type Bounds={west:number;south:number;east:number;north:number};
@@ -68,6 +69,8 @@ export default function ReportPerspectives({results,planBoundary}:Props){
   const hill=results.find(r=>r.kind==="hillshade"&&r.preview_url);
   const hypso=results.find(r=>r.kind==="hypsometry"&&r.preview_url);
   const slope=results.find(r=>r.kind==="slope"&&r.preview_url);
+  const dtm=results.find(r=>r.kind==="dtm"&&r.download_url);
+  const dsm=results.find(r=>r.kind==="dsm"&&r.download_url);
   const cloud=results.find(r=>r.kind==="point_cloud");
   const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
   const cloudSize=cloud?.size_bytes?((cloud.size_bytes/1024/1024).toFixed(1)+" MB"):"—";
@@ -78,6 +81,8 @@ export default function ReportPerspectives({results,planBoundary}:Props){
     {hill?.preview_url&&<Perspective title="Relevo sombreado" subtitle="Representação de relevo por iluminação simulada para facilitar a leitura de formas do terreno."><img src={hill.preview_url} alt="Relevo sombreado" className="w-full rounded-xl border border-slate-200"/></Perspective>}
     {hypso?.preview_url&&<Perspective title="Hipsometria" subtitle="Classes de altitude representadas por cores para comparação visual das cotas do terreno."><img src={hypso.preview_url} alt="Mapa hipsométrico" className="w-full rounded-xl border border-slate-200"/></Perspective>}
     {slope?.preview_url&&<Perspective title="Declividade" subtitle="Representação da inclinação do terreno derivada do modelo digital."><img src={slope.preview_url} alt="Mapa de declividade" className="w-full rounded-xl border border-slate-200"/></Perspective>}
+    {dtm?.download_url&&<Perspective title="DTM · Modelo Digital do Terreno" subtitle="Superfície estimada do terreno, com remoção máxima possível de vegetação e objetos."><GeoTiffReportImage url={dtm.download_url} kind="dtm"/></Perspective>}
+    {dsm?.download_url&&<Perspective title="DSM · Modelo Digital de Superfície" subtitle="Superfície observada incluindo vegetação, telhados e outros objetos acima do terreno."><GeoTiffReportImage url={dsm.download_url} kind="dsm"/></Perspective>}
     {cloud&&<Perspective title="Nuvem de pontos" subtitle="Produto tridimensional do levantamento, armazenado em formato LAZ."><div className="rounded-2xl border border-slate-200 bg-slate-50 p-6"><div className="grid gap-4 sm:grid-cols-3"><div><span className="text-xs text-slate-500">Produto</span><strong className="mt-1 block">Nuvem de pontos</strong></div><div><span className="text-xs text-slate-500">Formato</span><strong className="mt-1 block">LAZ</strong></div><div><span className="text-xs text-slate-500">Tamanho</span><strong className="mt-1 block">{cloudSize}</strong></div></div><p className="mt-4 text-xs leading-5 text-slate-600">O arquivo LAZ preserva a nuvem de pontos 3D. O PDF registra o produto e seus dados técnicos; uma visualização 3D interativa exige o visualizador do aplicativo e não é embutida diretamente no documento PDF.</p></div></Perspective>}
   </>;
 }
