@@ -6,8 +6,6 @@ import {useRouter} from 'next/navigation';
 import type {Survey,SurveyImage} from '@/lib/supabase/surveys';
 import {ImageWorkspace} from '../painel/workspace';
 import {products,readDrafts,validateDraft,type Draft} from './drafts';
-import ProcessingResults from './processing-results';
-import type {ProcessingResult} from '@/lib/supabase/processing-results';
 import type {ProcessingJob} from '@/lib/supabase/processing-jobs';
 import type {ProcessingDevice} from '@/lib/supabase/processing-devices';
 import {queueProcessing} from './job-actions';
@@ -15,8 +13,8 @@ import {queueProcessing} from './job-actions';
 const card='rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7';
 const field='mt-2 block w-full rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 text-sm text-slate-800';
 const button='rounded-lg bg-emerald-800 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50';
-type Props={userId:string;surveys:Survey[];active?:Survey;images:SurveyImage[];imageError?:string;results:ProcessingResult[];resultsError?:string;jobs:ProcessingJob[];jobsError?:string;devices:ProcessingDevice[];devicesError?:string;draftId?:string};
-export default function ProcessingWorkspace({userId,surveys,active,images,imageError,results,resultsError,jobs,jobsError,devices,devicesError,draftId}:Props){
+type Props={userId:string;surveys:Survey[];active?:Survey;images:SurveyImage[];imageError?:string;jobs:ProcessingJob[];jobsError?:string;devices:ProcessingDevice[];devicesError?:string;draftId?:string};
+export default function ProcessingWorkspace({userId,surveys,active,images,imageError,jobs,jobsError,devices,devicesError,draftId}:Props){
  const router=useRouter(),storageKey=`orion-processing-v1:${userId}`;
  const [drafts,setDrafts]=useState<Draft[]>([]),[message,setMessage]=useState(''),[storageReady,setStorageReady]=useState(false),[queueBusy,setQueueBusy]=useState(false);
  const [id,setId]=useState(''),[title,setTitle]=useState(active?.name||''),[product,setProduct]=useState('complete'),[quality,setQuality]=useState('medium'),[resolution,setResolution]=useState('5'),[gcp,setGcp]=useState(false),[notes,setNotes]=useState('');
