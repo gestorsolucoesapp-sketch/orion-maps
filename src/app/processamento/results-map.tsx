@@ -68,6 +68,13 @@ export default function ResultsMap({results}:Props){
           layout:{visibility:visible[kind]?"visible":"none"},
         });
       }
+      const geometryResult=results.find(r=>r.metadata?.project_boundary_geojson);
+      const projectBoundary=geometryResult?.metadata?.project_boundary_geojson as GeoJSON.GeoJSON|undefined;
+      if(projectBoundary){
+        m.addSource("project-boundary",{type:"geojson",data:projectBoundary});
+        m.addLayer({id:"project-boundary-fill",type:"fill",source:"project-boundary",paint:{"fill-color":"#2c5734","fill-opacity":0.08}});
+        m.addLayer({id:"project-boundary-line",type:"line",source:"project-boundary",paint:{"line-color":"#1d3e29","line-width":2}});
+      }
       const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
       if(contours?.preview_url){
         fetch(contours.preview_url).then(r=>r.json()).then(data=>{
