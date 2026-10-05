@@ -5,7 +5,7 @@ import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
 
-type Props={results:ProcessingResult[];error?:string;surveyId:string};
+type Props={results:ProcessingResult[];error?:string;surveyId?:string};
 
 function fmtBytes(value:number|null){
   if(!value)return "—";
@@ -36,6 +36,7 @@ const labels:Record<string,string>={
 };
 
 export default function ProcessingResults({results,error,surveyId}:Props){
+  const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted[0];
   const min=num(reference?.metadata??null,"altitude_min_m");
@@ -66,7 +67,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
         <h2 className="mt-2 text-xl font-semibold text-slate-900">Processamento concluído</h2>
         <p className="mt-2 text-sm text-slate-600">{results.length} produtos registrados para este levantamento.</p>
       </div>
-      <div className="flex flex-wrap gap-2"><a href={"/processamento/relatorio?levantamento="+encodeURIComponent(surveyId)} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Exportar projeto PDF ↗</a><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Concluído · 100%</span></div>
+      <div className="flex flex-wrap gap-2"><a href={"/processamento/relatorio?levantamento="+encodeURIComponent(reportSurveyId)} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Exportar projeto PDF ↗</a><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Concluído · 100%</span></div>
     </div>
 
     <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
