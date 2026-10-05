@@ -130,3 +130,11 @@ button[aria-busy="true"]::after,.is-loading::after{
   html{scroll-behavior:auto}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
+
+
+@media print{
+  @page{size:A4;margin:12mm}
+  .report-perspective{break-before:page;break-inside:avoid-page;page-break-before:always;page-break-inside:avoid}
+  .report-perspective img{max-height:235mm;object-fit:contain}
+  .print-hide{display:none!important}
+}
