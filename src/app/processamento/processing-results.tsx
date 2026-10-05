@@ -5,6 +5,7 @@ import {useState} from "react";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
+const PointCloudViewer=dynamic(()=>import("./point-cloud-viewer"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-slate-200 bg-slate-950 p-8 text-center text-sm text-white/70">Carregando visualizador 3D…</div>});
 
 type Props={results:ProcessingResult[];error?:string;surveyId?:string;planBoundary?:{name:string;points:[number,number][]}|null};
 
@@ -54,7 +55,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   }
 
   function openResult(item:ProcessingResult){
-    const mapKinds=["orthophoto","contours","hillshade","hypsometry","slope"];
+    const mapKinds=["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"];
     if(mapKinds.includes(item.kind)){
       setSelectedKind(item.kind);
       requestAnimationFrame(()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"}));
@@ -97,7 +98,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
             return <button key={item.id} type="button" onClick={()=>openResult(item)} disabled={downloading!==null} className="group min-w-[168px] max-w-[190px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm disabled:opacity-60">
               <div className="relative h-24 overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-800 to-slate-900">
                 {visual?<img src={item.preview_url!} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
-                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{["orthophoto","contours","hillshade","hypsometry","slope"].includes(item.kind)?"Mostrar no mapa":"Baixar"}</span>
+                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"].includes(item.kind)?"Mostrar no mapa":item.kind==="point_cloud"?"Abrir 3D":"Baixar"}</span>
               </div>
               <div className="p-3">
                 <strong className="block truncate text-sm text-slate-900">{item.display_name||labels[item.kind]||item.kind}</strong>
@@ -116,14 +117,15 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         return <section id="nuvem-pontos" className="mt-5 scroll-mt-24 rounded-2xl border border-slate-200 bg-[#f5f8f4] p-5">
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Nuvem de pontos</p>
           <h3 className="mt-1 text-lg font-semibold text-slate-950">Produto 3D em formato LAZ</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-600">Esta é a nuvem de pontos gerada pelo processamento. O arquivo está pronto para uso em softwares GIS/CAD e para o futuro visualizador 3D do Orion Maps.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">Esta é a nuvem de pontos gerada pelo processamento. Você pode girar, aproximar e explorar diretamente no Orion Maps.</p>
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-white p-3"><span className="text-[11px] text-slate-500">Formato</span><strong className="mt-1 block">LAZ</strong></div>
             <div className="rounded-xl bg-white p-3"><span className="text-[11px] text-slate-500">Tamanho</span><strong className="mt-1 block">{fmtBytes(cloud.size_bytes)}</strong></div>
             <div className="col-span-2 rounded-xl bg-white p-3 sm:col-span-1"><span className="text-[11px] text-slate-500">CRS</span><strong className="mt-1 block">{cloud.source_crs||"—"}</strong></div>
           </div>
+          {cloud.download_url&&<div className="mt-4"><PointCloudViewer url={cloud.download_url}/></div>}
           <button type="button" onClick={()=>void forceDownload(cloud)} disabled={downloading!==null} className="mt-4 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{downloading===cloud.id?"Preparando…":"Baixar nuvem LAZ ↓"}</button>
-          <p className="mt-3 text-[11px] leading-5 text-slate-500">O PDF completo registra a existência da nuvem de pontos e seus dados técnicos. Uma visualização 3D interativa não é incorporada ao PDF.</p>
+          <p className="mt-3 text-[11px] leading-5 text-slate-500">O PDF completo registra a existência da nuvem de pontos e seus dados técnicos. A navegação 3D permanece interativa somente no aplicativo.</p>
         </section>;
       })()}
 
