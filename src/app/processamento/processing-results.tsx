@@ -5,7 +5,7 @@ import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
 
-type Props={results:ProcessingResult[];error?:string};
+type Props={results:ProcessingResult[];error?:string;surveyId:string};
 
 function fmtBytes(value:number|null){
   if(!value)return "—";
@@ -35,12 +35,26 @@ const labels:Record<string,string>={
   other:"Outro",
 };
 
-export default function ProcessingResults({results,error}:Props){
+export default function ProcessingResults({results,error,surveyId}:Props){
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted[0];
   const min=num(reference?.metadata??null,"altitude_min_m");
   const max=num(reference?.metadata??null,"altitude_max_m");
   const range=num(reference?.metadata??null,"elevation_range_m");
+
+  async function forceDownload(item:ProcessingResult){
+    if(!item.download_url)return;
+    try{
+      const response=await fetch(item.download_url,{cache:"no-store"});
+      if(!response.ok)throw new Error();
+      const blob=await response.blob();
+      const url=URL.createObjectURL(blob),a=document.createElement("a");
+      const ext=item.storage_path.split(".").pop()||"bin";
+      const base=(item.display_name||item.kind).replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"")||"orion-map";
+      a.href=url;a.download=base+"."+ext;document.body.appendChild(a);a.click();a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),30000);
+    }catch{window.open(item.download_url,"_blank","noopener,noreferrer");}
+  }
 
   if(error)return <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
   if(!results.length)return null;
@@ -52,7 +66,7 @@ export default function ProcessingResults({results,error}:Props){
         <h2 className="mt-2 text-xl font-semibold text-slate-900">Processamento concluído</h2>
         <p className="mt-2 text-sm text-slate-600">{results.length} produtos registrados para este levantamento.</p>
       </div>
-      <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Concluído · 100%</span>
+      <div className="flex flex-wrap gap-2"><a href={"/processamento/relatorio?levantamento="+encodeURIComponent(surveyId)} target="_blank" rel="noreferrer" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white">Exportar projeto PDF ↗</a><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Concluído · 100%</span></div>
     </div>
 
     <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -74,7 +88,7 @@ export default function ProcessingResults({results,error}:Props){
           <td className="p-3 text-slate-600">{item.mime_type||"—"}</td>
           <td className="p-3 text-slate-600">{fmtBytes(item.size_bytes)}</td>
           <td className="p-3 text-slate-600">{item.source_crs||"—"}</td>
-          <td className="p-3">{item.download_url?<a href={item.download_url} target="_blank" rel="noreferrer" className="font-semibold text-emerald-800">Baixar ↗</a>:<span className="text-slate-400">Indisponível</span>}</td>
+          <td className="p-3">{item.download_url?<button type="button" onClick={()=>void forceDownload(item)} className="font-semibold text-emerald-800">Baixar arquivo ↓</button>:<span className="text-slate-400">Indisponível</span>}</td>
         </tr>)}</tbody>
       </table>
     </div>
