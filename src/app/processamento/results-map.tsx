@@ -141,10 +141,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const slope=results.find(r=>r.kind==="slope"&&r.preview_url);
 
   useEffect(()=>{
-    if(!orthophoto?.preview_url){setTransparentOrtho(null);return;}
-    let cancelled=false;
-    transparentBorderNoData(orthophoto.preview_url).then(url=>{if(!cancelled)setTransparentOrtho(url)}).catch(()=>{if(!cancelled)setTransparentOrtho(orthophoto.preview_url!)});
-    return()=>{cancelled=true};
+    setTransparentOrtho(orthophoto?.preview_url||null);
   },[orthophoto?.preview_url]);
 
   useEffect(()=>{
