@@ -57,7 +57,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
     }catch{window.open(item.download_url,"_blank","noopener,noreferrer");}
   }
 
-  if(error)return <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
+  if(error)return <section id="resultados" className="mb-6 scroll-mt-24 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
   if(!results.length)return null;
 
   return <section className="mb-6 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7">
