@@ -5,6 +5,7 @@ import {getCurrentAccessToken,getCurrentUser} from "@/lib/supabase/auth";
 import {listSurveys} from "@/lib/supabase/surveys";
 import {listProcessingResults} from "@/lib/supabase/processing-results";
 import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
+import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
 import ProcessingResults from "../processing-results";
 
 export default async function ProcessingResultsPage({searchParams}:{searchParams:Promise<{levantamento?:string}>}){
@@ -19,6 +20,20 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const jobs=await listProcessingJobs(active.id,token);
   const latestCompleted=jobs.find(j=>j.status==="completed");
   if(latestCompleted)results=results.filter(r=>r.job_id===latestCompleted.id);
+
+  const bounds=(()=>{
+    for(const item of results){
+      const raw=item.metadata?.bounds_wgs84 as {west?:number;south?:number;east?:number;north?:number}|undefined;
+      if(raw&&[raw.west,raw.south,raw.east,raw.north].every(v=>typeof v==="number"&&Number.isFinite(v)))return raw as {west:number;south:number;east:number;north:number};
+    }
+    return null;
+  })();
+  let planBoundary:null|{name:string;points:[number,number][]}=null;
+  try{
+    const missions=await listMissionPlanCandidates(token);
+    const match=findMissionBoundaryForBounds(missions,bounds);
+    if(match)planBoundary={name:match.name,points:match.points};
+  }catch{}
 
   const projectHref=`/painel?levantamento=${active.id}`;
   const productsHref=`/processamento?levantamento=${active.id}`;
@@ -57,7 +72,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
           <Link href={`/processamento/relatorio?levantamento=${active.id}`} target="_blank" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Exportar PDF ↗</Link>
         </div>
 
-        {results.length?<ProcessingResults results={results} surveyId={active.id}/>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
+        {results.length?<ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold">Nenhum resultado concluído ainda</h2>
           <p className="mt-2 text-sm text-slate-500">Quando o processamento terminar, ortofoto, elevação, curvas e downloads aparecerão aqui.</p>
           <Link href={productsHref} className="mt-5 inline-block rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Ir para produtos</Link>
