@@ -68,7 +68,7 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
           {results.length>0&&<Link href={resultsHref} className="rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-white">Ver resultados →</Link>}
         </div>}
 
-        {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<ProcessingWorkspace key={active?.id||"none"} userId={user.id} surveys={surveys} active={active} images={images} imageError={imageError} results={results} resultsError={resultsError} jobs={jobs} jobsError={jobsError} devices={devices} devicesError={devicesError} draftId={query.rascunho}/>}
+        {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<ProcessingWorkspace key={active?.id||"none"} userId={user.id} surveys={surveys} active={active} images={images} imageError={imageError} jobs={jobs} jobsError={jobsError} devices={devices} devicesError={devicesError} draftId={query.rascunho}/>}
       </div>
     </div>
   </main>;
