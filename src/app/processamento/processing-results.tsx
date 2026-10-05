@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import {useState} from "react";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
@@ -36,6 +37,7 @@ const labels:Record<string,string>={
 };
 
 export default function ProcessingResults({results,error,surveyId}:Props){
+  const [downloading,setDownloading]=useState<string|null>(null);
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted[0];
@@ -44,7 +46,8 @@ export default function ProcessingResults({results,error,surveyId}:Props){
   const range=num(reference?.metadata??null,"elevation_range_m");
 
   async function forceDownload(item:ProcessingResult){
-    if(!item.download_url)return;
+    if(!item.download_url||downloading)return;
+    setDownloading(item.id);
     try{
       const response=await fetch(item.download_url,{cache:"no-store"});
       if(!response.ok)throw new Error();
@@ -55,6 +58,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
       a.href=url;a.download=base+"."+ext;document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),30000);
     }catch{window.open(item.download_url,"_blank","noopener,noreferrer");}
+    finally{setDownloading(null);}
   }
 
   if(error)return <section id="resultados" className="mb-6 scroll-mt-24 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
@@ -89,7 +93,7 @@ export default function ProcessingResults({results,error,surveyId}:Props){
           <td className="p-3 text-slate-600">{item.mime_type||"—"}</td>
           <td className="p-3 text-slate-600">{fmtBytes(item.size_bytes)}</td>
           <td className="p-3 text-slate-600">{item.source_crs||"—"}</td>
-          <td className="p-3">{item.download_url?<button type="button" onClick={()=>void forceDownload(item)} className="font-semibold text-emerald-800">Baixar arquivo ↓</button>:<span className="text-slate-400">Indisponível</span>}</td>
+          <td className="p-3">{item.download_url?<button type="button" aria-busy={downloading===item.id} disabled={downloading!==null} onClick={()=>void forceDownload(item)} className="rounded-lg px-2 py-1 font-semibold text-emerald-800 disabled:opacity-60">{downloading===item.id?"Preparando":"Baixar arquivo ↓"}</button>:<span className="text-slate-400">Indisponível</span>}</td>
         </tr>)}</tbody>
       </table>
     </div>
