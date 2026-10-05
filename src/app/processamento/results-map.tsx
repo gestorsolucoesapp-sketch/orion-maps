@@ -212,9 +212,13 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       <div className="absolute right-3 top-3 z-10">
         <button type="button" aria-expanded={layersOpen} onClick={()=>setLayersOpen(v=>!v)} className="grid h-11 w-11 place-items-center rounded-xl border border-white/80 bg-white/95 text-xl shadow-md backdrop-blur" title="Camadas">▱</button>
         {layersOpen&&<div className="mt-2 w-56 rounded-2xl border border-slate-200 bg-white/95 p-3 text-sm shadow-xl backdrop-blur">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <strong className="text-xs text-slate-700">Camadas</strong>
+            <button type="button" onClick={()=>setLayersOpen(false)} className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-600" aria-label="Fechar camadas">×</button>
+          </div>
           <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
           <div className="grid gap-1">
-            {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>setBasemap(key)} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{baseMaps[key].label}</button>)}
+            {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>{setBasemap(key);setLayersOpen(false);}} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{baseMaps[key].label}</button>)}
           </div>
           <p className="mb-2 mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Sobreposições</p>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Ortofoto</span><input type="checkbox" checked={!!visible.orthophoto} onChange={()=>setVisible(v=>({...v,orthophoto:!v.orthophoto}))}/></label>
