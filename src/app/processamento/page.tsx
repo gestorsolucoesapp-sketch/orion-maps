@@ -13,14 +13,14 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
   if(!user||!token)redirect("/entrar?retorno=%2Fprocessamento");
 
-  let surveys:Survey[]=[],images:SurveyImage[]=[],results:ProcessingResult[]=[],jobs:ProcessingJob[]=[],devices:ProcessingDevice[]=[],error="",imageError="",resultsError="",jobsError="",devicesError="";
+  let surveys:Survey[]=[],images:SurveyImage[]=[],results:ProcessingResult[]=[],jobs:ProcessingJob[]=[],devices:ProcessingDevice[]=[],error="",imageError="",jobsError="",devicesError="";
   try{surveys=await listSurveys(token);}catch{error="Não foi possível carregar seus levantamentos. Atualize a página para tentar novamente.";}
   try{devices=await listProcessingDevices(token);}catch{devicesError="Não foi possível verificar o processador local agora.";}
 
   const active=surveys.find(s=>s.id===query.levantamento);
   if(active){
     try{images=await listImages(active.id,user.id,token);}catch{imageError="Não foi possível consultar as imagens. Atualize a página antes de preparar o pedido.";}
-    try{results=await listProcessingResults(active.id,token);}catch{resultsError="Os resultados existem, mas não foi possível carregá-los agora. Atualize a página para tentar novamente.";}
+    try{results=await listProcessingResults(active.id,token);}catch{results=[];}
     try{jobs=await listProcessingJobs(active.id,token);}catch{jobsError="Não foi possível carregar o histórico de processamento agora.";}
     const latestCompleted=jobs.find(j=>j.status==="completed");
     if(latestCompleted)results=results.filter(r=>r.job_id===latestCompleted.id);
