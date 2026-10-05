@@ -31,11 +31,13 @@ export default function PointCloudViewer({url}:{url:string}){
         const LazstreamViewer=(mod as {LazstreamViewer?:{create:(canvas:HTMLCanvasElement,options?:Record<string,unknown>)=>Promise<ViewerLike>}}).LazstreamViewer;
         if(!LazstreamViewer)throw new Error("Visualizador 3D indisponível.");
         const viewer=await LazstreamViewer.create(canvasRef.current,{
-          workerCount:Math.max(1,Math.min(3,(navigator.hardwareConcurrency||4)-1)),
-          ringBufferCapacity:256*1024*1024,
-          sseThreshold:18,
-          splatRadius:2,
-          colorMode:"rgb",
+          workerCount:Math.max(1,Math.min(2,(navigator.hardwareConcurrency||4)-1)),
+          maxFetches:6,
+          ringBufferCapacity:192*1024*1024,
+          sseThreshold:1.0,
+          splatRadius:3,
+          voxelLod:true,
+          colorMode:"height",
           onStateChange:(state:string,message?:string)=>{
             if(cancelled)return;
             if(state==="streaming")setStatus("Pronto · arraste para girar · pinça para zoom");
@@ -53,7 +55,9 @@ export default function PointCloudViewer({url}:{url:string}){
         if(cancelled)return;
         const modes=viewer.getAvailableColorModes?.()||["height","intensity","classification"];
         setAvailable(modes);
-        setMode((viewer as {colorMode?:string}).colorMode||modes[0]||"height");
+        const preferred=modes.includes("rgb")?"rgb":modes.includes("height")?"height":modes[0]||"height";
+        const resolved=viewer.setColorMode?.(preferred as "rgb"|"height"|"intensity"|"classification")||preferred;
+        setMode(resolved);
         setProgress(100);
         setStatus("Pronto · arraste para girar · pinça para zoom");
       }catch(e){
@@ -76,7 +80,7 @@ export default function PointCloudViewer({url}:{url:string}){
 
   return <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-[#0f1719]">
     <div className="relative">
-      <canvas ref={canvasRef} className="block h-[58vh] min-h-[420px] max-h-[700px] w-full touch-none"/>
+      <canvas ref={canvasRef} className="block h-[58vh] min-h-[420px] max-h-[700px] w-full touch-none bg-[#080b0f]"/>
       {!error&&progress<100&&<div className="pointer-events-none absolute inset-x-4 bottom-4 rounded-xl bg-black/55 p-3 text-xs text-white backdrop-blur">
         <div className="mb-2 flex items-center justify-between gap-3"><span>{status}</span><strong>{progress}%</strong></div>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-white transition-all" style={{width:progress+"%"}}/></div>
@@ -90,7 +94,7 @@ export default function PointCloudViewer({url}:{url:string}){
     </div>
     <div className="border-t border-white/10 bg-black/25 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs text-white/70">{status||"Visualizador 3D"}</span>
+        <span className="text-xs text-white/70">{status||"Visualizador 3D"} · detalhe automático</span>
         {available.length>0&&<div className="flex flex-wrap gap-2">
           {available.map(item=><button key={item} type="button" onClick={()=>changeMode(item as "rgb"|"height"|"intensity"|"classification")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${mode===item?"bg-white text-slate-950":"bg-white/10 text-white"}`}>{labels[item]||item}</button>)}
         </div>}
