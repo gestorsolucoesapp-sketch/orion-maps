@@ -32,6 +32,11 @@ export default function ProcessingWorkspace({userId,surveys,active,images,imageE
  function save(){try{const d=current(),saved=readDrafts(localStorage.getItem(storageKey));if(!id&&saved.length>=100)throw new Error('Limite de 100 rascunhos neste navegador. Exporte uma ficha para guardar uma cópia.');const next=[d,...saved.filter(x=>x.id!==d.id)];localStorage.setItem(storageKey,JSON.stringify(next));setId(d.id);setDrafts(next);setMessage('Rascunho salvo neste navegador. Nenhum processamento foi iniciado.');}catch(e){setMessage(e instanceof Error?e.message:'Não foi possível salvar o rascunho.');}}
  function exportDraft(){try{const d=current();const file=new Blob([JSON.stringify({draft:d,status:'draft',engine:'local_queue',image_inventory_checked_at:new Date().toISOString(),images:images.map(i=>({name:i.name,size_bytes:i.metadata?.size??null})),notice:'Ficha de preparação. As fotos permanecem privadas; a tarefa executável é criada pelo botão Iniciar processamento.'},null,2)],{type:'application/json'});const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=`orion-processamento-${d.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);}catch(e){setMessage(e instanceof Error?e.message:'Não foi possível exportar.');}}
  const activeJob=jobs.find(j=>!['completed','error','cancelled'].includes(j.status));
+ useEffect(()=>{
+  if(!activeJob)return;
+  const timer=window.setInterval(()=>router.refresh(),10000);
+  return()=>window.clearInterval(timer);
+ },[activeJob?.id,activeJob?.status,activeJob?.progress,router]);
  async function startProcessing(){
   if(!active||queueBusy)return;
   try{
