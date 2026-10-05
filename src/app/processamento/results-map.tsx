@@ -218,7 +218,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
         const item=results.find(r=>r.kind===kind&&r.preview_url);if(!item?.preview_url)continue;
         const sourceUrl=kind==="orthophoto"?(transparentOrtho||item.preview_url):kind==="slope"?(processedSlope||item.preview_url):item.preview_url;
         m.addSource(`result-${kind}`,{type:"image",url:sourceUrl,coordinates:corners});
-        m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":kind==="orthophoto"?0.9:0.78},layout:{visibility:visible[kind]?"visible":"none"}});
+        m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":kind==="orthophoto"?0.9:0.78,"raster-resampling":"linear"},layout:{visibility:visible[kind]?"visible":"none"}});
       }
       if(dtmPreview){
         m.addSource("result-dtm",{type:"image",url:dtmPreview,coordinates:corners});
