@@ -2,16 +2,20 @@
 
 import {useEffect,useRef,useState} from "react";
 
+type CameraState={x:number;y:number;z:number;tx:number;ty:number;tz:number;fovY:number};
 type ViewerLike={
   load:(url:string)=>Promise<void>;
   dispose:()=>void;
   setColorMode?:(mode:"rgb"|"height"|"intensity"|"classification")=>string;
   getAvailableColorModes?:()=>string[];
+  getCameraState?:()=>CameraState|null;
+  applyCameraState?:(state:CameraState)=>void;
 };
 
 export default function PointCloudViewer({url}:{url:string}){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const viewerRef=useRef<ViewerLike|null>(null);
+  const overviewRef=useRef<CameraState|null>(null);
   const [status,setStatus]=useState("Preparando visualizador 3D…");
   const [progress,setProgress]=useState(0);
   const [mode,setMode]=useState("rgb");
@@ -59,7 +63,18 @@ export default function PointCloudViewer({url}:{url:string}){
         const resolved=viewer.setColorMode?.(preferred as "rgb"|"height"|"intensity"|"classification")||preferred;
         setMode(resolved);
         setProgress(100);
-        setStatus("Pronto · arraste para girar · pinça para zoom");
+        const initial=viewer.getCameraState?.()||null;
+        overviewRef.current=initial;
+        if(initial&&viewer.applyCameraState){
+          const k=.52;
+          viewer.applyCameraState({
+            ...initial,
+            x:initial.tx+(initial.x-initial.tx)*k,
+            y:initial.ty+(initial.y-initial.ty)*k,
+            z:initial.tz+(initial.z-initial.tz)*k,
+          });
+        }
+        setStatus("Pronto · mais detalhes carregam conforme você aproxima");
       }catch(e){
         if(cancelled)return;
         const msg=e instanceof Error?e.message:"Não foi possível abrir a nuvem de pontos.";
@@ -74,6 +89,21 @@ export default function PointCloudViewer({url}:{url:string}){
   function changeMode(next:"rgb"|"height"|"intensity"|"classification"){
     const resolved=viewerRef.current?.setColorMode?.(next)||next;
     setMode(resolved);
+  }
+
+  function zoomDetail(){
+    const viewer=viewerRef.current,state=viewer?.getCameraState?.();
+    if(!viewer?.applyCameraState||!state)return;
+    const k=.62;
+    viewer.applyCameraState({...state,x:state.tx+(state.x-state.tx)*k,y:state.ty+(state.y-state.ty)*k,z:state.tz+(state.z-state.tz)*k});
+    setStatus("Carregando detalhe da área aproximada…");
+  }
+
+  function showOverview(){
+    const viewer=viewerRef.current,state=overviewRef.current;
+    if(!viewer?.applyCameraState||!state)return;
+    viewer.applyCameraState(state);
+    setStatus("Visão geral · aproxime para carregar mais pontos");
   }
 
   const labels:Record<string,string>={rgb:"RGB",height:"Altura",intensity:"Intensidade",classification:"Classificação"};
@@ -94,7 +124,11 @@ export default function PointCloudViewer({url}:{url:string}){
     </div>
     <div className="border-t border-white/10 bg-black/25 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="text-xs text-white/70">{status||"Visualizador 3D"} · detalhe automático</span>
+        <span className="text-xs text-white/70">{status||"Visualizador 3D"}</span>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={zoomDetail} className="rounded-lg bg-emerald-500/20 px-3 py-1.5 text-[11px] font-semibold text-emerald-100">＋ Aproximar detalhe</button>
+          <button type="button" onClick={showOverview} className="rounded-lg bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white">Enquadrar tudo</button>
+        </div>
         {available.length>0&&<div className="flex flex-wrap gap-2">
           {available.map(item=><button key={item} type="button" onClick={()=>changeMode(item as "rgb"|"height"|"intensity"|"classification")} className={`rounded-lg px-3 py-1.5 text-[11px] font-semibold ${mode===item?"bg-white text-slate-950":"bg-white/10 text-white"}`}>{labels[item]||item}</button>)}
         </div>}
