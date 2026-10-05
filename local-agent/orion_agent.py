@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -80,10 +82,29 @@ def update_job(sb, job_id: str, **values: Any) -> None:
     values["heartbeat_at"] = utcnow()
     sb.table("processing_jobs").update(values).eq("id", job_id).execute()
 
-def claim_job(sb):
+def ensure_device(sb, user_id: str) -> str:
+    name = platform.node() or "Windows PC"
+    token_hash = hashlib.sha256(f"{user_id}:{name}:orion-maps".encode("utf-8")).hexdigest()
+    rows = sb.table("processing_devices").select("id").eq("user_id", user_id).eq("name", name).limit(1).execute().data or []
+    capabilities = {"nodeodm": True, "pdal": True, "gdal": True, "platform": platform.platform(), "root": str(ROOT)}
+    if rows:
+        device_id = rows[0]["id"]
+        sb.table("processing_devices").update({"enabled": True, "capabilities": capabilities, "last_seen": utcnow()}).eq("id", device_id).execute()
+        return str(device_id)
+    row = sb.table("processing_devices").insert({"user_id": user_id, "name": name, "token_hash": token_hash, "enabled": True, "capabilities": capabilities, "last_seen": utcnow()}).execute().data
+    if not row:
+        raise RuntimeError("Não foi possível registrar o processador local.")
+    return str(row[0]["id"])
+
+def claim_job(sb, device_id: str):
     result = sb.rpc("claim_my_processing_job", {}).execute()
     data = result.data or []
-    return data[0] if data else None
+    if not data:
+        return None
+    job = data[0]
+    sb.table("processing_jobs").update({"device_id": device_id, "heartbeat_at": utcnow(), "updated_at": utcnow()}).eq("id", job["id"]).execute()
+    job["device_id"] = device_id
+    return job
 
 def list_images(sb, user_id: str, survey_id: str):
     prefix = f"{user_id}/{survey_id}"
@@ -429,7 +450,8 @@ def main() -> None:
     while True:
         try:
             sb, user = supabase_login()
-            job = claim_job(sb)
+            device_id = ensure_device(sb, user.id)
+            job = claim_job(sb, device_id)
             if job:
                 logging.info("Job recebido: %s", job.get("id"))
                 try:
