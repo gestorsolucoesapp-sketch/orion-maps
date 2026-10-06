@@ -1,76 +1,12 @@
-from __future__ import annotations
+"""Compatibility entry point: the installed agent owns all processing fixes."""
 
-import json
-import logging
-import time
-from pathlib import Path
-
-import requests
 import orion_agent as agent
 
 
-_original_update_job = agent.update_job
+# Keep existing import names working without replacing the core functions again.
+staged_nodeodm_new_task = agent.nodeodm_new_task
+resilient_update_job = agent.update_job
 
-
-def resilient_update_job(sb, job_id: str, **values):
-    """Do not abort a photogrammetry job because of a brief Internet/DNS outage."""
-    last_error = None
-    for attempt in range(1, 13):
-        try:
-            return _original_update_job(sb, job_id, **values)
-        except Exception as exc:
-            last_error = exc
-            logging.warning(
-                "Supabase update failed (%s/12): %s. Retrying without aborting NodeODM.",
-                attempt, exc,
-            )
-            time.sleep(min(30, 5 * attempt))
-    raise RuntimeError(f"Supabase unavailable after retries: {last_error}")
-
-
-def staged_nodeodm_new_task(images: list[Path], config: dict) -> str:
-    resolution = float(config.get("orthophoto_resolution_cm", 5))
-    quality = str(config.get("quality", "balanced"))
-    options = [
-        {"name": "orthophoto-resolution", "value": resolution},
-        {"name": "max-concurrency", "value": 1},
-        {"name": "pc-quality", "value": "high" if quality == "high" else "medium"},
-    ]
-    init = requests.post(
-        f"{agent.NODEODM}/task/new/init",
-        data={"options": json.dumps(options)},
-        timeout=60,
-    )
-    init.raise_for_status()
-    payload = init.json()
-    task_id = str(payload.get("uuid") or payload.get("id") or "")
-    if not task_id:
-        raise RuntimeError(f"NodeODM did not return a task id: {payload}")
-
-    try:
-        for path in images:
-            with open(path, "rb") as handle:
-                response = requests.post(
-                    f"{agent.NODEODM}/task/new/upload/{task_id}",
-                    files={"images": (path.name, handle, "image/jpeg")},
-                    timeout=600,
-                )
-                response.raise_for_status()
-
-        commit = requests.post(
-            f"{agent.NODEODM}/task/new/commit/{task_id}",
-            timeout=60,
-        )
-        commit.raise_for_status()
-        committed = commit.json()
-        return str(committed.get("uuid") or committed.get("id") or task_id)
-    except Exception:
-        logging.exception("Staged NodeODM upload failed for %s", task_id)
-        raise
-
-
-agent.update_job = resilient_update_job
-agent.nodeodm_new_task = staged_nodeodm_new_task
 
 if __name__ == "__main__":
     agent.main()

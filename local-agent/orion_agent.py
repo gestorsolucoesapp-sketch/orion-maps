@@ -3,9 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import platform
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -13,7 +15,10 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
+from uuid import UUID
 
+import httpx
 import keyring
 import requests
 from supabase import create_client
@@ -21,6 +26,7 @@ from supabase import create_client
 SUPABASE_URL = "https://zxmhpkcxwlpvkelqapbf.supabase.co"
 SUPABASE_KEY = "sb_publishable_Tcg2rXYt-HlQuvIP9jkdog_5CaSBVs-"
 SERVICE = "OrionMapsAgent"
+AGENT_VERSION = "0.3.17"
 NODEODM = os.environ.get("ORION_NODEODM_URL", "http://127.0.0.1:3000").rstrip("/")
 ROOT = Path(os.environ.get("ORION_ROOT", r"D:\OrionMaps"))
 JOBS = ROOT / "jobs"
@@ -77,16 +83,58 @@ def supabase_login():
         raise RuntimeError("Falha na autenticação do Orion Maps.")
     return sb, auth.user
 
+def is_transient_error(exc: Exception) -> bool:
+    """Retry transport failures and temporary HTTP failures, never policy errors."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        status = getattr(current, "status_code", None)
+        response = getattr(current, "response", None)
+        if status is None and response is not None:
+            status = getattr(response, "status_code", None)
+        try:
+            status = int(status) if status is not None else None
+        except (ValueError, TypeError):
+            status = None
+        if status is not None:
+            return status in (408, 429) or 500 <= status <= 599
+        if getattr(current, "retryable", False):
+            return True
+        if isinstance(current, requests.exceptions.SSLError):
+            return False
+        if isinstance(current, (socket.gaierror, ConnectionError, TimeoutError,
+                                requests.ConnectionError, requests.Timeout,
+                                httpx.TransportError)):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+def retry_network(operation, description: str, attempts: int = 12):
+    """Only call with reads or idempotent writes; never retry NodeODM creation."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            if not is_transient_error(exc) or attempt == attempts:
+                raise
+            logging.warning("%s: falha temporária de conexão (%s/%s, %s).",
+                            description, attempt, attempts, type(exc).__name__)
+            time.sleep(min(30, 5 * attempt))
+
 def update_job(sb, job_id: str, **values: Any) -> None:
     values["updated_at"] = utcnow()
     values["heartbeat_at"] = utcnow()
-    sb.table("processing_jobs").update(values).eq("id", job_id).execute()
+    retry_network(
+        lambda: sb.table("processing_jobs").update(values).eq("id", job_id).execute(),
+        "Atualização de status no Supabase",
+    )
 
 def ensure_device(sb, user_id: str) -> str:
     name = platform.node() or "Windows PC"
     token_hash = hashlib.sha256(f"{user_id}:{name}:orion-maps".encode("utf-8")).hexdigest()
     rows = sb.table("processing_devices").select("id").eq("user_id", user_id).eq("name", name).limit(1).execute().data or []
-    capabilities = {"nodeodm": True, "pdal": True, "gdal": True, "platform": platform.platform(), "root": str(ROOT)}
+    capabilities = {"nodeodm": True, "pdal": True, "gdal": True, "platform": platform.platform(), "root": str(ROOT), "agent_version": AGENT_VERSION, "nodeodm_upload": "staged-multipart"}
     if rows:
         device_id = rows[0]["id"]
         sb.table("processing_devices").update({"enabled": True, "capabilities": capabilities, "last_seen": utcnow()}).eq("id", device_id).execute()
@@ -108,7 +156,10 @@ def claim_job(sb, device_id: str):
 
 def list_images(sb, user_id: str, survey_id: str):
     prefix = f"{user_id}/{survey_id}"
-    rows = sb.storage.from_(IMAGES_BUCKET).list(prefix, {"limit": 1000, "offset": 0, "sortBy": {"column": "name", "order": "asc"}})
+    rows = retry_network(
+        lambda: sb.storage.from_(IMAGES_BUCKET).list(prefix, {"limit": 1000, "offset": 0, "sortBy": {"column": "name", "order": "asc"}}),
+        "Listagem das imagens no Supabase",
+    )
     return [r for r in rows if getattr(r, "name", None) or (isinstance(r, dict) and r.get("name"))]
 
 def item_name(item: Any) -> str:
@@ -127,7 +178,8 @@ def download_images(sb, user_id: str, survey_id: str, dest: Path, job_id: str) -
         remote = f"{user_id}/{survey_id}/{name}"
         local = dest / name
         if not local.exists() or local.stat().st_size == 0:
-            data = sb.storage.from_(IMAGES_BUCKET).download(remote)
+            data = retry_network(lambda: sb.storage.from_(IMAGES_BUCKET).download(remote),
+                                 "Download de imagem do Supabase")
             local.write_bytes(data)
         files.append(local)
         if i % 5 == 0 or i == len(items):
@@ -136,7 +188,26 @@ def download_images(sb, user_id: str, survey_id: str, dest: Path, job_id: str) -
                        message=f"Baixando imagens: {i}/{len(items)}")
     return files
 
-def nodeodm_new_task(images: list[Path], config: dict[str, Any]) -> str:
+def nodeodm_json(response, operation: str) -> dict[str, Any]:
+    response.raise_for_status()
+    try:
+        payload = response.json()
+    except (ValueError, TypeError) as exc:
+        raise RuntimeError(f"NodeODM retornou uma resposta inválida em {operation}.") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"NodeODM retornou uma resposta inválida em {operation}.")
+    if payload.get("error") or payload.get("success") is False:
+        detail = str(payload.get("error") or "operação recusada")[:1000]
+        raise RuntimeError(f"NodeODM recusou {operation}: {detail}")
+    return payload
+
+def nodeodm_new_task(images: list[Path], config: dict[str, Any], on_initialized=None) -> str:
+    if len(images) < 3:
+        raise RuntimeError("NodeODM precisa de pelo menos 3 imagens.")
+    if len({p.name for p in images}) != len(images):
+        raise RuntimeError("Há nomes de imagem duplicados. O envio foi interrompido.")
+    if any(not p.is_file() or p.stat().st_size == 0 for p in images):
+        raise RuntimeError("Há imagens ausentes ou vazias. O envio foi interrompido.")
     resolution = float(config.get("orthophoto_resolution_cm", 5))
     quality = str(config.get("quality", "balanced"))
     options = [
@@ -144,33 +215,88 @@ def nodeodm_new_task(images: list[Path], config: dict[str, Any]) -> str:
         {"name": "max-concurrency", "value": 1},
         {"name": "pc-quality", "value": "high" if quality == "high" else "medium"},
     ]
-    handles = [open(p, "rb") for p in images]
+    # /init uses multer().none(): a urlencoded `data=` body silently loses options.
+    payload = nodeodm_json(requests.post(
+        f"{NODEODM}/task/new/init",
+        files={"options": (None, json.dumps(options))},
+        timeout=60,
+    ), "inicialização")
     try:
-        files = [("images", (p.name, h, "image/jpeg")) for p, h in zip(images, handles)]
-        r = requests.post(f"{NODEODM}/task/new", files=files,
-                          data={"options": json.dumps(options)}, timeout=60 * 60)
-        r.raise_for_status()
-        payload = r.json()
-        uuid = payload.get("uuid") or payload.get("id")
-        if not uuid:
-            raise RuntimeError(f"NodeODM não retornou UUID: {payload}")
-        return str(uuid)
-    finally:
-        for h in handles:
-            h.close()
+        task_id = str(UUID(str(payload.get("uuid", ""))))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise RuntimeError("NodeODM não retornou um UUID válido na inicialização.") from exc
+    logging.info("NodeODM: upload em etapas iniciado, tarefa %s, %s imagens.", task_id, len(images))
+
+    # A retry of upload or commit can duplicate images/tasks after a lost response.
+    # Fail with this same UUID for diagnosis instead of creating another task.
+    try:
+        if on_initialized is not None:
+            on_initialized(task_id)
+        for path in images:
+            mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+            with path.open("rb") as handle:
+                uploaded = nodeodm_json(requests.post(
+                    f"{NODEODM}/task/new/upload/{task_id}",
+                    files={"images": (path.name, handle, mime)},
+                    timeout=600,
+                ), f"envio de {path.name}")
+            if uploaded.get("success") is not True:
+                raise RuntimeError(f"NodeODM não confirmou o recebimento de {path.name}.")
+
+        committed = nodeodm_json(requests.post(
+            f"{NODEODM}/task/new/commit/{task_id}", timeout=60,
+        ), "confirmação da tarefa")
+        if committed.get("uuid") != task_id:
+            raise RuntimeError("NodeODM não confirmou o UUID da tarefa enviada.")
+        return task_id
+    except Exception as exc:
+        logging.error("Envio NodeODM interrompido na tarefa %s (%s).", task_id, type(exc).__name__)
+        raise RuntimeError(f"Envio NodeODM interrompido; tarefa {task_id}: {exc}") from exc
+
+def nodeodm_directory_diagnostics(task_id: str) -> str:
+    """Read-only inspection of the known local container after a directory error."""
+    try:
+        task_id = str(UUID(task_id))
+        if urlsplit(NODEODM).hostname not in ("127.0.0.1", "localhost", "::1"):
+            return ""
+        script = (
+            "const fs=require('fs');const id=process.argv[1];"
+            "const paths=['data','tmp','data/'+id,'data/'+id+'/images','tmp/'+id];"
+            "console.log(JSON.stringify(paths.map(path=>{try{const s=fs.lstatSync(path);"
+            "return {path,type:s.isDirectory()?'directory':s.isSymbolicLink()?'symlink':'file',"
+            "bytes:s.size,device:s.dev};}catch(e){return {path,error:e.code};}})));"
+        )
+        result = subprocess.run(
+            ["docker", "exec", "orion-nodeodm", "node", "-e", script, task_id],
+            check=True, text=True, capture_output=True, timeout=15,
+        )
+        data = json.loads(result.stdout)
+        if not isinstance(data, list):
+            return ""
+        return json.dumps(data, ensure_ascii=False, separators=(",", ":"))[:1800]
+    except Exception:
+        logging.warning("Não foi possível ler os diretórios da tarefa NodeODM.")
+        return ""
+
+class ProcessingCancelled(Exception):
+    pass
 
 def nodeodm_wait(sb, job_id: str, task_id: str) -> None:
     while True:
-        r = requests.get(f"{NODEODM}/task/{task_id}/info", timeout=30)
-        r.raise_for_status()
-        data = r.json()
+        data = retry_network(
+            lambda: nodeodm_json(requests.get(f"{NODEODM}/task/{task_id}/info", timeout=30),
+                                 "consulta de andamento"),
+            "Consulta do NodeODM", attempts=5,
+        )
         status = data.get("status")
         if isinstance(status, dict):
             code = status.get("code")
-            status_name = str(status.get("name", "processing"))
+            status_name = str(status.get("name") or {10: "na fila", 20: "processando", 30: "falhou", 40: "concluído", 50: "cancelado"}.get(code, "processando"))
         else:
             code = status
             status_name = str(status)
+        if code not in (10, 20, 30, 40, 50, "10", "20", "30", "40", "50", "COMPLETED", "completed", "FAILED", "failed", "ERROR", "error", "CANCELED", "cancelled"):
+            raise RuntimeError(f"NodeODM retornou estado desconhecido para a tarefa {task_id}.")
         progress = data.get("progress", 0)
         if isinstance(progress, dict):
             progress = progress.get("progress", 0)
@@ -179,13 +305,19 @@ def nodeodm_wait(sb, job_id: str, task_id: str) -> None:
         except Exception:
             pct = 0.0
         mapped = min(70, 20 + round(max(0.0, min(100.0, pct)) * 0.5))
-        update_job(sb, job_id, status="processing", stage="nodeodm",
-                   progress=mapped, engine_task_uuid=task_id,
-                   message=f"NodeODM: {status_name} · {pct:.0f}%")
         if code in (40, "40", "COMPLETED", "completed"):
             return
         if code in (30, "30", "FAILED", "failed", "ERROR", "error"):
-            raise RuntimeError(f"NodeODM terminou com erro: {data}")
+            detail = str((status.get("errorMessage") if isinstance(status, dict) else None) or "Falha sem detalhes")
+            diagnostic = nodeodm_directory_diagnostics(task_id) if "ENOTDIR" in detail else ""
+            if diagnostic:
+                detail += f" · Diagnóstico de diretórios: {diagnostic}"
+            raise RuntimeError(f"NodeODM falhou na tarefa {task_id}: {detail}")
+        if code in (50, "50", "CANCELED", "cancelled"):
+            raise ProcessingCancelled("O processamento foi cancelado no NodeODM.")
+        update_job(sb, job_id, status="processing", stage="nodeodm",
+                   progress=mapped, engine_task_uuid=task_id,
+                   message=f"NodeODM: {status_name} · {pct:.0f}%")
         time.sleep(10)
 
 def nodeodm_download(task_id: str, dest: Path) -> Path:
@@ -291,11 +423,11 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
     # Preserve the orthophoto mask/NoData as alpha so empty pixels stay transparent
     # over the basemap instead of becoming black/white blocks when zooming.
     run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", "-dstalpha", "/data/orthophoto.tif", "/data/web/orthophoto_4326.tif"])
-    run(mount + ["gdal_translate", "-of", "PNG", "/data/web/orthophoto_4326.tif", "/data/web/orthophoto_web.png"])
+    run(mount + ["gdal_translate", "-of", "PNG", "-co", "ZLEVEL=9", "/data/web/orthophoto_4326.tif", "/data/web/orthophoto_web.png"])
     for src, dst in [("hillshade.tif","hillshade_web.png"),("hipsometria.tif","hipsometria_web.png"),("slope_pct.tif","slope_web.png")]:
         stem = src.replace(".tif","_4326.tif")
         run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", f"/data/{src}", f"/data/web/{stem}"])
-        run(mount + ["gdal_translate", "-of", "PNG", f"/data/web/{stem}", f"/data/web/{dst}"])
+        run(mount + ["gdal_translate", "-of", "PNG", "-co", "ZLEVEL=9", f"/data/web/{stem}", f"/data/web/{dst}"])
     run(mount + ["ogr2ogr", "-f", "GeoJSON", "-t_srs", "EPSG:4326", "/data/web/curvas_050m.geojson", "/data/curvas_050m.gpkg"])
 
     web_info = json.loads(run(mount + ["gdalinfo", "-json", "/data/web/orthophoto_4326.tif"], capture=True))
@@ -342,13 +474,65 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
         "_meta": products / "relatorio.json",
     }
 
-def upload_file(sb, local: Path, remote: str, content_type: str) -> None:
-    data = local.read_bytes()
-    sb.storage.from_(PRODUCTS_BUCKET).upload(
-        remote,
-        data,
-        {"content-type": content_type, "upsert": "true", "cache-control": "3600"},
-    )
+def upload_file(sb, local: Path, remote: str, content_type: str,
+                *, bucket_limit_bytes: int | None = None) -> None:
+    # httpx is already a dependency of the Supabase SDK.
+    from httpx import NetworkError, RemoteProtocolError, TimeoutException
+
+    size = local.stat().st_size
+    description = f"{local.name} ({size} bytes; {size / (1024 * 1024):.2f} MiB)"
+    bucket_limit = (f"{bucket_limit_bytes} bytes" if bucket_limit_bytes is not None
+                    else "não verificado")
+    limits = f"Limite do bucket {PRODUCTS_BUCKET}: {bucket_limit}; limite global do projeto: não verificado."
+    if bucket_limit_bytes is not None and size > bucket_limit_bytes:
+        raise RuntimeError(f"Não foi possível enviar {description}: o arquivo excede o limite do bucket. {limits}")
+
+    def status_code(exc: Exception) -> int | None:
+        # Storage may return HTTP 400 with a different statusCode in its JSON body.
+        details = [arg for arg in exc.args if isinstance(arg, dict)]
+        candidates = [item.get("statusCode") for item in details]
+        candidates += [getattr(exc, key, None) for key in ("status", "status_code", "statusCode")]
+        candidates.append(getattr(getattr(exc, "response", None), "status_code", None))
+        for value in candidates:
+            try:
+                code = int(value)
+            except (TypeError, ValueError):
+                continue
+            if 100 <= code <= 599:
+                return code
+        return None
+
+    bucket = sb.storage.from_(PRODUCTS_BUCKET)
+    for attempt in range(1, 4):
+        try:
+            # Reopen for every attempt so a partially consumed stream starts at zero.
+            with local.open("rb") as stream:
+                bucket.upload(
+                    remote, stream,
+                    {"content-type": content_type, "upsert": "true", "cache-control": "3600"},
+                )
+            return
+        except Exception as exc:
+            code = status_code(exc)
+            transient = code in (408, 429, 500, 502, 503, 504) or (
+                code is None and isinstance(exc, (NetworkError, RemoteProtocolError, TimeoutException))
+            )
+            if transient and attempt < 3:
+                logging.warning("Envio temporariamente indisponível: %s; código=%s; tentativa=%s/3.",
+                                description, code if code is not None else "rede", attempt)
+                time.sleep(2 if attempt == 1 else 5)
+                continue
+            if code == 413:
+                reason = "o armazenamento recusou o tamanho do objeto (413)"
+            elif code in (401, 403):
+                reason = f"o armazenamento recusou a autenticação ou permissão ({code})"
+            else:
+                reason = f"falha no envio ({code if code is not None else type(exc).__name__})"
+            error = RuntimeError(f"Não foi possível enviar {description}: {reason}. {limits}")
+            error.status_code = code
+            error.retryable = transient
+            # Exception strings can include URLs or credentials; report only safe fields.
+            raise error from None
 
 def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[str, Path]) -> None:
     meta = json.loads(paths["_meta"].read_text(encoding="utf-8"))
@@ -371,13 +555,26 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
         "point_cloud": ("Nuvem de pontos - visualização web", "application/octet-stream", False),
         "report": ("Relatório do processamento", "application/json", False),
     }
-    sb.table("processing_results").delete().eq("job_id", job_id).execute()
+    bucket_limit_bytes = None
+    try:
+        bucket_info = sb.storage.get_bucket(PRODUCTS_BUCKET)
+        value = (bucket_info.get("file_size_limit") if isinstance(bucket_info, dict)
+                 else getattr(bucket_info, "file_size_limit", None))
+        if value is not None and int(value) >= 0:
+            bucket_limit_bytes = int(value)
+    except Exception as exc:
+        # Bucket metadata has separate permissions; unavailable metadata must not block upload.
+        logging.info("Limite do bucket indisponível (%s); o servidor validará o tamanho.", type(exc).__name__)
     kinds = [k for k in specs if k in paths]
     for i, kind in enumerate(kinds, 1):
         local = paths[kind]
         label, mime, preview = specs[kind]
+        size = local.stat().st_size
         remote = f"{user_id}/{job_id}/{kind}/{local.name}"
-        upload_file(sb, local, remote, mime)
+        update_job(sb, job_id, status="uploading", stage="uploading",
+                   progress=min(98, 88 + round((i - 1) / len(kinds) * 10)),
+                   message=f"Enviando {i}/{len(kinds)}: {label} · {local.name} ({size / (1024 * 1024):.2f} MiB).")
+        upload_file(sb, local, remote, mime, bucket_limit_bytes=bucket_limit_bytes)
         row_meta = dict(base_meta)
         if kind == "contours":
             row_meta["contour_interval_m"] = 0.5
@@ -392,12 +589,13 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
             "storage_path": remote,
             "web_preview_path": remote if preview else None,
             "mime_type": mime,
-            "size_bytes": local.stat().st_size,
+            "size_bytes": size,
             "source_crs": "EPSG:32723",
             "bounds_wgs84": bounds,
             "metadata": row_meta,
         }
-        sb.table("processing_results").insert(row).execute()
+        # Keep earlier results available if a later upload fails or this job is resumed.
+        sb.table("processing_results").upsert(row, on_conflict="job_id,kind,storage_path").execute()
         update_job(sb, job_id, status="uploading", stage="uploading",
                    progress=min(98, 88 + round(i / len(kinds) * 10)),
                    message=f"Enviando resultados: {i}/{len(kinds)}")
@@ -420,7 +618,19 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
 
         update_job(sb, job_id, status="validating", stage="validating", progress=19,
                    message=f"{len(images)} imagens disponíveis. Preparando NodeODM.")
-        task_id = nodeodm_new_task(images, config)
+
+        def remember_task(task_uuid: str) -> None:
+            # Preserve identity before commit, even when its HTTP response is lost.
+            checkpoint = root / "engine_task.json"
+            pending = checkpoint.with_suffix(".tmp")
+            pending.write_text(json.dumps({"job_id": job_id, "engine_task_uuid": task_uuid,
+                                           "created_at": utcnow()}), encoding="utf-8")
+            pending.replace(checkpoint)
+            update_job(sb, job_id, status="validating", stage="uploading_to_nodeodm",
+                       progress=19, engine_task_uuid=task_uuid,
+                       message=f"Enviando {len(images)} imagens ao NodeODM.")
+
+        task_id = nodeodm_new_task(images, config, on_initialized=remember_task)
         update_job(sb, job_id, status="processing", stage="nodeodm", progress=20,
                    engine_task_uuid=task_id, message="Tarefa criada no NodeODM.")
         nodeodm_wait(sb, job_id, task_id)
@@ -437,6 +647,10 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
         update_job(sb, job_id, status="completed", stage="completed", progress=100,
                    completed_at=utcnow(), message=f"Processamento concluído em {products}")
         logging.info("JOB %s concluído", job_id)
+    except ProcessingCancelled as exc:
+        update_job(sb, job_id, status="cancelled", stage="cancelled",
+                   completed_at=utcnow(), message=str(exc))
+        logging.info("JOB %s cancelado", job_id)
     except Exception as exc:
         logging.exception("JOB %s falhou", job_id)
         try:
@@ -448,11 +662,17 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
         raise
 
 def main() -> None:
-    logging.info("Orion Maps Agent iniciado em %s", ROOT)
+    logging.info("Orion Maps Agent v%s iniciado em %s", AGENT_VERSION, ROOT)
     while True:
         try:
+            if (ROOT / "agent" / "maintenance.json").exists():
+                time.sleep(POLL_SECONDS)
+                continue
             sb, user = supabase_login()
             device_id = ensure_device(sb, user.id)
+            if (ROOT / "agent" / "maintenance.json").exists():
+                time.sleep(POLL_SECONDS)
+                continue
             job = claim_job(sb, device_id)
             if job:
                 logging.info("Job recebido: %s", job.get("id"))
