@@ -26,6 +26,18 @@ export async function listProcessingJobs(surveyId: string, token: string) {
   );
 }
 
+function jwtSubject(token:string){
+  try{
+    const part=token.split(".")[1];
+    if(!part)throw new Error();
+    const normalized=part.replace(/-/g,"+").replace(/_/g,"/");
+    const padded=normalized+"=".repeat((4-normalized.length%4)%4);
+    const payload=JSON.parse(Buffer.from(padded,"base64").toString("utf8")) as {sub?:unknown};
+    if(typeof payload.sub!=="string"||!/^[0-9a-f-]{36}$/i.test(payload.sub))throw new Error();
+    return payload.sub;
+  }catch{throw new Error("Sessão inválida para criar a tarefa. Entre novamente.");}
+}
+
 export async function createProcessingJob(
   token: string,
   input: {
@@ -38,6 +50,7 @@ export async function createProcessingJob(
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
+      owner_id: jwtSubject(token),
       survey_id: input.survey_id,
       input_image_count: input.input_image_count,
       config: input.config,
