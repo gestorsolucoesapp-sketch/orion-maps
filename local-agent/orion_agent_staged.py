@@ -2,10 +2,30 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 
 import requests
 import orion_agent as agent
+
+
+_original_update_job = agent.update_job
+
+
+def resilient_update_job(sb, job_id: str, **values):
+    """Do not abort a photogrammetry job because of a brief Internet/DNS outage."""
+    last_error = None
+    for attempt in range(1, 13):
+        try:
+            return _original_update_job(sb, job_id, **values)
+        except Exception as exc:
+            last_error = exc
+            logging.warning(
+                "Supabase update failed (%s/12): %s. Retrying without aborting NodeODM.",
+                attempt, exc,
+            )
+            time.sleep(min(30, 5 * attempt))
+    raise RuntimeError(f"Supabase unavailable after retries: {last_error}")
 
 
 def staged_nodeodm_new_task(images: list[Path], config: dict) -> str:
@@ -49,6 +69,7 @@ def staged_nodeodm_new_task(images: list[Path], config: dict) -> str:
         raise
 
 
+agent.update_job = resilient_update_job
 agent.nodeodm_new_task = staged_nodeodm_new_task
 
 if __name__ == "__main__":
