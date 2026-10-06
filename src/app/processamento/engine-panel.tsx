@@ -1,18 +1,18 @@
 "use client";
 
-import {useMemo,useState} from "react";
+import {useEffect,useState} from "react";
 import {checkProcessingEngine} from "./engine-actions";
 import type {EngineStatus} from "./engine-client";
 import type {ProcessingDevice} from "@/lib/supabase/processing-devices";
+import {isProcessingDeviceOnline} from "@/lib/processing-health";
 
 type Props={devices:ProcessingDevice[];error?:string};
 
 export default function EnginePanel({devices,error}:Props){
   const [status,setStatus]=useState<EngineStatus|null>(null),[busy,setBusy]=useState(false);
-  const live=useMemo(()=>devices.find(d=>{
-    if(!d.enabled||!d.last_seen)return false;
-    return Date.now()-new Date(d.last_seen).getTime()<90_000;
-  }),[devices]);
+  const [now,setNow]=useState(0);
+  useEffect(()=>{const timer=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(timer);},[]);
+  const live=devices.find(d=>isProcessingDeviceOnline(d,now));
 
   async function check(){
     setBusy(true);
@@ -27,9 +27,9 @@ export default function EnginePanel({devices,error}:Props){
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="text-sm text-slate-900">Motor de fotogrametria</strong>
-          <span className={"rounded-full px-2.5 py-1 text-[10px] font-bold "+(live?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800")}>{live?"ONLINE":"OFFLINE"}</span>
+          <span className={"rounded-full px-2.5 py-1 text-[10px] font-bold "+(live?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800")}>{now===0?"VERIFICANDO":live?"ONLINE":"OFFLINE"}</span>
         </div>
-        <p className="mt-1 truncate text-xs text-slate-500">{live?"Processador conectado · "+live.name:"Processador local não conectado"}</p>
+        <p className="mt-1 truncate text-xs text-slate-500">{now===0?"Consultando o sinal do processador…":live?"Processador conectado · "+live.name:"Processador local não conectado"}</p>
       </div>
       <details className="group relative ml-auto">
         <summary className="list-none cursor-pointer rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">Detalhes</summary>

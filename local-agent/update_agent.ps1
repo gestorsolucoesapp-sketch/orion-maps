@@ -5,11 +5,11 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
-if ($env:OS -ne "Windows_NT") { throw "Execute a atualizacao no Windows do processador Orion Maps." }
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw "Execute a atualizacao no Windows do processador Orion Maps." }
 $Repository = "gestorsolucoesapp-sketch/orion-maps"
 $Headers = @{ "User-Agent" = "OrionMapsAgentUpdater"; "Accept" = "application/vnd.github+json" }
 $Api = "https://api.github.com/repos/$Repository"
-$Files = @("orion_agent.py", "orion_agent_staged.py", "setup_credentials.py", "requirements.txt", "install_agent.ps1", "update_agent.ps1", "README.md")
+$Files = @("orion_agent.py", "orion_agent_staged.py", "orion_progress.py", "orion_runtime.py", "setup_credentials.py", "requirements.txt", "install_agent.ps1", "update_agent.ps1", "README.md")
 $StageDir = Join-Path ([IO.Path]::GetTempPath()) ("OrionMapsUpdate-" + [Guid]::NewGuid().ToString("N"))
 function Get-GitBlobHash([string]$FilePath) {
   $Bytes = [IO.File]::ReadAllBytes($FilePath)

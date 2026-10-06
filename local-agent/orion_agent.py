@@ -11,6 +11,10 @@ import socket
 import subprocess
 import sys
 import time
+import threading
+
+from orion_progress import NodeODMProgress, choose_concurrency
+from orion_runtime import heartbeat_loop, worker_lock, recover_task_id
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,7 +30,7 @@ from supabase import create_client
 SUPABASE_URL = "https://zxmhpkcxwlpvkelqapbf.supabase.co"
 SUPABASE_KEY = "sb_publishable_Tcg2rXYt-HlQuvIP9jkdog_5CaSBVs-"
 SERVICE = "OrionMapsAgent"
-AGENT_VERSION = "0.3.17"
+AGENT_VERSION = "0.3.18"
 NODEODM = os.environ.get("ORION_NODEODM_URL", "http://127.0.0.1:3000").rstrip("/")
 ROOT = Path(os.environ.get("ORION_ROOT", r"D:\OrionMaps"))
 JOBS = ROOT / "jobs"
@@ -210,9 +214,15 @@ def nodeodm_new_task(images: list[Path], config: dict[str, Any], on_initialized=
         raise RuntimeError("Há imagens ausentes ou vazias. O envio foi interrompido.")
     resolution = float(config.get("orthophoto_resolution_cm", 5))
     quality = str(config.get("quality", "balanced"))
+    try:
+        engine_info = nodeodm_json(requests.get(f"{NODEODM}/info", timeout=10), "recursos do motor")
+    except Exception:
+        engine_info = {}
+    concurrency = choose_concurrency(engine_info, config)
+    logging.info("Paralelismo seguro para a NOVA tarefa: %s processos.", concurrency)
     options = [
         {"name": "orthophoto-resolution", "value": resolution},
-        {"name": "max-concurrency", "value": 1},
+        {"name": "max-concurrency", "value": concurrency},
         {"name": "pc-quality", "value": "high" if quality == "high" else "medium"},
     ]
     # /init uses multer().none(): a urlencoded `data=` body silently loses options.
@@ -282,6 +292,8 @@ class ProcessingCancelled(Exception):
     pass
 
 def nodeodm_wait(sb, job_id: str, task_id: str) -> None:
+    tracker = NodeODMProgress()
+    last_output = time.monotonic()
     while True:
         data = retry_network(
             lambda: nodeodm_json(requests.get(f"{NODEODM}/task/{task_id}/info", timeout=30),
@@ -315,9 +327,32 @@ def nodeodm_wait(sb, job_id: str, task_id: str) -> None:
             raise RuntimeError(f"NodeODM falhou na tarefa {task_id}: {detail}")
         if code in (50, "50", "CANCELED", "cancelled"):
             raise ProcessingCancelled("O processamento foi cancelado no NodeODM.")
-        update_job(sb, job_id, status="processing", stage="nodeodm",
-                   progress=mapped, engine_task_uuid=task_id,
-                   message=f"NodeODM: {status_name} · {pct:.0f}%")
+        output_available = True
+        try:
+            response = requests.get(f"{NODEODM}/task/{task_id}/output", params={"line": tracker.offset}, timeout=10)
+            response.raise_for_status()
+            lines = response.json()
+            if not isinstance(lines, list):
+                raise ValueError("Formato de log inesperado")
+            if tracker.consume(lines):
+                last_output = time.monotonic()
+        except (requests.RequestException, ValueError):
+            output_available = False
+        detail = tracker.describe(int(data.get("imagesCount") or 0))
+        quiet = max(0, int(time.monotonic() - last_output))
+        if not output_available:
+            detail += " - consulta do log temporariamente indisponivel"
+        elif quiet >= 180:
+            detail += f" - sem nova linha de log ha {quiet // 60} min (nao confirma travamento)"
+        elapsed = max(0, int(data.get("processingTime") or 0) // 60000)
+        try:
+            update_job(sb, job_id, status="processing", stage="nodeodm",
+                       progress=mapped, engine_task_uuid=task_id,
+                       message=f"{detail} | Motor {pct:.1f}% | Tempo {elapsed} min")
+        except Exception as exc:
+            if not is_transient_error(exc):
+                raise
+            logging.warning("Status aguardando sincronizacao; mantendo tarefa NodeODM %s.", task_id)
         time.sleep(10)
 
 def nodeodm_download(task_id: str, dest: Path) -> Path:
@@ -612,27 +647,35 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
 
     try:
         docker_ready()
-        update_job(sb, job_id, status="downloading", stage="downloading", progress=2,
-                   started_at=utcnow(), message="Preparando arquivos do levantamento.")
-        images = download_images(sb, user.id, survey_id, images_dir, job_id)
+        task_id = recover_task_id(job, root)
+        if task_id is not None:
+            # Resume monitoring only. Never stop, restart, re-upload or recreate the engine task.
+            current = nodeodm_json(requests.get(f"{NODEODM}/task/{task_id}/info", timeout=30), "retomada verificada")
+            if current.get("uuid") != task_id:
+                raise RuntimeError("Retomada recusada: o motor nao confirmou o UUID existente.")
+            logging.info("Retomando acompanhamento da MESMA tarefa %s, job %s.", task_id, job_id)
+        else:
+            update_job(sb, job_id, status="downloading", stage="downloading", progress=2,
+                       started_at=utcnow(), message="Preparando arquivos do levantamento.")
+            images = download_images(sb, user.id, survey_id, images_dir, job_id)
 
-        update_job(sb, job_id, status="validating", stage="validating", progress=19,
-                   message=f"{len(images)} imagens disponíveis. Preparando NodeODM.")
+            update_job(sb, job_id, status="validating", stage="validating", progress=19,
+                       message=f"{len(images)} imagens disponíveis. Preparando NodeODM.")
 
-        def remember_task(task_uuid: str) -> None:
-            # Preserve identity before commit, even when its HTTP response is lost.
-            checkpoint = root / "engine_task.json"
-            pending = checkpoint.with_suffix(".tmp")
-            pending.write_text(json.dumps({"job_id": job_id, "engine_task_uuid": task_uuid,
-                                           "created_at": utcnow()}), encoding="utf-8")
-            pending.replace(checkpoint)
-            update_job(sb, job_id, status="validating", stage="uploading_to_nodeodm",
-                       progress=19, engine_task_uuid=task_uuid,
-                       message=f"Enviando {len(images)} imagens ao NodeODM.")
+            def remember_task(task_uuid: str) -> None:
+                # Preserve identity before commit, even when its HTTP response is lost.
+                checkpoint = root / "engine_task.json"
+                pending = checkpoint.with_suffix(".tmp")
+                pending.write_text(json.dumps({"job_id": job_id, "engine_task_uuid": task_uuid,
+                                               "created_at": utcnow()}), encoding="utf-8")
+                pending.replace(checkpoint)
+                update_job(sb, job_id, status="validating", stage="uploading_to_nodeodm",
+                           progress=19, engine_task_uuid=task_uuid,
+                           message=f"Enviando {len(images)} imagens ao NodeODM.")
 
-        task_id = nodeodm_new_task(images, config, on_initialized=remember_task)
-        update_job(sb, job_id, status="processing", stage="nodeodm", progress=20,
-                   engine_task_uuid=task_id, message="Tarefa criada no NodeODM.")
+            task_id = nodeodm_new_task(images, config, on_initialized=remember_task)
+            update_job(sb, job_id, status="processing", stage="nodeodm", progress=20,
+                       engine_task_uuid=task_id, message="Tarefa criada no NodeODM.")
         nodeodm_wait(sb, job_id, task_id)
 
         update_job(sb, job_id, status="derivatives", stage="downloading_odm", progress=71,
@@ -661,33 +704,50 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
             logging.exception("Falha ao registrar erro do job.")
         raise
 
-def main() -> None:
-    logging.info("Orion Maps Agent v%s iniciado em %s", AGENT_VERSION, ROOT)
-    while True:
-        try:
+def run_session() -> None:
+    sb, user = supabase_login()
+    device_id = ensure_device(sb, user.id)
+    stop = threading.Event()
+    heartbeat = threading.Thread(target=heartbeat_loop,
+        args=(stop, supabase_login, device_id, NODEODM, AGENT_VERSION), daemon=True, name="orion-heartbeat")
+    heartbeat.start()
+    try:
+        while True:
             if (ROOT / "agent" / "maintenance.json").exists():
                 time.sleep(POLL_SECONDS)
                 continue
-            sb, user = supabase_login()
-            device_id = ensure_device(sb, user.id)
-            if (ROOT / "agent" / "maintenance.json").exists():
-                time.sleep(POLL_SECONDS)
-                continue
-            job = claim_job(sb, device_id)
+            # Only this device's already-owned job is recoverable, with a local UUID checkpoint.
+            rows = sb.table("processing_jobs").select("*").eq("owner_id", user.id).eq("device_id", device_id).eq("status", "processing").eq("stage", "nodeodm").order("created_at").limit(1).execute().data or []
+            job = rows[0] if rows else claim_job(sb, device_id)
             if job:
-                logging.info("Job recebido: %s", job.get("id"))
+                logging.info("Job recebido/retomado: %s", job.get("id"))
                 try:
                     process_job(sb, user, job)
                 except Exception:
                     pass
             else:
                 time.sleep(POLL_SECONDS)
-        except KeyboardInterrupt:
-            logging.info("Agente encerrado.")
-            return
+    finally:
+        stop.set()
+        heartbeat.join(timeout=7)
+        try:
+            sb.auth.stop_auto_refresh()
         except Exception:
-            logging.exception("Falha no ciclo do agente.")
-            time.sleep(30)
+            pass
+
+
+def main() -> None:
+    logging.info("Orion Maps Agent v%s iniciado em %s", AGENT_VERSION, ROOT)
+    with worker_lock(ROOT / "agent"):
+        while True:
+            try:
+                run_session()
+            except KeyboardInterrupt:
+                logging.info("Agente encerrado.")
+                return
+            except Exception:
+                logging.exception("Falha no ciclo do agente.")
+                time.sleep(30)
 
 if __name__ == "__main__":
     main()

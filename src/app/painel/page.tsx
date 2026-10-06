@@ -3,12 +3,16 @@ import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getCurrentAccessToken,getCurrentUser} from "@/lib/supabase/auth";
 import {listImages,listSurveys,type Survey,type SurveyImage} from "@/lib/supabase/surveys";
-import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
-import {listProcessingDevices} from "@/lib/supabase/processing-devices";
+import {listProcessingJobs,type ProcessingJob} from "@/lib/supabase/processing-jobs";
+import {listProcessingDevices,type ProcessingDevice} from "@/lib/supabase/processing-devices";
 import {listProcessingResults,type ProcessingResult} from "@/lib/supabase/processing-results";
 import {signOutAction} from "./actions";
 import {ImageWorkspace,SurveyForm,SurveySearch,type SurveyStatus} from "./workspace";
 import ForceUpdateButton from "@/components/force-update-button";
+
+import LiveProcessingRefresh from "@/components/live-processing-refresh";
+import JobStatusCard from "../processamento/job-status-card";
+import EnginePanel from "../processamento/engine-panel";
 
 type RecentResult={survey:Survey;result:ProcessingResult};
 
@@ -25,10 +29,12 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
     catch{imageError="Não foi possível consultar as fotos. Atualize a página antes de enviar arquivos.";}
   }
 
+  const liveJobs:ProcessingJob[]=[];
   const statusEntries=await Promise.all(surveys.map(async survey=>{
     try{
       const jobs=await listProcessingJobs(survey.id,token);
-      const latest=jobs[0];
+      const latest=jobs.find(j=>!["completed","error","cancelled"].includes(j.status))||jobs[0];
+      if(latest&&!["completed","error","cancelled"].includes(latest.status))liveJobs.push(latest);
       let status:SurveyStatus={status:"none",progress:0,resultCount:0};
       if(latest){
         if(latest.status==="completed")status={status:"completed",progress:100,resultCount:1};
@@ -41,11 +47,9 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
   }));
   const statuses=Object.fromEntries(statusEntries) as Record<string,SurveyStatus>;
 
-  let motorOnline=false;
-  try{
-    const devices=await listProcessingDevices(token);
-    motorOnline=devices.some(device=>device.enabled&&device.last_seen&&Date.now()-new Date(device.last_seen).getTime()<90_000);
-  }catch{}
+  let devices:ProcessingDevice[]=[],devicesError="";
+  try{devices=await listProcessingDevices(token);}
+  catch{devicesError="Não foi possível consultar o processador agora.";}
 
   let recentResults:RecentResult[]=[];
   try{
@@ -100,16 +104,14 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
         <Link href="/painel?novo=1" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link>
       </section>
 
+      <LiveProcessingRefresh/>
       {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="print:hidden">
-          <div className={`mb-4 flex items-center gap-3 rounded-2xl border bg-white p-4 shadow-sm ${motorOnline?"border-emerald-200":"border-amber-200"}`}>
-            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-lg ${motorOnline?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>◉</div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold">Motor de fotogrametria</p>
-              <p className="mt-0.5 text-xs text-slate-500">{motorOnline?"Processador local conectado":"Processador local offline"}</p>
-            </div>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${motorOnline?"bg-emerald-100 text-emerald-800":"bg-amber-100 text-amber-800"}`}>{motorOnline?"ONLINE":"OFFLINE"}</span>
-          </div>
+          <EnginePanel devices={devices} error={devicesError}/>
+          {liveJobs.map(job=><div key={job.id}>
+            <Link href={`/processamento?levantamento=${job.survey_id}`} className="mb-2 block text-sm font-semibold text-emerald-900">{surveys.find(s=>s.id===job.survey_id)?.name||"Levantamento"} →</Link>
+            <JobStatusCard job={job} featured/>
+          </div>)}
 
           <div className="mb-3 flex items-center justify-between px-1">
             <h2 className="text-sm font-semibold text-slate-700">Seus projetos</h2>

@@ -6,14 +6,14 @@ param(
 )
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
-if ($env:OS -ne "Windows_NT") { throw "Execute este instalador no Windows do processador Orion Maps." }
+if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw "Execute este instalador no Windows do processador Orion Maps." }
 $Root = [IO.Path]::GetFullPath($Root)
 $AgentDir = Join-Path $Root "agent"
 $ScriptDir = $PSScriptRoot
 $TaskName = "OrionMapsAgent"
 $TaskPath = "\"
 $MaintenancePath = Join-Path $AgentDir "maintenance.json"
-$Files = @("orion_agent.py", "orion_agent_staged.py", "setup_credentials.py", "requirements.txt", "install_agent.ps1", "update_agent.ps1", "README.md")
+$Files = @("orion_agent.py", "orion_agent_staged.py", "orion_progress.py", "orion_runtime.py", "setup_credentials.py", "requirements.txt", "install_agent.ps1", "update_agent.ps1", "README.md")
 $InstalledFiles = $Files + @("run_agent.py", "installed_revision.txt")
 $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 if ([IO.Path]::GetFullPath($ScriptDir).TrimEnd('\') -eq $AgentDir.TrimEnd('\')) {
@@ -26,14 +26,11 @@ $PythonCommand = Get-Command python -ErrorAction Stop
 $PythonOutput = @(& $PythonCommand.Source -c "import sys; print(sys.executable)")
 if ($LASTEXITCODE -ne 0 -or $PythonOutput.Count -ne 1) { throw "Python indisponivel nesta conta Windows." }
 $Python = ([string]$PythonOutput[0]).Trim()
-$SyntaxCheck = @'
-import ast, pathlib, sys
-root = pathlib.Path(sys.argv[1])
-for name in ("orion_agent.py", "orion_agent_staged.py", "setup_credentials.py"):
-    ast.parse((root / name).read_text(encoding="utf-8-sig"), filename=name)
-'@
-& $Python -c $SyntaxCheck $ScriptDir
-if ($LASTEXITCODE -ne 0) { throw "Pacote recusado: erro de sintaxe Python." }
+$SyntaxFiles = @("orion_agent.py", "orion_agent_staged.py", "setup_credentials.py")
+foreach ($SyntaxName in $SyntaxFiles) {
+  & $Python -m py_compile (Join-Path $ScriptDir $SyntaxName)
+  if ($LASTEXITCODE -ne 0) { throw "Pacote recusado: erro de sintaxe Python em $SyntaxName." }
+}
 foreach ($Name in @("install_agent.ps1", "update_agent.ps1")) {
   $ParseTokens = $null
   $ParseErrors = $null
@@ -114,8 +111,14 @@ except Exception as exc:
     print("Nao foi possivel confirmar que o processador esta ocioso (" + type(exc).__name__ + "). Nenhuma tarefa sera criada ou cancelada.", file=sys.stderr)
     sys.exit(2)
 '@
-  & $Python -c $Check (Join-Path $ScriptDir "orion_agent.py")
-  if ($LASTEXITCODE -ne 0) { throw "Manutencao recusada. Nenhum script sera substituido." }
+  $CheckPath = Join-Path ([IO.Path]::GetTempPath()) ("orion-idle-" + [Guid]::NewGuid().ToString("N") + ".py")
+  try {
+    [IO.File]::WriteAllText($CheckPath, $Check, [Text.UTF8Encoding]::new($false))
+    & $Python $CheckPath (Join-Path $ScriptDir "orion_agent.py")
+    if ($LASTEXITCODE -ne 0) { throw "Manutencao recusada. Nenhum script sera substituido." }
+  } finally {
+    if (Test-Path -LiteralPath $CheckPath) { Remove-Item -LiteralPath $CheckPath -Force }
+  }
 }
 
 $ExistingTask = Get-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -ErrorAction SilentlyContinue

@@ -11,6 +11,9 @@ export type ProcessingJob = {
   input_image_count: number;
   engine: string;
   engine_task_uuid: string | null;
+  heartbeat_at: string | null;
+  started_at: string | null;
+  device_id: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -19,7 +22,7 @@ export type ProcessingJob = {
 
 export async function listProcessingJobs(surveyId: string, token: string) {
   if (!/^[0-9a-f-]{36}$/i.test(surveyId)) throw new Error("Levantamento inválido.");
-  const select = "id,survey_id,status,progress,stage,message,config,input_image_count,engine,engine_task_uuid,created_at,updated_at,completed_at,error_detail";
+  const select = "id,survey_id,status,progress,stage,message,config,input_image_count,engine,engine_task_uuid,heartbeat_at,started_at,device_id,created_at,updated_at,completed_at,error_detail";
   return supabaseRequest<ProcessingJob[]>(
     `/rest/v1/processing_jobs?survey_id=eq.${surveyId}&select=${select}&order=created_at.desc&limit=20`,
     token

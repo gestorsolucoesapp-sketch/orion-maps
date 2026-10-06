@@ -1,6 +1,11 @@
 """NodeODM protocol regressions against a local HTTP server, without a real job."""
 
 import ast
+import sys
+import time as real_time
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "local-agent"))
+from orion_progress import NodeODMProgress, choose_concurrency
+from orion_runtime import recover_task_id
 import json
 import logging
 import mimetypes
@@ -66,7 +71,8 @@ def load_functions(url):
     namespace = {"Any": Any, "Path": Path, "UUID": UUID, "json": json,
                  "mimetypes": mimetypes, "socket": socket, "requests": requests,
                  "httpx": httpx, "logging": Mock(spec=logging),
-                 "time": types.SimpleNamespace(sleep=Mock()), "NODEODM": url,
+                 "time": types.SimpleNamespace(sleep=Mock(), monotonic=real_time.monotonic), "NODEODM": url,
+                 "NodeODMProgress": NodeODMProgress, "choose_concurrency": choose_concurrency, "recover_task_id": recover_task_id,
                  "utcnow": lambda: "2026-10-06T00:00:00+00:00"}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(SOURCE), "exec"), namespace)
     return namespace
