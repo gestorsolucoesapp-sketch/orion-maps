@@ -26,8 +26,43 @@ export function clearExteriorNoData(data: Uint8ClampedArray, width: number, heig
     if (p >= width) push(p - width);
     if (p + width < count) push(p + width);
   }
-  // Only the exterior-connected NoData mask is changed. White roofs, lane
-  // markings, vegetation and enclosed shadows retain their original RGBA.
+  // Clear JPEG matte residue only when it is connected to the exterior and
+  // within a narrow 12-pixel rim. Never key out white throughout the image:
+  // that would erase roofs, road markings and valid survey details.
+  const exteriorCount = tail;
+  const distance = new Uint8Array(count);
+  distance.fill(255);
+  for (let i = 0; i < exteriorCount; i++) distance[queue[i]] = 0;
+  head = 0;
+  const visit = (p: number, value: number) => {
+    if (distance[p] === 255) { distance[p] = value; queue[tail++] = p; }
+  };
+  while (head < tail) {
+    const p = queue[head++], x = p % width, next = distance[p] + 1;
+    if (next > 12) continue;
+    if (x > 0) visit(p - 1, next);
+    if (x + 1 < width) visit(p + 1, next);
+    if (p >= width) visit(p - width, next);
+    if (p + width < count) visit(p + width, next);
+  }
+  head = 0; tail = exteriorCount;
+  const clearRim = (p: number) => {
+    if (outside[p] || distance[p] > 12) return;
+    const i = p * 4;
+    const max = Math.max(data[i], data[i + 1], data[i + 2]);
+    const min = Math.min(data[i], data[i + 1], data[i + 2]);
+    if ((min >= 225 && max - min <= 20) || (max <= 65 && max - min <= 18)) {
+      outside[p] = 1; queue[tail++] = p;
+    }
+  };
+  while (head < tail) {
+    const p = queue[head++], x = p % width;
+    if (x > 0) clearRim(p - 1);
+    if (x + 1 < width) clearRim(p + 1);
+    if (p >= width) clearRim(p - width);
+    if (p + width < count) clearRim(p + width);
+  }
+  // Alpha only: no RGB changes, no satellite replacement and no synthetic fill.
   for (let p = 0; p < count; p++) if (outside[p]) data[p * 4 + 3] = 0;
   return tail;
 }
