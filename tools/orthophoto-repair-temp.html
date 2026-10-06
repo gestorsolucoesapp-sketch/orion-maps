@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orion Maps — limpeza final</title>
+<style>
+body{font-family:Arial,sans-serif;background:#eaf1e7;color:#173d2a;padding:24px}
+.card{max-width:980px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 12px 35px #173d2a22}
+canvas{max-width:100%;margin-top:16px;border-radius:12px;background:#eee}
+pre{white-space:pre-wrap;background:#f3f7f1;padding:12px;border-radius:10px}
+</style>
+</head>
+<body><div class="card">
+<h1>Orion Maps — corrigindo somente os detalhes brancos</h1>
+<p id="s">Iniciando…</p>
+<canvas id="c"></canvas>
+<pre id="l"></pre>
+</div>
+<script>
+const E='https://zxmhpkcxwlpvkelqapbf.supabase.co/functions/v1/orion-preview-repair';
+const T=new URLSearchParams(location.search).get('token')||'';
+const s=document.getElementById('s'),l=document.getElementById('l'),c=document.getElementById('c');
+(async()=>{try{
+  if(!T)throw new Error('Token ausente');
+  s.textContent='Baixando a ortofoto original…';
+  const r=await fetch(E+'?action=source-original&token='+encodeURIComponent(T),{cache:'no-store'});
+  if(!r.ok)throw new Error('Download: '+await r.text());
+  const bmp=await createImageBitmap(await r.blob());
+  const maxSide=2600,scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
+  const w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
+  c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,0,0,w,h);
+  const img=ctx.getImageData(0,0,w,h),d=img.data,n=w*h;
+  const outside=new Uint8Array(n),q=new Int32Array(n);let head=0,tail=0;
+  const dark=p=>{const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx<=82&&(mx-mn)<=48};
+  const push=p=>{if(p<0||p>=n||outside[p]||!dark(p))return;outside[p]=1;q[tail++]=p};
+  for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
+  s.textContent='Identificando o fundo externo…';
+  while(head<tail){const p=q[head++],x=p%w,y=p/w|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h)push(ny*w+nx)}}
+  const dist=new Uint8Array(n);dist.fill(255);head=0;tail=0;
+  for(let p=0;p<n;p++){
+    if(outside[p])continue;
+    const x=p%w,y=p/w|0;let touches=false;
+    for(let dy=-1;dy<=1&&!touches;dy++)for(let dx=-1;dx<=1;dx++){
+      const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&outside[ny*w+nx]){touches=true;break}
+    }
+    if(touches){dist[p]=1;q[tail++]=p}
+  }
+  while(head<tail){const p=q[head++],dv=dist[p];if(dv>=18)continue;const x=p%w,y=p/w|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const z=ny*w+nx;if(!outside[z]&&dist[z]===255){dist[z]=dv+1;q[tail++]=z}}}
+  const artifact=new Uint8Array(n);let artifactCount=0,outsideCount=0;
+  for(let p=0;p<n;p++){
+    if(outside[p]){outsideCount++;continue}
+    if(dist[p]===255||dist[p]>18)continue;
+    const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),ch=mx-mn;
+    if((mn>=185&&ch<=55)||(mx<=72&&ch<=38)){artifact[p]=1;artifactCount++}
+  }
+  const state=new Uint8Array(artifact),fillQ=new Int32Array(n);head=0;tail=0;
+  const seed=p=>{
+    if(state[p]!==1)return;
+    const x=p%w,y=p/w|0;let sr=0,sg=0,sb=0,cnt=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const z=ny*w+nx;
+      if(!outside[z]&&artifact[z]===0){const j=z*4;sr+=d[j];sg+=d[j+1];sb+=d[j+2];cnt++}
+    }
+    if(cnt){const i=p*4;d[i]=Math.round(sr/cnt);d[i+1]=Math.round(sg/cnt);d[i+2]=Math.round(sb/cnt);d[i+3]=255;state[p]=2;fillQ[tail++]=p}
+  };
+  for(let p=0;p<n;p++)if(artifact[p])seed(p);
+  while(head<tail){const p=fillQ[head++],x=p%w,y=p/w|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const z=ny*w+nx;
+    if(state[z]===1){const i=z*4,j=p*4;d[i]=d[j];d[i+1]=d[j+1];d[i+2]=d[j+2];d[i+3]=255;state[z]=2;fillQ[tail++]=z}
+  }}
+  for(let p=0;p<n;p++)d[p*4+3]=outside[p]?0:255;
+  ctx.putImageData(img,0,0);
+  const outsideRatio=outsideCount/n,artifactRatio=artifactCount/n;
+  if(outsideRatio<.05||outsideRatio>.80)throw new Error('Máscara externa insegura: '+(outsideRatio*100).toFixed(2)+'%');
+  if(artifactRatio>.04)throw new Error('Correção excessiva: '+(artifactRatio*100).toFixed(2)+'%');
+  const blob=await new Promise((ok,no)=>c.toBlob(b=>b?ok(b):no(new Error('PNG')),'image/png'));
+  if(blob.size<1000000||blob.size>25000000)throw new Error('Tamanho inseguro: '+blob.size);
+  l.textContent=JSON.stringify({width:w,height:h,outside_percent:(outsideRatio*100).toFixed(2),corrected_white_pixels:artifactCount,corrected_percent:(artifactRatio*100).toFixed(3),size_MB:(blob.size/1048576).toFixed(2)},null,2);
+  s.textContent='Enviando a prévia final…';
+  const up=await fetch(E+'?action=upload&token='+encodeURIComponent(T),{method:'POST',headers:{'content-type':'image/png','x-repair-token':T},body:blob});
+  const tx=await up.text();if(!up.ok)throw new Error('Upload: '+tx);
+  l.textContent+='\n\n'+tx;s.textContent='Concluído — borda externa limpa e interior preservado.';document.title='DONE — Orion Maps';
+}catch(e){s.textContent='Falha';l.textContent=String(e&&e.stack||e);document.title='FAIL — Orion Maps'}})();
+</script></body></html>
