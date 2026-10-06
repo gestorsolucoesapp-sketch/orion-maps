@@ -19,7 +19,13 @@ export async function supabaseRequest<T>(path: string, token: string, init: Requ
   });
   if (!response.ok) {
     if (response.status === 401) throw new Error("Sua sessão expirou. Entre novamente.");
-    throw new Error("Não foi possível acessar seus levantamentos. Tente novamente em instantes.");
+    const raw = await response.text().catch(() => "");
+    let detail = raw;
+    try {
+      const parsed = JSON.parse(raw) as {message?:string;details?:string;hint?:string;code?:string};
+      detail = [parsed.message,parsed.details,parsed.hint,parsed.code].filter(Boolean).join(" · ");
+    } catch {}
+    throw new Error(detail || `Supabase respondeu HTTP ${response.status}.`);
   }
   if (response.status === 204) return undefined as T;
   return response.json();
