@@ -14,6 +14,8 @@ export type ProcessingResult = {
   metadata: Record<string, unknown> | null;
   created_at: string;
   preview_url: string | null;
+  /** Original drone preview; signed with the current user's Storage permissions. */
+  original_preview_url?: string | null;
   download_url: string | null;
   signed_url_expires_seconds: number;
 };
