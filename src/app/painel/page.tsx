@@ -105,8 +105,8 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
       </section>
 
       <LiveProcessingRefresh/>
-      {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
-        <aside className="print:hidden">
+      {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
+        <aside className="min-w-0 print:hidden">
           <EnginePanel devices={devices} error={devicesError}/>
           {liveJobs.map(job=><div key={job.id}>
             <Link href={`/processamento?levantamento=${job.survey_id}`} className="mb-2 block text-sm font-semibold text-emerald-900">{surveys.find(s=>s.id===job.survey_id)?.name||"Levantamento"} →</Link>

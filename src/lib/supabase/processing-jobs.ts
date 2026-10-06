@@ -1,10 +1,12 @@
 import { supabaseRequest } from "./surveys";
+import type {ProcessingActivity} from "@/lib/processing-activity";
 
 export type ProcessingJob = {
   id: string;
   survey_id: string;
   status: "queued"|"claimed"|"downloading"|"validating"|"processing"|"derivatives"|"uploading"|"completed"|"error"|"cancelled";
   progress: number;
+  activity?: ProcessingActivity | null;
   stage: string;
   message: string;
   config: Record<string, unknown>;
@@ -22,7 +24,7 @@ export type ProcessingJob = {
 
 export async function listProcessingJobs(surveyId: string, token: string) {
   if (!/^[0-9a-f-]{36}$/i.test(surveyId)) throw new Error("Levantamento inválido.");
-  const select = "id,survey_id,status,progress,stage,message,config,input_image_count,engine,engine_task_uuid,heartbeat_at,started_at,device_id,created_at,updated_at,completed_at,error_detail";
+  const select = "activity,id,survey_id,status,progress,stage,message,config,input_image_count,engine,engine_task_uuid,heartbeat_at,started_at,device_id,created_at,updated_at,completed_at,error_detail";
   return supabaseRequest<ProcessingJob[]>(
     `/rest/v1/processing_jobs?survey_id=eq.${surveyId}&select=${select}&order=created_at.desc&limit=20`,
     token

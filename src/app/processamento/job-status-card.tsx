@@ -1,5 +1,7 @@
 "use client";
 import {useEffect,useState} from "react";
+import ActivityPanel from "./activity-panel";
+import {activityFresh} from "@/lib/processing-activity";
 import type {ProcessingJob} from "@/lib/supabase/processing-jobs";
 
 const labels:Record<string,string>={queued:"Na fila",claimed:"Preparando",downloading:"Baixando fotos",validating:"Validando fotos",processing:"Processando",derivatives:"Gerando produtos",uploading:"Enviando resultados",completed:"Concluído",error:"Interrompido",cancelled:"Cancelado"};
@@ -19,6 +21,8 @@ export default function JobStatusCard({job,featured=false}:{job:ProcessingJob;fe
   const seconds=now>0?Math.max(0,Math.floor((now-started)/1000)):null;
   const elapsed=seconds===null?"—":`${Math.floor(seconds/60)} min ${seconds%60} s`;
   const failed=job.status==="error";
+  const measured=activityFresh(job.activity,job.engine_task_uuid,now);
+  const message=measured&&job.stage==="nodeodm"&&job.activity?.phase?job.activity.phase:job.message;
   const tone=failed?"border-red-200 bg-red-50/50":stale?"border-amber-300 bg-amber-50":"border-emerald-200 bg-white";
   return <article className={`min-w-0 rounded-2xl border p-4 sm:p-5 ${tone} ${featured?"mb-5 shadow-sm":""}`}>
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -29,8 +33,9 @@ export default function JobStatusCard({job,featured=false}:{job:ProcessingJob;fe
     <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Andamento por etapas">
       <div style={{width:`${progress}%`}} className={`h-full rounded-full transition-[width] duration-700 ${failed?"bg-red-600":stale?"bg-amber-500":"bg-emerald-800"}`}/>
     </div>
-    <p className="mt-3 break-words text-sm leading-6 text-slate-700">{failed?"O processamento foi interrompido. Consulte o diagnóstico abaixo.":job.message||labels[job.status]}</p>
+    <p className="mt-3 break-words text-sm leading-6 text-slate-700">{failed?"O processamento foi interrompido. Consulte o diagnóstico abaixo.":message||labels[job.status]}</p>
     {live&&<p className="mt-2 text-xs leading-5 text-slate-500">O percentual é fornecido por etapas, não pelo tempo. A atividade acima mostra o trabalho efetivamente registrado pelo motor.</p>}
+    {live&&<ActivityPanel sample={job.activity} taskId={job.engine_task_uuid} now={now}/>}
     <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
       {live&&<span>Tempo decorrido: <b className="font-medium tabular-nums">{elapsed}</b></span>}
       <span>Último sinal: {date(job.heartbeat_at||job.updated_at)}</span>
