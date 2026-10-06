@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Orion Maps — acabamento final</title>
+<style>
+body{font-family:Arial,sans-serif;background:#eaf1e7;color:#173d2a;padding:24px}
+.card{max-width:980px;margin:auto;background:#fff;padding:24px;border-radius:20px;box-shadow:0 12px 35px #173d2a22}
+canvas{max-width:100%;margin-top:16px;border-radius:12px;background:#eee}
+pre{white-space:pre-wrap;background:#f3f7f1;padding:12px;border-radius:10px}
+</style>
+</head>
+<body><div class="card">
+<h1>Orion Maps — acabamento final da ortofoto</h1>
+<p id="s">Iniciando…</p>
+<canvas id="c"></canvas>
+<pre id="l"></pre>
+</div>
+<script>
+const E='https://zxmhpkcxwlpvkelqapbf.supabase.co/functions/v1/orion-preview-repair';
+const T=new URLSearchParams(location.search).get('token')||'';
+const B={west:-46.851675,south:-21.597494,east:-46.848494,north:-21.594803};
+const s=document.getElementById('s'),l=document.getElementById('l'),c=document.getElementById('c');
+function tileXY(lon,lat,z){const n=2**z,r=lat*Math.PI/180;return[(lon+180)/360*n,(1-Math.asinh(Math.tan(r))/Math.PI)/2*n]}
+(async()=>{try{
+  if(!T)throw new Error('Token ausente');
+  s.textContent='Baixando a ortofoto original…';
+  const r=await fetch(E+'?action=source-original&token='+encodeURIComponent(T),{cache:'no-store'});
+  if(!r.ok)throw new Error('Download: '+await r.text());
+  const bmp=await createImageBitmap(await r.blob());
+  const maxSide=2600,scale=Math.min(1,maxSide/Math.max(bmp.width,bmp.height));
+  const w=Math.max(1,Math.round(bmp.width*scale)),h=Math.max(1,Math.round(bmp.height*scale));
+  c.width=w;c.height=h;
+  const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(bmp,0,0,w,h);
+  const img=ctx.getImageData(0,0,w,h),d=img.data,n=w*h;
+
+  s.textContent='Montando a imagem de apoio alinhada…';
+  const z=19,[xw,yn]=tileXY(B.west,B.north,z),[xe,ys]=tileXY(B.east,B.south,z);
+  const satCanvas=document.createElement('canvas');satCanvas.width=w;satCanvas.height=h;
+  const satCtx=satCanvas.getContext('2d',{willReadFrequently:true});satCtx.imageSmoothingEnabled=true;satCtx.imageSmoothingQuality='high';
+  const tiles=[];
+  for(let ty=Math.floor(yn);ty<=Math.floor(ys);ty++)for(let tx=Math.floor(xw);tx<=Math.floor(xe);tx++)tiles.push({tx,ty});
+  let loaded=0;
+  await Promise.all(tiles.map(async({tx,ty})=>{
+    const u='https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/'+z+'/'+ty+'/'+tx;
+    const tr=await fetch(u,{cache:'force-cache'});if(!tr.ok)throw new Error('Tile '+tr.status);
+    const ti=await createImageBitmap(await tr.blob());
+    const dx=(tx-xw)/(xe-xw)*w,dy=(ty-yn)/(ys-yn)*h,dw=w/(xe-xw),dh=h/(ys-yn);
+    satCtx.drawImage(ti,Math.floor(dx)-1,Math.floor(dy)-1,Math.ceil(dw)+2,Math.ceil(dh)+2);
+    loaded++;s.textContent='Montando a imagem de apoio alinhada… '+loaded+'/'+tiles.length;
+  }));
+  const sat=satCtx.getImageData(0,0,w,h).data;
+
+  const outside=new Uint8Array(n),q=new Int32Array(n);let head=0,tail=0;
+  const dark=p=>{const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b);return mx<=82&&(mx-mn)<=48};
+  const push=p=>{if(p<0||p>=n||outside[p]||!dark(p))return;outside[p]=1;q[tail++]=p};
+  for(let x=0;x<w;x++){push(x);push((h-1)*w+x)}for(let y=0;y<h;y++){push(y*w);push(y*w+w-1)}
+  s.textContent='Identificando somente o fundo externo…';
+  while(head<tail){const p=q[head++],x=p%w,y=p/w|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h)push(ny*w+nx)}}
+
+  const dist=new Uint16Array(n);dist.fill(65535);head=0;tail=0;
+  for(let p=0;p<n;p++){
+    if(outside[p])continue;const x=p%w,y=p/w|0;let touches=false;
+    for(let dy=-1;dy<=1&&!touches;dy++)for(let dx=-1;dx<=1;dx++){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<w&&ny>=0&&ny<h&&outside[ny*w+nx]){touches=true;break}}
+    if(touches){dist[p]=1;q[tail++]=p}
+  }
+  while(head<tail){const p=q[head++],dv=dist[p];if(dv>=300)continue;const x=p%w,y=p/w|0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const k=ny*w+nx;
+    if(!outside[k]&&dist[k]===65535){dist[k]=dv+1;q[tail++]=k}
+  }}
+
+  const gap=new Uint8Array(n);let gapCount=0,outsideCount=0;
+  for(let p=0;p<n;p++){
+    if(outside[p]){outsideCount++;continue}if(dist[p]===65535||dist[p]>300)continue;
+    const i=p*4,r=d[i],g=d[i+1],b=d[i+2],mx=Math.max(r,g,b),mn=Math.min(r,g,b),ch=mx-mn,avg=(r+g+b)/3;
+    const whiteGap=(mn>=158&&ch<=82)||(avg>=194&&ch<=105);const blackHalo=mx<=58&&ch<=38;
+    if(whiteGap||blackHalo){gap[p]=1;gapCount++}
+  }
+
+  const blend=new Uint8Array(n);
+  for(let p=0;p<n;p++)if(gap[p]){
+    blend[p]=255;const x=p%w,y=p/w|0;
+    for(let dy=-4;dy<=4;dy++)for(let dx=-4;dx<=4;dx++){
+      const nx=x+dx,ny=y+dy;if(nx<0||nx>=w||ny<0||ny>=h)continue;const k=ny*w+nx;if(outside[k]||gap[k])continue;
+      const radius=Math.max(Math.abs(dx),Math.abs(dy)),value=radius===1?180:radius===2?120:radius===3?75:35;if(value>blend[k])blend[k]=value;
+    }
+  }
+
+  s.textContent='Preenchendo apenas as falhas brancas…';
+  for(let p=0;p<n;p++){
+    const i=p*4;if(outside[p]){d[i+3]=0;continue}const a=blend[p]/255;
+    if(a>0){d[i]=Math.round(d[i]*(1-a)+sat[i]*a);d[i+1]=Math.round(d[i+1]*(1-a)+sat[i+1]*a);d[i+2]=Math.round(d[i+2]*(1-a)+sat[i+2]*a)}d[i+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+
+  const outsideRatio=outsideCount/n,gapRatio=gapCount/n;
+  if(outsideRatio<.05||outsideRatio>.80)throw new Error('Máscara externa insegura: '+(outsideRatio*100).toFixed(2)+'%');
+  if(gapRatio>.28)throw new Error('Preenchimento excessivo: '+(gapRatio*100).toFixed(2)+'%');
+  const blob=await new Promise((ok,no)=>c.toBlob(b=>b?ok(b):no(new Error('PNG')),'image/png'));
+  if(blob.size<1000000||blob.size>25000000)throw new Error('Tamanho inseguro: '+blob.size);
+  l.textContent=JSON.stringify({width:w,height:h,tiles:tiles.length,outside_percent:(outsideRatio*100).toFixed(2),filled_gap_pixels:gapCount,filled_percent:(gapRatio*100).toFixed(3),size_MB:(blob.size/1048576).toFixed(2)},null,2);
+  s.textContent='Enviando a prévia final…';
+  const up=await fetch(E+'?action=upload&token='+encodeURIComponent(T),{method:'POST',headers:{'content-type':'image/png','x-repair-token':T},body:blob});
+  const tx=await up.text();if(!up.ok)throw new Error('Upload: '+tx);
+  l.textContent+='\n\n'+tx;s.textContent='Concluído — falhas brancas preenchidas e mapa padrão preservado.';document.title='DONE V3 — Orion Maps';
+}catch(e){s.textContent='Falha';l.textContent=String(e&&e.stack||e);document.title='ERR V3 '+String(e&&e.message||e).slice(0,100)}})();
+</script></body></html>
