@@ -34,7 +34,7 @@ export default function JobStatusCard({job,featured=false}:{job:ProcessingJob;fe
       <div style={{width:`${progress}%`}} className={`h-full rounded-full transition-[width] duration-700 ${failed?"bg-red-600":stale?"bg-amber-500":"bg-emerald-800"}`}/>
     </div>
     <p className="mt-3 break-words text-sm leading-6 text-slate-700">{failed?"O processamento foi interrompido. Consulte o diagnóstico abaixo.":message||labels[job.status]}</p>
-    {live&&<p className="mt-2 text-xs leading-5 text-slate-500">O percentual é fornecido por etapas, não pelo tempo. A atividade acima mostra o trabalho efetivamente registrado pelo motor.</p>}
+    {live&&<p className="mt-2 text-xs leading-5 text-slate-500">O percentual é fornecido por etapas, não pelo tempo. O painel abaixo separa uso de recursos de avanços efetivamente registrados pelo motor.</p>}
     {live&&<ActivityPanel sample={job.activity} taskId={job.engine_task_uuid} now={now}/>}
     <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
       {live&&<span>Tempo decorrido: <b className="font-medium tabular-nums">{elapsed}</b></span>}
