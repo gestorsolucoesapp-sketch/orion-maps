@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- dynamic signed/blob/data map imagery must bypass the Next image optimizer. */
 
 import dynamic from "next/dynamic";
 import {useState} from "react";

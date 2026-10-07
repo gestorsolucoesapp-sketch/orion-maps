@@ -89,7 +89,7 @@ export default function PointCloudViewer({source}:{source:Pick<ProcessingResult,
     }
     void start();
     return()=>{cancelled=true;viewerRef.current?.dispose();viewerRef.current=null;};
-  },[source.id,source.survey_id,retry]);
+  },[source,retry]);
 
   function changeMode(next:"rgb"|"height"|"intensity"|"classification"){
     const resolved=viewerRef.current?.setColorMode?.(next)||next;

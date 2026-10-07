@@ -64,7 +64,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const measuredPlan=planBoundary?measurePlan(planBoundary.points):null;
   const projectArea=measuredPlan?.area??null;
   const projectPerimeter=measuredPlan?.perimeter??null;
-  const coverageArea=n(meta.project_area_m2),coveragePerimeter=n(meta.project_perimeter_m);
+
   const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">

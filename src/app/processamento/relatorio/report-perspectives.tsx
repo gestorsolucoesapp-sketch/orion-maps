@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- dynamic signed/blob/data map imagery must bypass the Next image optimizer. */
 
 import type {ReactNode} from "react";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
@@ -27,7 +28,7 @@ export default function ReportPerspectives({results,planBoundary}:Props){
   const ortho=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
   const hill=results.find(r=>r.kind==="hillshade"&&r.preview_url);
   const hypso=results.find(r=>r.kind==="hypsometry"&&r.preview_url);
-  const slope=results.find(r=>r.kind==="slope"&&r.preview_url);
+
   const dtm=results.find(r=>r.kind==="dtm");
   const dsm=results.find(r=>r.kind==="dsm");
   const cloud=results.find(r=>r.kind==="point_cloud");
