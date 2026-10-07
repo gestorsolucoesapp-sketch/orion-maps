@@ -17,6 +17,16 @@ export type SlopeAreaSummary = {
   classes:{label:string;color:string;cells:number;areaM2:number;validSharePct:number}[];
   resolutionM:[number,number];sourceCrs:string;
 };
+export type ElevationProfileSample = {
+  distanceM:number;position:TerrainPoint;elevationM:number|null;slopePct:number|null;status:TerrainSample["status"];
+};
+export type ElevationProfileSummary = {
+  method:"native DTM / projected path sampling";
+  lengthM:number;spacingM:number;samples:number;validSamples:number;coveragePct:number;
+  startElevationM:number|null;endElevationM:number|null;minElevationM:number|null;maxElevationM:number|null;
+  gainM:number;lossM:number;meanLocalSlopePct:number|null;sourceCrs:string;resolutionM:[number,number];
+  profile:ElevationProfileSample[];
+};
 export function assertTerrainGrid(g:TerrainGrid):void {
   if(!g.metric||!Number.isInteger(g.width)||!Number.isInteger(g.height)||g.width<3||g.height<3||g.band.length!==g.width*g.height||
     ![g.dx,g.dy,g.west,g.north].every(Number.isFinite)||g.dx<=0||g.dy<=0)throw Error("DTM incompatível: a análise exige uma grade regular com coordenadas e elevações em metros.");
@@ -83,4 +93,52 @@ export async function analyseSlopePolygonXY(g:TerrainGrid,polygon:TerrainPoint[]
 }
 export function analyseSlopePolygon(g:TerrainGrid,polygon:TerrainPoint[],options:{signal?:AbortSignal;onProgress?:(percent:number)=>void}={}){
   return analyseSlopePolygonXY(g,polygon.map(p=>projectTerrainPoint(g,p)),options);
+}
+
+export async function analyseElevationProfile(
+  g:TerrainGrid,
+  path:TerrainPoint[],
+  options:{signal?:AbortSignal;maxSamples?:number;onProgress?:(percent:number)=>void}={}
+):Promise<ElevationProfileSummary>{
+  assertTerrainGrid(g);
+  if(path.length<2||path.length>200||!path.every(validPosition))throw Error("Marque de 2 a 200 pontos para o perfil.");
+  const xy=path.map(p=>projectTerrainPoint(g,p));
+  const segments:{a:TerrainPoint;b:TerrainPoint;length:number;start:number;end:number}[]=[];
+  let lengthM=0;
+  for(let i=1;i<xy.length;i++){
+    const a=xy[i-1],b=xy[i],length=Math.hypot(b[0]-a[0],b[1]-a[1]);
+    if(length<0.01)continue;
+    const start=lengthM;lengthM+=length;segments.push({a,b,length,start,end:lengthM});
+  }
+  if(lengthM<0.01||!segments.length)throw Error("O perfil precisa ter comprimento maior que zero.");
+  const maxSamples=Math.max(32,Math.min(2500,options.maxSamples??1400));
+  const spacingM=Math.max(Math.max(g.dx,g.dy),lengthM/(maxSamples-1));
+  const count=Math.min(maxSamples,Math.max(2,Math.ceil(lengthM/spacingM)+1));
+  const profile:ElevationProfileSample[]=[];
+  let previousValid:number|null=null,gainM=0,lossM=0,slopeSum=0,slopeCount=0,validSamples=0,min=Infinity,max=-Infinity;
+  for(let i=0;i<count;i++){
+    options.signal?.throwIfAborted();
+    const distance=i===count-1?lengthM:Math.min(lengthM,i*spacingM);
+    let segment=segments[segments.length-1];
+    for(const candidate of segments){if(distance<=candidate.end+1e-9){segment=candidate;break;}}
+    const t=Math.max(0,Math.min(1,(distance-segment.start)/segment.length));
+    const point:[number,number]=[segment.a[0]+(segment.b[0]-segment.a[0])*t,segment.a[1]+(segment.b[1]-segment.a[1])*t];
+    const wgs=proj4(g.crs,"EPSG:4326",point) as TerrainPoint;
+    const sample=sampleTerrainAtXY(g,point,wgs);
+    profile.push({distanceM:distance,position:wgs,elevationM:sample.elevationM,slopePct:sample.slopePct,status:sample.status});
+    if(sample.elevationM!==null){
+      validSamples++;min=Math.min(min,sample.elevationM);max=Math.max(max,sample.elevationM);
+      if(previousValid!==null){const dz=sample.elevationM-previousValid;if(dz>0)gainM+=dz;else lossM+=-dz;}
+      previousValid=sample.elevationM;
+    }else previousValid=null;
+    if(sample.slopePct!==null){slopeSum+=sample.slopePct;slopeCount++;}
+    if(i%80===0){options.onProgress?.(100*(i+1)/count);await new Promise<void>(resolve=>setTimeout(resolve,0));}
+  }
+  options.signal?.throwIfAborted();options.onProgress?.(100);
+  const first=profile.find(p=>p.elevationM!==null)?.elevationM??null;
+  const last=[...profile].reverse().find(p=>p.elevationM!==null)?.elevationM??null;
+  return {method:"native DTM / projected path sampling",lengthM,spacingM,samples:profile.length,validSamples,
+    coveragePct:profile.length?100*validSamples/profile.length:0,startElevationM:first,endElevationM:last,
+    minElevationM:validSamples?min:null,maxElevationM:validSamples?max:null,gainM,lossM,
+    meanLocalSlopePct:slopeCount?slopeSum/slopeCount:null,sourceCrs:g.sourceCrs,resolutionM:[g.dx,g.dy],profile};
 }
