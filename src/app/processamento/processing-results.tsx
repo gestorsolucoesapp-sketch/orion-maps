@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import {useState} from "react";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
+import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
@@ -41,10 +42,11 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   const range=num(reference?.metadata??null,"elevation_range_m");
 
   async function forceDownload(item:ProcessingResult){
-    if(!item.download_url||downloading)return;
+    if(downloading)return;
     setDownloading(item.id);
     try{
-      const response=await fetch(item.download_url,{cache:"no-store"});
+      const signed=await freshProcessingUrl(item,"download");
+      const response=await fetch(signed,{cache:"no-store"});
       if(!response.ok)throw new Error();
       const blob=await response.blob();
       const url=URL.createObjectURL(blob),a=document.createElement("a");
@@ -52,7 +54,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
       const base=(item.display_name||item.kind).replace(/[^a-zA-Z0-9_-]+/g,"_").replace(/^_+|_+$/g,"")||"orion-map";
       a.href=url;a.download=base+"."+ext;document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),30000);
-    }catch{window.open(item.download_url,"_blank","noopener,noreferrer");}
+    }catch{try{window.open(await freshProcessingUrl(item,"download"),"_blank","noopener,noreferrer");}catch{/* retry stays available */}}
     finally{setDownloading(null);}
   }
 
@@ -125,7 +127,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
             <div className="rounded-xl bg-white p-3"><span className="text-[11px] text-slate-500">Tamanho</span><strong className="mt-1 block">{fmtBytes(cloud.size_bytes)}</strong></div>
             <div className="col-span-2 rounded-xl bg-white p-3 sm:col-span-1"><span className="text-[11px] text-slate-500">CRS</span><strong className="mt-1 block">{cloud.source_crs||"—"}</strong></div>
           </div>
-          {cloud.download_url&&<div className="mt-4"><PointCloudViewer url={cloud.download_url}/></div>}
+          <div className="mt-4"><PointCloudViewer source={cloud}/></div>
           <button type="button" onClick={()=>void forceDownload(cloud)} disabled={downloading!==null} className="mt-4 rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{downloading===cloud.id?"Preparando…":"Baixar nuvem LAZ ↓"}</button>
           <p className="mt-3 text-[11px] leading-5 text-slate-500">O PDF completo registra a existência da nuvem de pontos e seus dados técnicos. A navegação 3D permanece interativa somente no aplicativo.</p>
         </section>;
@@ -147,7 +149,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
               <td className="p-3 text-slate-500">{item.mime_type||"—"}</td>
               <td className="p-3 text-slate-500">{fmtBytes(item.size_bytes)}</td>
               <td className="p-3 text-slate-500">{item.source_crs||"—"}</td>
-              <td className="p-3">{item.download_url?<button type="button" aria-busy={downloading===item.id} disabled={downloading!==null} onClick={()=>void forceDownload(item)} className="rounded-lg px-2 py-1 font-semibold text-emerald-800 disabled:opacity-60">{downloading===item.id?"Preparando":"Baixar ↓"}</button>:<span className="text-slate-400">Indisponível</span>}</td>
+              <td className="p-3">{item.storage_path?<button type="button" aria-busy={downloading===item.id} disabled={downloading!==null} onClick={()=>void forceDownload(item)} className="rounded-lg px-2 py-1 font-semibold text-emerald-800 disabled:opacity-60">{downloading===item.id?"Preparando":"Baixar ↓"}</button>:<span className="text-slate-400">Indisponível</span>}</td>
             </tr>)}</tbody>
           </table>
         </div>
