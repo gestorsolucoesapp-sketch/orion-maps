@@ -2,6 +2,8 @@
 
 import type {ReactNode} from "react";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
+import GeoTiffReportImage from "./geotiff-report-image";
 
 type Coord=[number,number];
 type Props={results:ProcessingResult[];planBoundary?:{name:string;points:Coord[]}|null};
@@ -34,11 +36,11 @@ export default function ReportPerspectives({results,planBoundary}:Props){
 
   return <>
     {ortho?.preview_url&&<Perspective title="Ortofoto" subtitle="Mosaico ortorretificado do levantamento.">
-      <ProductImage src={ortho.preview_url} alt="Ortofoto do levantamento"/>
+      <ProductImage src={orthophotoPreviewUrl(ortho)!} alt="Ortofoto do levantamento"/>
     </Perspective>}
 
     {ortho?.preview_url&&<Perspective title="Plano de voo" subtitle={planBoundary?"Plano associado: "+planBoundary.name+". Área e perímetro são calculados pelo contorno salvo.":"Plano compatível não localizado."}>
-      <ProductImage src={ortho.preview_url} alt="Ortofoto de referência do plano"/>
+      <ProductImage src={orthophotoPreviewUrl(ortho)!} alt="Ortofoto de referência do plano"/>
       <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Contorno do plano disponível na visualização interativa do projeto.</p>
     </Perspective>}
 
@@ -54,17 +56,13 @@ export default function ReportPerspectives({results,planBoundary}:Props){
       <ProductImage src={hypso.preview_url} alt="Mapa hipsométrico"/>
     </Perspective>}
 
-    {slope?.preview_url&&<Perspective title="Declividade" subtitle="Representação da variação de inclinação da superfície.">
-      <ProductImage src={slope.preview_url} alt="Mapa de declividade"/>
-    </Perspective>}
+    {dtm&&<Perspective title="Declividade" subtitle="Inclinação local derivada do DTM; cores por classe de porcentagem."><GeoTiffReportImage source={dtm} kind="slope"/><p className="mt-3 text-xs leading-5 text-slate-600">Valores extremos locais podem refletir transições abruptas ou ruído do modelo; não equivalem à inclinação média do talhão.</p></Perspective>}
 
-    {dtm&&<Perspective title="DTM · Modelo Digital do Terreno" subtitle="Modelo raster do terreno estimado.">
-      {hypso?.preview_url?<ProductImage src={hypso.preview_url} alt="Representação altimétrica associada ao DTM"/>:<div className="rounded-xl bg-slate-50 p-5 text-sm">Arquivo GeoTIFF disponível nos produtos técnicos.</div>}
+    {dtm&&<Perspective title="DTM · Modelo Digital do Terreno" subtitle="Modelo raster do terreno estimado."><GeoTiffReportImage source={dtm} kind="dtm"/>
       <p className="mt-3 text-xs leading-5 text-slate-600">Em áreas com vegetação, a superfície do terreno é estimada pelo processo de classificação dos pontos.</p>
     </Perspective>}
 
-    {dsm&&<Perspective title="DSM · Modelo Digital de Superfície" subtitle="Modelo da superfície observada, incluindo elementos acima do terreno.">
-      {hill?.preview_url?<ProductImage src={hill.preview_url} alt="Representação da superfície associada ao DSM"/>:<div className="rounded-xl bg-slate-50 p-5 text-sm">Arquivo GeoTIFF disponível nos produtos técnicos.</div>}
+    {dsm&&<Perspective title="DSM · Modelo Digital de Superfície" subtitle="Modelo da superfície observada, incluindo elementos acima do terreno."><GeoTiffReportImage source={dsm} kind="dsm"/>
     </Perspective>}
 
     {cloud&&<Perspective title="Nuvem de pontos" subtitle="Produto tridimensional do levantamento.">
