@@ -67,26 +67,46 @@ export function clearExteriorNoData(data: Uint8ClampedArray, width: number, heig
   return tail;
 }
 
-export async function prepareOrthophotoPreview(url: string, signal?: AbortSignal): Promise<string> {
-  const response = await fetch(url, { cache: "no-store", signal });
-  if (!response.ok) throw new Error("Não foi possível carregar a ortofoto original.");
-  const bitmap = await createImageBitmap(await response.blob());
-  try {
-    signal?.throwIfAborted();
-    const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width; canvas.height = height;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) throw new Error("Não foi possível preparar a prévia do mapa.");
-    context.drawImage(bitmap, 0, 0, width, height);
-    const image = context.getImageData(0, 0, width, height);
-    clearExteriorNoData(image.data, width, height);
-    context.putImageData(image, 0, 0);
-    signal?.throwIfAborted();
-    return canvas.toDataURL("image/png");
-  } finally {
-    bitmap.close();
+export type OrthoLoadProgress={phase:"download"|"prepare"|"ready";loaded:number;total:number|null};
+const prepared=new Map<string,string>();
+const pending=new Map<string,Promise<string>>();
+
+export async function prepareOrthophotoPreview(url:string,signal?:AbortSignal,onProgress?:(progress:OrthoLoadProgress)=>void):Promise<string>{
+  signal?.throwIfAborted();
+  const cached=prepared.get(url);if(cached){onProgress?.({phase:"ready",loaded:0,total:null});return cached;}
+  let task=pending.get(url);
+  if(!task){
+    task=(async()=>{
+      const response=await fetch(url,{cache:"default",credentials:"same-origin",signal:AbortSignal.timeout(65000)});
+      if(!response.ok){const body=await response.json().catch(()=>null);throw new Error(body?.error||(response.status===401?"Sua sessão expirou. Entre novamente.":"Não foi possível carregar a prévia da ortofoto."));}
+      const total=Number(response.headers.get("content-length"))||null;
+      let loaded=0,lastNotice=0;
+      const reader=response.body?.getReader(),parts:Uint8Array<ArrayBuffer>[]=[];
+      if(reader){
+        try{while(true){const {done,value}=await reader.read();if(done)break;parts.push(new Uint8Array(value));loaded+=value.length;
+          if(loaded>160*1024*1024){await reader.cancel();throw new Error("Prévia maior que o limite do navegador.");}
+          if(performance.now()-lastNotice>100){lastNotice=performance.now();onProgress?.({phase:"download",loaded,total});}
+        }}finally{reader.releaseLock();}
+      }
+      const blob=reader?new Blob(parts,{type:response.headers.get("content-type")||"image/png"}):await response.blob();
+      onProgress?.({phase:"prepare",loaded:blob.size,total:blob.size});
+      const bitmap=await createImageBitmap(blob);
+      try{
+        const scale=Math.min(1,2400/Math.max(bitmap.width,bitmap.height));
+        const width=Math.max(1,Math.round(bitmap.width*scale)),height=Math.max(1,Math.round(bitmap.height*scale));
+        const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
+        const context=canvas.getContext("2d",{willReadFrequently:true});if(!context)throw new Error("Não foi possível preparar a prévia do mapa.");
+        context.drawImage(bitmap,0,0,width,height);
+        const image=context.getImageData(0,0,width,height);clearExteriorNoData(image.data,width,height);context.putImageData(image,0,0);
+        const cleaned=await new Promise<Blob>((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error("Não foi possível preparar a imagem.")),"image/png"));
+        const objectUrl=URL.createObjectURL(cleaned);prepared.set(url,objectUrl);
+        // At most four prepared previews per page lifecycle, never persisted across accounts.
+        while(prepared.size>4){const first=prepared.keys().next().value!;const old=prepared.get(first)!;prepared.delete(first);URL.revokeObjectURL(old);}
+        onProgress?.({phase:"ready",loaded:blob.size,total:blob.size});return objectUrl;
+      }finally{bitmap.close();}
+    })();
+    pending.set(url,task);
+    task.finally(()=>{if(pending.get(url)===task)pending.delete(url);}).catch(()=>{});
   }
+  const value=await task;signal?.throwIfAborted();return value;
 }

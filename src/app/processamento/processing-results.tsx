@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import {useState} from "react";
+import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
@@ -98,7 +99,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
             const visual=!!item.preview_url&&(item.mime_type==="image/jpeg"||item.mime_type==="image/png");
             return <button key={item.id} type="button" onClick={()=>openResult(item)} disabled={downloading!==null} className="group min-w-[168px] max-w-[190px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm disabled:opacity-60">
               <div className="relative h-24 overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-800 to-slate-900">
-                {visual?<img src={item.preview_url!} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
+                {visual?<img src={item.kind==="orthophoto"?orthophotoPreviewUrl(item)!:item.preview_url!} loading={item.kind==="orthophoto"?"eager":"lazy"} decoding="async" fetchPriority={item.kind==="orthophoto"?"high":"low"} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
                 <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"].includes(item.kind)?"Mostrar no mapa":item.kind==="point_cloud"?"Abrir 3D":"Baixar"}</span>
               </div>
               <div className="p-3">

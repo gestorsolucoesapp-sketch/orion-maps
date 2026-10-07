@@ -9,7 +9,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 import {renderGeoTiffToDataUrl, type RasterCorners} from "./geotiff-preview";
 import {SLOPE_CLASSES} from "@/lib/terrain-preview";
-import {prepareOrthophotoPreview} from "./orthophoto-preview";
+import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
+import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
@@ -98,6 +99,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
+  const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
   const [dtmRange,setDtmRange]=useState<{min:number;max:number}|null>(null),[dsmRange,setDsmRange]=useState<{min:number;max:number}|null>(null);
   const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false});
@@ -112,27 +114,24 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
-  const originalOrthoUrl=orthophoto?.original_preview_url||orthophoto?.preview_url||null;
+  const orthoDisplayUrl=orthophoto?orthophotoPreviewUrl(orthophoto):null;
   const dtm=results.find(r=>r.kind==="dtm"&&r.download_url);
   const dsm=results.find(r=>r.kind==="dsm"&&r.download_url);
 
 
   useEffect(()=>{
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the external image loader when its URL changes.
-    setTransparentOrtho(null);setOrthoError("");
-    if(!originalOrthoUrl){setOrthoBusy(false);return;}
+    setTransparentOrtho(null);setOrthoError("");setOrthoProgress(null);setOrthoRendered(false);
+    if(!orthoDisplayUrl){setOrthoBusy(false);return;}
     const controller=new AbortController();
     setOrthoBusy(true);
-    prepareOrthophotoPreview(originalOrthoUrl,controller.signal).then(url=>{
+    prepareOrthophotoPreview(orthoDisplayUrl,controller.signal,progress=>{if(!controller.signal.aborted)setOrthoProgress(progress);}).then(url=>{
       if(!controller.signal.aborted)setTransparentOrtho(url);
-    }).catch(()=>{
-      if(!controller.signal.aborted){
-        setTransparentOrtho(originalOrthoUrl);
-        setOrthoError("A prévia original foi carregada, mas não foi possível preparar a transparência das bordas.");
-      }
+    }).catch(error=>{
+      if(!controller.signal.aborted)setOrthoError(error instanceof Error?error.message:"Não foi possível carregar a ortofoto.");
     }).finally(()=>{if(!controller.signal.aborted)setOrthoBusy(false);});
     return()=>controller.abort();
-  },[originalOrthoUrl]);
+  },[orthoDisplayUrl,orthoRetry]);
 
   useEffect(()=>{
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Reflect cancellation of the external raster preview loader.
@@ -182,8 +181,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   },[focusKind,focusRevision]);
 
   useEffect(()=>{
-    if(!el.current||!bounds||(originalOrthoUrl&&!transparentOrtho))return;
-    setReady(false);setContoursState("loading");setContoursError("");setContoursCount(0);
+    if(!el.current||!bounds)return;
+    setReady(false);setOrthoRendered(false);setContoursState("loading");setContoursError("");setContoursCount(0);
     maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
     const bm=baseMaps[basemap];
     const m=new maplibregl.Map({
@@ -197,6 +196,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       zoom:camera.current?.zoom??17,bearing:camera.current?.bearing??0,pitch:camera.current?.pitch??0,attributionControl:false,renderWorldCopies:false,
     });
     map.current=m;
+    m.on("sourcedata",event=>{if(event.sourceId==="result-orthophoto"&&event.isSourceLoaded&&map.current===m)setOrthoRendered(true);});
+    m.on("error",event=>{if("sourceId" in event&&event.sourceId==="result-orthophoto"&&map.current===m)setOrthoError("A prévia chegou, mas não foi possível desenhá-la no mapa. Tente novamente.");});
     m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");
     m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
     m.addControl(new maplibregl.AttributionControl({compact:true}),"bottom-right");
@@ -208,12 +209,6 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       const corners:[[number,number],[number,number],[number,number],[number,number]]=[
         [bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south],
       ];
-      for(const kind of rasterKinds){
-        const item=results.find(r=>r.kind===kind&&r.preview_url);if(!item?.preview_url||(kind==="slope"&&!processedSlope))continue;
-        const sourceUrl=kind==="orthophoto"?(transparentOrtho||originalOrthoUrl||item.preview_url):kind==="slope"?(processedSlope||item.preview_url):item.preview_url;
-        m.addSource(`result-${kind}`,{type:"image",url:sourceUrl,coordinates:kind==="slope"?(slopeCorners||corners):corners});
-        m.addLayer({id:`result-${kind}`,type:"raster",source:`result-${kind}`,paint:{"raster-opacity":1,"raster-resampling":kind==="slope"?"nearest":"linear","raster-fade-duration":0},layout:{visibility:current[kind]?"visible":"none"}});
-      }
       if(dtmPreview){
         m.addSource("result-dtm",{type:"image",url:dtmPreview,coordinates:dtmCorners||corners});
         m.addLayer({id:"result-dtm",type:"raster",source:"result-dtm",paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:current.dtm?"visible":"none"}});
@@ -222,12 +217,37 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
         m.addSource("result-dsm",{type:"image",url:dsmPreview,coordinates:dsmCorners||corners});
         m.addLayer({id:"result-dsm",type:"raster",source:"result-dsm",paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:current.dsm?"visible":"none"}});
       }
+      if(!camera.current)m.fitBounds([[bounds.west,bounds.south],[bounds.east,bounds.north]],{padding:34,maxZoom:19});
+      setMeasurementMap(m);setReady(true);
+    });
+    return()=>{camera.current={center:m.getCenter().toArray() as Coord,zoom:m.getZoom(),bearing:m.getBearing(),pitch:m.getPitch()};resizeObserver.disconnect();setReady(false);m.remove();if(map.current===m)map.current=null;};
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap]);
+
+  // Full-size files are not fetched for the map or product thumbnail.
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!bounds||!transparentOrtho)return;
+    const coordinates:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
+    const source=m.getSource("result-orthophoto") as maplibregl.ImageSource|undefined;
+    if(source)source.updateImage({url:transparentOrtho,coordinates});
+    else{
+      m.addSource("result-orthophoto",{type:"image",url:transparentOrtho,coordinates});
+      const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow"].find(id=>!!m.getLayer(id));
+      m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":visibleRef.current.contours&&contoursState==="ready"?.58:1,"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[ready,transparentOrtho,bounds]);
+
+  // Do not download the 9.5 MB contour file before the user selects it.
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!visible.contours||m.getSource("result-contours"))return;
+    const controller=new AbortController();
       const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
-      if(contours?.preview_url)fetch(contours.preview_url).then(r=>{
+      if(contours?.preview_url)fetch(contours.preview_url,{signal:controller.signal}).then(r=>{
         if(!r.ok)throw new Error(`HTTP ${r.status} ao carregar curvas.`);
         return r.json();
       }).then(data=>{
-        if(map.current!==m)return;
+        if(map.current!==m||controller.signal.aborted)return;
         if(data?.type!=="FeatureCollection"||!Array.isArray(data.features)||!data.features.length)throw new Error("O arquivo de curvas não contém linhas disponíveis.");
         if(!data.features.every((f:GeoJSON.Feature)=>f.geometry?.type==="LineString"||f.geometry?.type==="MultiLineString"))throw new Error("Geometria de curvas não reconhecida.");
         const count=data.features.length;
@@ -238,14 +258,23 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
         m.on("error",event=>{if("sourceId" in event&&event.sourceId==="result-contours"&&map.current===m){setContoursState("error");setContoursError("Não foi possível desenhar as curvas no mapa.");}});
         m.addSource("result-contours",{type:"geojson",data,tolerance:0.1});
         m.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#ff7a00","line-width":1.35,"line-opacity":1},layout:{visibility:visibleRef.current.contours?"visible":"none"}});
-      }).catch(e=>{if(map.current===m){setContoursState("error");setContoursError(e instanceof Error?e.message:"Falha ao abrir as curvas.");}});
+      }).catch(e=>{if(map.current===m&&!controller.signal.aborted){setContoursState("error");setContoursError(e instanceof Error?e.message:"Falha ao abrir as curvas.");}});
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Report the unavailable external source selected by the user.
       else {setContoursState("error");setContoursError("Arquivo de curvas indisponível para visualização.");}
-      if(!camera.current)m.fitBounds([[bounds.west,bounds.south],[bounds.east,bounds.north]],{padding:34,maxZoom:19});
-      setMeasurementMap(m);setReady(true);
-    });
-    return()=>{camera.current={center:m.getCenter().toArray() as Coord,zoom:m.getZoom(),bearing:m.getBearing(),pitch:m.getPitch()};resizeObserver.disconnect();setReady(false);m.remove();if(map.current===m)map.current=null;};
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,transparentOrtho,originalOrthoUrl]);
+    return()=>controller.abort();
+  },[ready,visible.contours,results]);
+
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!bounds)return;
+    const coordinates:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
+    for(const kind of ["hillshade","hypsometry"]){
+      const item=results.find(r=>r.kind===kind&&r.preview_url),id=`result-${kind}`;
+      if(!visible[kind]||!item?.preview_url||m.getSource(id))continue;
+      m.addSource(id,{type:"image",url:item.preview_url,coordinates});
+      const before=["result-contours","project-boundary-shadow"].find(layer=>!!m.getLayer(layer));
+      m.addLayer({id,type:"raster",source:id,paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:"visible"}},before);
+    }
+  },[ready,visible,results,bounds]);
 
   // Add previews without recreating the map, losing its camera or reloading the curves.
   useEffect(()=>{
@@ -306,8 +335,12 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     </div>
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
-      <div ref={el} className="h-[58vh] min-h-[440px] max-h-[720px] w-full" aria-label="Mapa dos resultados do processamento" data-ortho-preview="original-v8" data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
-      {orthoBusy&&<div role="status" className="absolute inset-0 grid place-items-center bg-[#f4f8ef]/95 text-sm font-medium text-emerald-950">Preparando ortofoto original…</div>}
+      <div ref={el} className="h-[58vh] min-h-[440px] max-h-[720px] w-full" aria-label="Mapa dos resultados do processamento" data-ortho-preview="private-webp-v1" data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
+      {visible.orthophoto&&(orthoBusy||(!orthoRendered&&!!transparentOrtho))&&!orthoError&&<div role="status" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-white/95 p-3 text-center text-xs text-emerald-950 shadow">
+        <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent"/>
+        {orthoProgress?.phase==="download"?`Recebendo prévia: ${Math.round(orthoProgress.loaded/1024)} KB${orthoProgress.total?" / "+Math.round(orthoProgress.total/1024)+" KB":""}`:orthoProgress?.phase==="prepare"?"Preparando imagem no mapa…":orthoProgress?.phase==="ready"?"Exibindo ortofoto…":"Carregando prévia leve da ortofoto…"}
+      </div>}
+      {orthoError&&visible.orthophoto&&<div role="alert" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-amber-50/95 p-3 text-xs text-amber-950 shadow"><p>{orthoError}</p><button type="button" onClick={()=>setOrthoRetry(v=>v+1)} className="mt-2 rounded-lg border border-amber-700 px-3 py-1 font-semibold">Tentar novamente</button></div>}
       {elevationBusy&&<div role="status" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-center text-xs font-medium text-emerald-950 shadow">Preparando {elevationBusy==="slope"?"declividade":elevationBusy.toUpperCase()}…</div>}
       {visible.contours&&contoursState!=="ready"&&<div role={contoursState==="error"?"alert":"status"} className="absolute bottom-10 left-3 right-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-amber-950 shadow">{contoursState==="error"?contoursError:"Carregando linhas de nível…"}</div>}
       {visible.slope&&processedSlope&&<div aria-label="Legenda de declividade" className="absolute bottom-10 right-3 z-10 max-w-[230px] rounded-xl border border-white bg-white/95 p-3 text-[10px] text-slate-800 shadow-md">
