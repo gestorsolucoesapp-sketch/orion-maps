@@ -1,6 +1,8 @@
 "use client";
 
 import {useEffect,useRef,useState} from "react";
+import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import {clearFreshProcessingUrl,freshProcessingUrl} from "@/lib/processing-fresh-url";
 
 type CameraState={x:number;y:number;z:number;tx:number;ty:number;tz:number;fovY:number};
 type ViewerLike={
@@ -12,7 +14,7 @@ type ViewerLike={
   applyCameraState?:(state:CameraState)=>void;
 };
 
-export default function PointCloudViewer({url}:{url:string}){
+export default function PointCloudViewer({source}:{source:Pick<ProcessingResult,"id"|"survey_id">}){
   const canvasRef=useRef<HTMLCanvasElement>(null);
   const viewerRef=useRef<ViewerLike|null>(null);
   const overviewRef=useRef<CameraState|null>(null);
@@ -21,6 +23,7 @@ export default function PointCloudViewer({url}:{url:string}){
   const [mode,setMode]=useState("rgb");
   const [available,setAvailable]=useState<string[]>([]);
   const [error,setError]=useState("");
+  const [retry,setRetry]=useState(0);
 
   useEffect(()=>{
     let cancelled=false;
@@ -55,6 +58,8 @@ export default function PointCloudViewer({url}:{url:string}){
           onError:(err:Error)=>{if(!cancelled)setError(err.message||"Falha ao abrir a nuvem 3D.");},
         });
         viewerRef.current=viewer;
+        const url=await freshProcessingUrl(source,"download");
+        if(cancelled)return;
         await viewer.load(url);
         if(cancelled)return;
         const modes=viewer.getAvailableColorModes?.()||["height","intensity","classification"];
@@ -84,7 +89,7 @@ export default function PointCloudViewer({url}:{url:string}){
     }
     void start();
     return()=>{cancelled=true;viewerRef.current?.dispose();viewerRef.current=null;};
-  },[url]);
+  },[source.id,source.survey_id,retry]);
 
   function changeMode(next:"rgb"|"height"|"intensity"|"classification"){
     const resolved=viewerRef.current?.setColorMode?.(next)||next;
@@ -119,6 +124,7 @@ export default function PointCloudViewer({url}:{url:string}){
         <div className="max-w-md rounded-2xl border border-red-400/30 bg-black/70 p-5 text-center text-sm leading-6 text-white backdrop-blur">
           <strong className="block text-base">Não foi possível abrir a nuvem 3D</strong>
           <span className="mt-2 block text-white/75">{error}</span>
+          <button type="button" className="mt-3 rounded-lg bg-white px-3 py-2 font-semibold text-slate-950" onClick={()=>{clearFreshProcessingUrl(source.id);setRetry(v=>v+1);}}>Tentar novamente</button>
         </div>
       </div>}
     </div>
