@@ -7,5 +7,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/painel/:path*", "/processamento/:path*", "/agro/:path*"],
+  matcher: ["/painel/:path*", "/processamento/:path*", "/agro/:path*", "/api/processing-link/:path*", "/api/processing-preview/:path*"],
 };
