@@ -13,6 +13,7 @@ import {renderGeoTiffToDataUrl, type RasterCorners} from "./geotiff-preview";
 import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
+import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
@@ -120,8 +121,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
   const orthoDisplayUrl=orthophoto?orthophotoPreviewUrl(orthophoto):null;
-  const dtm=results.find(r=>r.kind==="dtm"&&r.download_url);
-  const dsm=results.find(r=>r.kind==="dsm"&&r.download_url);
+  const dtm=results.find(r=>r.kind==="dtm");
+  const dsm=results.find(r=>r.kind==="dsm");
 
 
   useEffect(()=>{
@@ -142,15 +143,15 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Reflect cancellation of the external raster preview loader.
     if(!visible.slope){setElevationBusy(v=>v==="slope"?null:v);return;}
     if(processedSlope)return;
-    if(!dtm?.download_url){setElevationError("DTM indisponível para preparar a prévia de declividade. O arquivo original permanece nos downloads.");return;}
+    if(!dtm){setElevationError("DTM indisponível para preparar a prévia de declividade. O arquivo original permanece nos downloads.");return;}
     let cancelled=false;
     setElevationBusy("slope");setElevationError("");
-    renderGeoTiffToDataUrl(dtm.download_url,"slope").then(v=>{
+    freshProcessingUrl(dtm,"download").then(url=>renderGeoTiffToDataUrl(url,"slope")).then(v=>{
       if(!cancelled){setProcessedSlope(v.url);setSlopeCorners(v.corners);}
     }).catch(e=>{if(!cancelled)setElevationError(e instanceof Error?e.message:"Não foi possível abrir a declividade.");})
       .finally(()=>{if(!cancelled)setElevationBusy(v=>v==="slope"?null:v);});
     return()=>{cancelled=true};
-  },[visible.slope,dtm?.download_url,processedSlope]);
+  },[visible.slope,dtm,processedSlope]);
 
   useEffect(()=>{
     if(planCoverage||savedCoverage||!bounds||!transparentOrtho)return;
@@ -166,16 +167,16 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     else if(focusKind==="orthophoto")next.orthophoto=true;
     else if(focusKind==="dtm"){
       next.dtm=true;
-      if(!dtmPreview&&dtm?.download_url){
+      if(!dtmPreview&&dtm){
         // eslint-disable-next-line react-hooks/set-state-in-effect -- The parent product-card command starts an asynchronous file preview.
         setElevationBusy("dtm");setElevationError("");
-        renderGeoTiffToDataUrl(dtm.download_url,"dtm").then(v=>{setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});setDtmCorners(v.corners);}).catch(e=>setElevationError(e instanceof Error?e.message:"Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(v=>v==="dtm"?null:v));
+        freshProcessingUrl(dtm,"download").then(url=>renderGeoTiffToDataUrl(url,"dtm")).then(v=>{setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});setDtmCorners(v.corners);}).catch(e=>setElevationError(e instanceof Error?e.message:"Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(v=>v==="dtm"?null:v));
       }
     }else if(focusKind==="dsm"){
       next.dsm=true;
-      if(!dsmPreview&&dsm?.download_url){
+      if(!dsmPreview&&dsm){
         setElevationBusy("dsm");setElevationError("");
-        renderGeoTiffToDataUrl(dsm.download_url,"dsm").then(v=>{setDsmPreview(v.url);setDsmRange({min:v.min,max:v.max});setDsmCorners(v.corners);}).catch(e=>setElevationError(e instanceof Error?e.message:"Não foi possível abrir o DSM no navegador.")).finally(()=>setElevationBusy(v=>v==="dsm"?null:v));
+        freshProcessingUrl(dsm,"download").then(url=>renderGeoTiffToDataUrl(url,"dsm")).then(v=>{setDsmPreview(v.url);setDsmRange({min:v.min,max:v.max});setDsmCorners(v.corners);}).catch(e=>setElevationError(e instanceof Error?e.message:"Não foi possível abrir o DSM no navegador.")).finally(()=>setElevationBusy(v=>v==="dsm"?null:v));
       }
     }else if(focusKind in next)next[focusKind as keyof typeof next]=true;
     // Switching products must not silently enable the flight-plan outline.
@@ -248,7 +249,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const m=map.current;if(!m||!ready||!visible.contours||m.getSource("result-contours"))return;
     const controller=new AbortController();
       const contours=results.find(r=>r.kind==="contours"&&r.preview_url);
-      if(contours?.preview_url)fetch(contours.preview_url,{signal:controller.signal}).then(r=>{
+      if(contours)freshProcessingUrl(contours,"preview").then(url=>fetch(url,{signal:controller.signal})).then(r=>{
         if(!r.ok)throw new Error(`HTTP ${r.status} ao carregar curvas.`);
         return r.json();
       }).then(data=>{
@@ -274,10 +275,13 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const coordinates:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
     for(const kind of ["hillshade","hypsometry"]){
       const item=results.find(r=>r.kind===kind&&r.preview_url),id=`result-${kind}`;
-      if(!visible[kind]||!item?.preview_url||m.getSource(id))continue;
-      m.addSource(id,{type:"image",url:item.preview_url,coordinates});
-      const before=["result-contours","project-boundary-shadow"].find(layer=>!!m.getLayer(layer));
-      m.addLayer({id,type:"raster",source:id,paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:"visible"}},before);
+      if(!visible[kind]||!item||m.getSource(id))continue;
+      void freshProcessingUrl(item,"preview").then(url=>{
+        if(map.current!==m||m.getSource(id))return;
+        m.addSource(id,{type:"image",url,coordinates});
+        const before=["result-contours","project-boundary-shadow"].find(layer=>!!m.getLayer(layer));
+        m.addLayer({id,type:"raster",source:id,paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:visibleRef.current[kind]?"visible":"none"}},before);
+      }).catch(e=>{if(map.current===m)setElevationError(e instanceof Error?e.message:"Não foi possível abrir a camada.");});
     }
   },[ready,visible,results,bounds]);
 
@@ -320,9 +324,9 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     if(key!=="dtm"&&key!=="dsm")return;
     if((key==="dtm"&&dtmPreview)||(key==="dsm"&&dsmPreview)||elevationBusy===key)return;
     const item=key==="dtm"?dtm:dsm;
-    if(!item?.download_url){setElevationError(`Arquivo ${key.toUpperCase()} indisponível.`);return;}
+    if(!item){setElevationError(`Arquivo ${key.toUpperCase()} indisponível.`);return;}
     setElevationBusy(key);
-    renderGeoTiffToDataUrl(item.download_url,key).then(v=>{
+    freshProcessingUrl(item,"download").then(url=>renderGeoTiffToDataUrl(url,key)).then(v=>{
       if(key==="dtm"){setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});setDtmCorners(v.corners);}
       else{setDsmPreview(v.url);setDsmRange({min:v.min,max:v.max});setDsmCorners(v.corners);}
     }).catch(e=>setElevationError(e instanceof Error?e.message:`Não foi possível abrir ${key.toUpperCase()}.`))
