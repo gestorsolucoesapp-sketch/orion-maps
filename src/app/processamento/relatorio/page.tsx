@@ -6,6 +6,7 @@ import {listProcessingResults} from "@/lib/supabase/processing-results";
 import PrintProjectButton from "./print-button";
 import ReportPerspectives from "./report-perspectives";
 import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
+import ProcessingQuality from "@/components/processing-quality";
 
 function n(v:unknown){
   return typeof v==="number"&&Number.isFinite(v)?v:null;
@@ -94,6 +95,8 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Área do projeto</span><strong className="mt-1 block text-2xl">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-xs text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </section>}
+
+    <ProcessingQuality job={completed||null} results={currentResults} compact/>
 
     <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
 
