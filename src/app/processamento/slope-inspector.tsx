@@ -3,7 +3,7 @@ import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {Marker,type Map as LibreMap,type MapMouseEvent} from "maplibre-gl";
 import {isMeasuringMap} from "@/lib/measurement-map-state";
 import {measureDrawing,type MeasureDrawing} from "@/lib/map-measurement";
-import {analyseSlopePolygon,sampleTerrain,type TerrainGrid,type TerrainSample,type SlopeAreaSummary} from "@/lib/terrain-analysis";
+import {analyseElevationProfile,analyseSlopePolygon,sampleTerrain,type ElevationProfileSummary,type TerrainGrid,type TerrainSample,type SlopeAreaSummary} from "@/lib/terrain-analysis";
 import {loadTerrainModel} from "./geotiff-preview";
 import {clearFreshProcessingUrl,freshProcessingUrl} from "@/lib/processing-fresh-url";
 import {slopeAnalysisGeoJSON,slopeReportHtml} from "./slope-report";
@@ -11,23 +11,38 @@ import "./slope-inspector.css";
 
 type Source={id:string;job_id:string;survey_id:string;download_url:string|null;created_at:string};
 type Selection={drawing:MeasureDrawing;name:string};
-type Props={map:LibreMap|null;source:Source|null;slopeVisible:boolean;selection:Selection|null;measuring:boolean;onDrawArea:()=>void};
+type Props={map:LibreMap|null;source:Source|null;slopeVisible:boolean;selection:Selection|null;measuring:boolean;onDrawArea:()=>void;onDrawProfile:()=>void};
 type Mark=TerrainSample&{id:number};
 const number=(v:number|null,digits=1)=>v===null?"—":v.toLocaleString("pt-BR",{maximumFractionDigits:digits,minimumFractionDigits:digits});
 const noDataText=(s:TerrainSample)=>s.status==="outside"?"Fora da cobertura do DTM.":s.status==="nodata"?"Sem elevação válida neste ponto.":"Sem vizinhança válida para calcular a inclinação. Não é 0%.";
+function profileSvgPath(summary:ElevationProfileSummary){
+  const valid=summary.profile.filter(p=>p.elevationM!==null);
+  if(valid.length<2||summary.lengthM<=0)return "";
+  const min=Math.min(...valid.map(p=>p.elevationM!)),max=Math.max(...valid.map(p=>p.elevationM!)),range=Math.max(.01,max-min);
+  let path="",open=false;
+  for(const p of summary.profile){
+    if(p.elevationM===null){open=false;continue;}
+    const x=8+284*p.distanceM/summary.lengthM,y=92-76*(p.elevationM-min)/range;
+    path+=(open?" L ":" M ")+x.toFixed(1)+" "+y.toFixed(1);open=true;
+  }
+  return path;
+}
 
-export default function SlopeInspector({map,source,slopeVisible,selection,measuring,onDrawArea}:Props){
+export default function SlopeInspector({map,source,slopeVisible,selection,measuring,onDrawArea,onDrawProfile}:Props){
   const [mode,setMode]=useState<"auto"|"on"|"off">("auto"),[grid,setGrid]=useState<TerrainGrid|null>(null);
   const [loading,setLoading]=useState(false),[error,setError]=useState("");
   const [sample,setSample]=useState<TerrainSample|null>(null),[marks,setMarks]=useState<Mark[]>([]),[labels,setLabels]=useState(true);
   const [area,setArea]=useState<{signature:string;summary:SlopeAreaSummary;computedAt:string}|null>(null),[analysing,setAnalysing]=useState(false),[progress,setProgress]=useState(0);
+  const [profile,setProfile]=useState<{signature:string;summary:ElevationProfileSummary;computedAt:string}|null>(null),[profiling,setProfiling]=useState(false),[profileProgress,setProfileProgress]=useState(0);
   const nextId=useRef(1),pending=useRef<{key:string;task:Promise<TerrainGrid>}|null>(null),alive=useRef(true),controller=useRef<AbortController|null>(null);
   const active=(mode==="on"||(mode==="auto"&&slopeVisible))&&!measuring;
   const available=!!source;
   const signature=JSON.stringify([source?.id,selection?.drawing]);
   const currentArea=area?.signature===signature?area:null;
+  const currentProfile=profile?.signature===signature?profile:null;
   const metrics=useMemo(()=>{try{return selection?measureDrawing(selection.drawing):null;}catch{return null;}},[selection]);
   const validPolygon=selection?.drawing.kind==="polygon"&&!!metrics?.complete;
+  const validPath=selection?.drawing.kind==="path"&&!!metrics?.complete;
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;controller.current?.abort();};},[]);
   const ensureGrid=useCallback(async()=>{
     if(!source)throw Error("DTM indisponível neste processamento.");
@@ -83,6 +98,18 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
     }catch(e){if(alive.current&&!abort.signal.aborted)setError(e instanceof Error?e.message:"Não foi possível analisar a área.");}
     finally{if(alive.current&&controller.current===abort)setAnalysing(false);}
   }
+  async function analyseProfile(){
+    if(!validPath||!selection)return;
+    controller.current?.abort();const abort=new AbortController();controller.current=abort;
+    const capturedSignature=signature,points=selection.drawing.points.map(p=>[...p] as [number,number]);
+    setProfiling(true);setProfileProgress(0);setError("");
+    try{
+      const model=await ensureGrid();abort.signal.throwIfAborted();
+      const summary=await analyseElevationProfile(model,points,{signal:abort.signal,onProgress:p=>{if(alive.current&&!abort.signal.aborted)setProfileProgress(p);}});
+      if(alive.current&&!abort.signal.aborted)setProfile({signature:capturedSignature,summary,computedAt:new Date().toISOString()});
+    }catch(e){if(alive.current&&!abort.signal.aborted)setError(e instanceof Error?e.message:"Não foi possível gerar o perfil.");}
+    finally{if(alive.current&&controller.current===abort)setProfiling(false);}
+  }
   function fixPoint(){
     if(!sample||sample.slopePct===null||marks.length>=20||marks.some(m=>m.column===sample.column&&m.row===sample.row))return;
     setMarks(old=>[...old,{...sample,id:nextId.current++}]);setLabels(true);
@@ -109,6 +136,7 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
     <div className="slope-actions">
       <button type="button" aria-pressed={active} disabled={!map||!available||measuring} onClick={()=>setMode(active?"off":"on")}>{active?"Toque no mapa: % ativo":"Consultar % no mapa"}</button>
       <button type="button" disabled={!map||!available} onClick={onDrawArea}>Desenhar área</button>
+      <button type="button" disabled={!map||!available} onClick={onDrawProfile}>Perfil de elevação</button>
     </div>
     <p className="slope-help">{measuring?"Régua aberta: os toques desenham a área. Feche a medição para consultar pontos.":active?"Toque no terreno para consultar a inclinação local e a elevação. Fixe os pontos que deseja comparar.":"Ative a consulta para marcar a inclinação sobre a ortofoto ou qualquer camada."}</p>
     {loading&&<p role="status">Lendo DTM existente… A ortofoto permanece disponível.</p>}
@@ -135,6 +163,33 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
         <p className="slope-help">Sem dados / fora da cobertura: aproximadamente {number(currentArea.summary.unavailableAreaM2/10000,4)} ha. As faixas abaixo consideram somente a parte válida.</p>
         <div className="slope-histogram">{currentArea.summary.classes.map(c=><div key={c.label}><span>{c.label}</span><div className="slope-bar"><i style={{width:`${c.validSharePct}%`,background:c.color}}/></div><strong>{number(c.areaM2/10000,4)} ha</strong><small>{number(c.validSharePct)}%</small></div>)}</div>
         <p className="slope-help">Áreas por contagem de células cujo centro está no polígono; bordas são aproximadas. Média e extremos não incluem pontos sem dados. Área horizontal, não área de superfície.</p>
+      </div>}
+    </div>
+    <div className="slope-area">
+      <h4>Perfil de elevação</h4>
+      <p className="slope-help">{selection?.drawing.kind==="path"&&selection.drawing.points.length?`${selection.name} · ${selection.drawing.points.length} vértices`:"Use Perfil de elevação e marque pelo menos dois pontos."}</p>
+      <button type="button" disabled={!validPath||profiling||!available} onClick={()=>void analyseProfile()}>{profiling?`Lendo perfil: ${number(profileProgress,0)}%`:"Gerar perfil distância × altitude"}</button>
+      {profile&&!currentProfile&&<p role="status" className="slope-warning">O caminho mudou. Gere novamente o perfil para esta geometria.</p>}
+      {currentProfile&&<div data-testid="elevation-profile">
+        <div className="slope-values slope-three">
+          <div><span>Comprimento</span><strong>{number(currentProfile.summary.lengthM,1)}<small> m</small></strong></div>
+          <div><span>Altitude mínima</span><strong>{number(currentProfile.summary.minElevationM,2)}<small> m</small></strong></div>
+          <div><span>Altitude máxima</span><strong>{number(currentProfile.summary.maxElevationM,2)}<small> m</small></strong></div>
+        </div>
+        <div className="slope-values slope-three">
+          <div><span>Ganho</span><strong>{number(currentProfile.summary.gainM,2)}<small> m</small></strong></div>
+          <div><span>Perda</span><strong>{number(currentProfile.summary.lossM,2)}<small> m</small></strong></div>
+          <div><span>Inclinação local média</span><strong>{number(currentProfile.summary.meanLocalSlopePct)}<small> %</small></strong></div>
+        </div>
+        <div className="profile-chart" aria-label="Gráfico do perfil de elevação">
+          <svg viewBox="0 0 300 110" role="img" aria-label="Distância por altitude">
+            <path d={profileSvgPath(currentProfile.summary)} fill="none" stroke="currentColor" strokeWidth="2"/>
+            <line x1="8" y1="96" x2="292" y2="96" stroke="currentColor" opacity=".25"/>
+          </svg>
+          <div className="profile-axis"><span>0 m</span><span>{number(currentProfile.summary.lengthM,1)} m</span></div>
+        </div>
+        <p className="slope-coverage">Cobertura válida do perfil: <strong>{number(currentProfile.summary.coveragePct)}%</strong> · espaçamento de amostragem {number(currentProfile.summary.spacingM,2)} m.</p>
+        <p className="slope-help">Ganho e perda somam diferenças entre amostras válidas consecutivas. Lacunas NoData não são interpoladas nem ligadas artificialmente.</p>
       </div>}
     </div>
     <div className="slope-actions"><button type="button" disabled={!canExport} onClick={exportAnalysis}>Baixar análise GeoJSON</button><button type="button" disabled={!canExport} onClick={report}>Relatório da seleção / PDF</button></div>
