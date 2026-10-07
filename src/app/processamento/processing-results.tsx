@@ -30,6 +30,7 @@ const short:Record<string,string>={orthophoto:"ORTO",contours:"CURVAS",hillshade
 
 export default function ProcessingResults({results,error,surveyId,planBoundary}:Props){
   const [downloading,setDownloading]=useState<string|null>(null);
+  const [selectionTick,setSelectionTick]=useState(0);
   const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
@@ -57,7 +58,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   function openResult(item:ProcessingResult){
     const mapKinds=["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"];
     if(mapKinds.includes(item.kind)){
-      setSelectedKind(item.kind);
+      setSelectedKind(item.kind);setSelectionTick(v=>v+1);
       requestAnimationFrame(()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"}));
       return;
     }
@@ -109,7 +110,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap results={results} planBoundary={planBoundary} focusKind={selectedKind==="point_cloud"?null:selectedKind}/></div>
+      <div className="mt-6"><ResultsMap focusRevision={selectionTick} results={results} planBoundary={planBoundary} focusKind={selectedKind==="point_cloud"?null:selectedKind}/></div>
 
       {selectedKind==="point_cloud"&&(()=>{
         const cloud=sorted.find(item=>item.kind==="point_cloud");
