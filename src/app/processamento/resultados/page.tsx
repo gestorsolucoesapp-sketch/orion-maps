@@ -8,6 +8,7 @@ import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
 import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
 import ProcessingResults from "../processing-results";
 import EditSurveyHeader from "./edit-survey-header";
+import ProcessingQuality from "@/components/processing-quality";
 
 export default async function ProcessingResultsPage({searchParams}:{searchParams:Promise<{levantamento?:string}>}){
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
@@ -74,7 +75,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
           <Link href={`/processamento/relatorio?levantamento=${active.id}`} target="_blank" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Exportar PDF ↗</Link>
         </div>
 
-        {results.length?<ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
+        {results.length?<><ProcessingQuality job={latestCompleted||null} results={results}/><div className="mt-5"><ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold">Nenhum resultado concluído ainda</h2>
           <p className="mt-2 text-sm text-slate-500">Quando o processamento terminar, ortofoto, elevação, curvas e downloads aparecerão aqui.</p>
           <Link href={productsHref} className="mt-5 inline-block rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Ir para produtos</Link>
