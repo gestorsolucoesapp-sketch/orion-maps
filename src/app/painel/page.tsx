@@ -101,7 +101,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>
           <p className="mt-1 text-sm text-slate-600">Fotos, processamento e resultados organizados por projeto.</p>
         </div>
-        <Link href="/painel?novo=1" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link>
+        <div className="flex flex-wrap gap-2"><Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Orion Agro · plantio e faixas</Link><Link href="/painel?novo=1" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
       </section>
 
       <LiveProcessingRefresh/>

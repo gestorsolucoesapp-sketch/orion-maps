@@ -1,6 +1,6 @@
 {
   "name": "orion-maps",
-  "version": "0.3.19",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -14,6 +14,8 @@
     "fflate": "^0.8.3",
     "maplibre-gl": "^6.10.0",
     "next": "16.3.5",
+    "polygon-clipping": "0.15.7",
+    "proj4": "2.22.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
