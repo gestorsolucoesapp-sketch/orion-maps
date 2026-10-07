@@ -15,8 +15,8 @@ function reducer(s:State,a:Action):State{
  return s;
 }
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
-type Props={map:LibreMap|null;surveyId?:string|null;disabled?:boolean;onActiveChange?:(active:boolean)=>void;onDrawingChange?:(drawing:MeasureDrawing,name:string)=>void;startAreaRevision?:number};
-export default function MapMeasurement({map,surveyId=null,disabled=false,onActiveChange,onDrawingChange,startAreaRevision=0}:Props){
+type Props={map:LibreMap|null;surveyId?:string|null;disabled?:boolean;onActiveChange?:(active:boolean)=>void;onDrawingChange?:(drawing:MeasureDrawing,name:string)=>void;startAreaRevision?:number;startPathRevision?:number};
+export default function MapMeasurement({map,surveyId=null,disabled=false,onActiveChange,onDrawingChange,startAreaRevision=0,startPathRevision=0}:Props){
  const [state,dispatch]=useReducer(reducer,{drawing:{kind:"polygon",points:[]},past:[],future:[]});
  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[name,setName]=useState("Minha medição");
  const [areaUnit,setAreaUnit]=useState<AreaUnit>("m2"),[distanceUnit,setDistanceUnit]=useState<DistanceUnit>("m"),[picked,setPicked]=useState<number|null>(null);
@@ -32,6 +32,11 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing map drawing control, without erasing vertices.
   setOpen(true);const d=latest.current.drawing;if(d.kind!=="polygon")latest.current.change({...d,kind:"polygon"});
  },[startAreaRevision]);
+ useEffect(()=>{
+  if(!startPathRevision)return;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing path control.
+  setOpen(true);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({...d,kind:"path"});
+ },[startPathRevision]);
  useEffect(()=>{onActiveChange?.(open);return()=>onActiveChange?.(false);},[open,onActiveChange]);
  useEffect(()=>{
   if(!map)return;
