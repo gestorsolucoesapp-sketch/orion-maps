@@ -1,4 +1,6 @@
 "use client";
+import MapMeasurement from "@/components/measurement/map-measurement";
+
 
 import {useEffect,useMemo,useRef,useState} from "react";
 import * as maplibregl from "maplibre-gl";
@@ -125,6 +127,7 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
 
 export default function ResultsMap({results,planBoundary,focusKind}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
+  const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
@@ -244,7 +247,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
         m.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#ff7a00","line-width":2.4,"line-opacity":1},layout:{visibility:visibleRef.current.contours?"visible":"none"}});
       }).catch(()=>{});
       m.fitBounds([[bounds.west,bounds.south],[bounds.east,bounds.north]],{padding:34,maxZoom:19});
-      setReady(true);
+      setMeasurementMap(m);setReady(true);
     });
     return()=>{resizeObserver.disconnect();setReady(false);m.remove();if(map.current===m)map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -298,6 +301,7 @@ export default function ResultsMap({results,planBoundary,focusKind}:Props){
       </div>
     </div>
 
+    <MapMeasurement map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null}/>
     {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Perímetro</span><strong className="mt-1 block text-xl text-slate-950">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>

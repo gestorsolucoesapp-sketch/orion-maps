@@ -1,4 +1,7 @@
 "use client";
+import MapMeasurement from "@/components/measurement/map-measurement";
+import {isMeasuringMap} from "@/lib/measurement-map-state";
+
 import {useEffect,useRef,useState} from "react";
 import * as maplibre from "maplibre-gl";
 import type {GeoJSONSource} from "maplibre-gl";
@@ -6,11 +9,12 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type {XY} from "@/lib/agro-plan";
 import type {AgroPreview} from "./actions";
 
-type Props={data:GeoJSON.FeatureCollection;draft:XY[];drawing:"boundary"|"exclusion"|null;selected:string[];center:XY|null;fit:number;preview:AgroPreview|null;showOrtho:boolean;onPoint:(p:XY)=>void;onMove:(i:number,p:XY)=>void;onRow:(id:string)=>void};
+type Props={surveyId?:string;data:GeoJSON.FeatureCollection;draft:XY[];drawing:"boundary"|"exclusion"|null;selected:string[];center:XY|null;fit:number;preview:AgroPreview|null;showOrtho:boolean;onPoint:(p:XY)=>void;onMove:(i:number,p:XY)=>void;onRow:(id:string)=>void};
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
 export default function AgroMap(props:Props){
  const element=useRef<HTMLDivElement>(null),map=useRef<maplibre.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState(""),[satellite,setSatellite]=useState(false);
+ const [measurementMap,setMeasurementMap]=useState<maplibre.Map|null>(null);
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
   if(!element.current)return;let m:maplibre.Map|undefined;
@@ -28,10 +32,10 @@ export default function AgroMap(props:Props){
     current.addLayer({id:"rows",type:"line",source:"agro",filter:["==",["get","kind"],"row"],paint:{"line-color":["get","color"],"line-width":3}});
     current.addLayer({id:"selected-rows",type:"line",source:"agro",filter:["all",["==",["get","kind"],"row"],["in",["get","row_id"],["literal",[]]]],paint:{"line-color":"#fa4d0a","line-width":6}});
     current.addLayer({id:"draft-line",type:"line",source:"draft",paint:{"line-color":"#e96720","line-width":3,"line-dasharray":[2,2]}});
-    setReady(true);
+    setMeasurementMap(current);setReady(true);
    });
    current.on("click",e=>{
-    const p=latest.current;if(p.drawing){p.onPoint([e.lngLat.lng,e.lngLat.lat]);return;}
+    if(isMeasuringMap(current))return;const p=latest.current;if(p.drawing){p.onPoint([e.lngLat.lng,e.lngLat.lat]);return;}
     if(!current.getLayer("rows"))return;
     const hits=current.queryRenderedFeatures([[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]],{layers:["rows"]});
     const id=hits[0]?.properties?.row_id;if(typeof id==="string")p.onRow(id);
@@ -54,7 +58,7 @@ export default function AgroMap(props:Props){
   const m=map.current;if(!m||!ready)return;
   (m.getSource("draft") as GeoJSONSource).setData({type:"FeatureCollection",features:props.draft.length>=2?[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:props.draft}}]:[]});
   const markers=props.draft.map((point,i)=>{
-   const el=document.createElement("button");el.type="button";el.textContent=String(i+1);el.style.cssText="border-radius:50%;width:28px;height:28px;background:white;color:#075439;border:2px solid #075439;font-size:11px";el.title=`Vértice ${i+1}: arraste para ajustar`;
+   const el=document.createElement("button");el.type="button";el.className="agro-edit-vertex";el.textContent=String(i+1);el.style.cssText="border-radius:50%;width:28px;height:28px;background:white;color:#075439;border:2px solid #075439;font-size:11px";el.title=`Vértice ${i+1}: arraste para ajustar`;
    el.addEventListener("click",e=>e.stopPropagation());
    const marker=new maplibre.Marker({element:el,draggable:true}).setLngLat(point).addTo(m);
    marker.on("dragend",()=>{const c=marker.getLngLat();latest.current.onMove(i,[c.lng,c.lat]);});return marker;
@@ -82,6 +86,7 @@ export default function AgroMap(props:Props){
  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 text-xs"><span>{props.drawing?"Toque nos vértices e conclua o contorno.":"Toque em uma linha para selecioná-la."}</span><label className="flex items-center gap-2">Fundo<select aria-label="Fundo do mapa agro" value={satellite?"satellite":"map"} onChange={e=>{setError("");setSatellite(e.target.value==="satellite");}} className="rounded-lg border p-2"><option value="map">Mapa</option><option value="satellite">Satélite</option></select></label></div>
   <div ref={element} data-testid="agro-map" data-ready={ready?"true":"false"} className="h-[450px] w-full sm:h-[620px]" aria-label="Mapa de talhões e linhas de plantio"/>
+  <MapMeasurement map={ready?measurementMap:null} surveyId={props.surveyId||null} disabled={!!props.drawing}/>
   {error&&<p role="alert" className="p-3 text-xs text-amber-900">{error}</p>}
   <p className="border-t border-slate-100 p-3 text-xs text-slate-600">Limite verde · exclusões vermelhas · seleção laranja · linhas coloridas por cultura. As linhas não possuem conexões automáticas através das exclusões.</p>
  </div>;
