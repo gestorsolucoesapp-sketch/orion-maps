@@ -23,7 +23,8 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
   if(!user||!token)redirect("/entrar?retorno=%2Fprocessamento%2Frelatorio");
   const surveyId=query.levantamento||"";
-  const survey=await requireSurvey(surveyId,token);
+  const survey=await requireSurvey(surveyId,token).catch(()=>null);
+  if(!survey)redirect(surveyId?`/painel?levantamento=${encodeURIComponent(surveyId)}`:"/painel");
   const [images,jobs,results]=await Promise.all([
     listImages(survey.id,user.id,token),
     listProcessingJobs(survey.id,token),

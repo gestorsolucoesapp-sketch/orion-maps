@@ -15,6 +15,9 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
 
   let surveys:Survey[]=[],images:SurveyImage[]=[],results:ProcessingResult[]=[],jobs:ProcessingJob[]=[],devices:ProcessingDevice[]=[],error="",imageError="",jobsError="",devicesError="";
   try{surveys=await listSurveys(token);}catch{error="Não foi possível carregar seus levantamentos. Atualize a página para tentar novamente.";}
+  const requested=surveys.find(s=>s.id===query.levantamento);
+  if(requested?.deletion_requested_at)redirect(`/painel?levantamento=${requested.id}`);
+  surveys=surveys.filter(s=>!s.deletion_requested_at);
   try{devices=await listProcessingDevices(token);}catch{devicesError="Não foi possível verificar o processador local agora.";}
 
   const active=surveys.find(s=>s.id===query.levantamento);

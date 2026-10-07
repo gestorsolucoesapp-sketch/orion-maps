@@ -9,7 +9,13 @@ import AgroWorkspace from "./workspace";
 export default async function AgroPage({searchParams}:{searchParams:Promise<{levantamento?:string;plano?:string}>}){
  const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
  if(!user||!token)redirect("/entrar?retorno=%2Fagro");
- const [surveys,saved,loaded]=await Promise.all([listSurveys(token),listAgroPlans(),query.plano?loadAgroPlan(query.plano):Promise.resolve({row:null,error:""})]);
+ const [allSurveys,saved,loaded]=await Promise.all([listSurveys(token),listAgroPlans(),query.plano?loadAgroPlan(query.plano):Promise.resolve({row:null,error:""})]);
+ const requestedId=loaded.row?.survey_id||query.levantamento;
+ const requested=allSurveys.find(s=>s.id===requestedId);
+ if(requested?.deletion_requested_at)redirect(`/painel?levantamento=${requested.id}`);
+ const pendingIds=new Set(allSurveys.filter(s=>s.deletion_requested_at).map(s=>s.id));
+ const surveys=allSurveys.filter(s=>!s.deletion_requested_at);
+ const availablePlans=saved.rows.filter(p=>!p.survey_id||!pendingIds.has(p.survey_id));
  const surveyId=loaded.row?.survey_id||(surveys.some(s=>s.id===query.levantamento)?query.levantamento:null)||null;
  return <main className="min-h-screen bg-[#eaf1e7] text-slate-900">
   <div className="mx-auto max-w-[1600px] px-3 pb-16 pt-4 sm:px-6">
@@ -19,7 +25,7 @@ export default async function AgroPage({searchParams}:{searchParams:Promise<{lev
    </header>
    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Talhões, linhas e culturas</h1>
    <p className="mb-5 mt-2 text-sm text-slate-600">Desenhe a área, gere linhas e defina o que plantar. Compare também faixas conceituais de pulverização.</p>
-   <AgroWorkspace surveys={surveys} initialSurveyId={surveyId} initialPlan={loaded.row?.plan||null} initialName={loaded.row?.name||"Novo talhão"} initialSaved={saved.rows} initialError={loaded.error||saved.error}/>
+   <AgroWorkspace surveys={surveys} initialSurveyId={surveyId} initialPlan={loaded.row?.plan||null} initialName={loaded.row?.name||"Novo talhão"} initialSaved={availablePlans} initialError={loaded.error||saved.error}/>
   </div>
  </main>;
 }

@@ -5,9 +5,8 @@ import {usePathname} from "next/navigation";
 
 export default function AppInteractions(){
   const pathname=usePathname();
-    const [navigating,setNavigating]=useState(false);
-
-  useEffect(()=>{setNavigating(false);},[pathname]);
+  const [navigation,setNavigation]=useState({pathname,active:false});
+  const navigating=navigation.active&&navigation.pathname===pathname;
 
   useEffect(()=>{
     function onClick(event:MouseEvent){
@@ -19,10 +18,10 @@ export default function AppInteractions(){
       const url=new URL(link.href,window.location.href);
       if(url.origin!==window.location.origin)return;
       if(url.pathname===window.location.pathname&&url.search===window.location.search&&url.hash)return;
-      setNavigating(true);
-      window.setTimeout(()=>setNavigating(false),1600);
+      setNavigation({pathname:window.location.pathname,active:true});
+      window.setTimeout(()=>setNavigation(previous=>({...previous,active:false})),1600);
     }
-    function onSubmit(){setNavigating(true);}
+    function onSubmit(){setNavigation({pathname:window.location.pathname,active:true});}
     document.addEventListener("click",onClick,true);
     document.addEventListener("submit",onSubmit,true);
     return()=>{document.removeEventListener("click",onClick,true);document.removeEventListener("submit",onSubmit,true);};

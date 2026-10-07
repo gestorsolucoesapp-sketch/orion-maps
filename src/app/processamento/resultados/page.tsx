@@ -17,6 +17,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const surveys=await listSurveys(token);
   const active=surveys.find(s=>s.id===query.levantamento);
   if(!active)redirect("/painel");
+  if(active.deletion_requested_at)redirect(`/painel?levantamento=${active.id}`);
 
   let results=await listProcessingResults(active.id,token);
   const jobs=await listProcessingJobs(active.id,token);

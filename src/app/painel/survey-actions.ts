@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSupabaseConfig } from "@/lib/supabase/config";
+import { beginSurveyDeletion, finishSurveyDeletion, removeSurveyFiles } from "@/lib/supabase/survey-deletion";
 import { imageBucket, requireSurvey, supabaseRequest, surveySession, type Survey } from "@/lib/supabase/surveys";
 
 type Result = { error?: string; success?: string };
@@ -55,4 +56,25 @@ export async function openImage(id: string, name: string): Promise<{ url?: strin
     const response = await supabaseRequest<{ signedURL: string }>(`/storage/v1/object/sign/${imageBucket}/${path}`, token, { method: "POST", body: JSON.stringify({ expiresIn: 120 }) });
     return { url: `${getSupabaseConfig().url}/storage/v1${response.signedURL}` };
   } catch (error) { return { error: errorText(error) }; }
+}
+
+
+export async function deleteSurvey(_state: Result, form: FormData): Promise<Result> {
+  let started = false;
+  try {
+    const { user, token } = await surveySession();
+    const id = String(form.get("id") ?? "");
+    const name = String(form.get("name") ?? "");
+    const manifest = await beginSurveyDeletion(id, name, token);
+    started = true;
+    await removeSurveyFiles(manifest, user.id, token);
+    await finishSurveyDeletion(id, token);
+  } catch (error) {
+    if (started) revalidatePath("/painel");
+    return { error: started
+      ? `A exclusão não terminou. Use “Concluir exclusão” para tentar novamente. ${errorText(error)}`
+      : errorText(error) };
+  }
+  for (const path of ["/painel", "/processamento", "/processamento/resultados", "/processamento/relatorio", "/agro", "/missoes"]) revalidatePath(path);
+  redirect("/painel?apagado=1");
 }

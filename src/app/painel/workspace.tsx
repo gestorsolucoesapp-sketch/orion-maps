@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Survey, SurveyImage } from "@/lib/supabase/surveys";
 import { openImage, prepareImageUpload, saveSurvey } from "./survey-actions";
+import DeleteSurveyButton from "./delete-survey-button";
 
 const input = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
 export function SurveyForm({ survey }: { survey?: Survey }) {
@@ -131,20 +132,25 @@ export function SurveySearch({
       {filtered.map(s=>{
         const status=statuses[s.id];
         const selected=activeId===s.id;
+        const deleting=Boolean(s.deletion_requested_at);
+        const processing=status?.status==="queued"||status?.status==="processing";
+        const details=<>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="min-w-0 truncate text-sm font-semibold text-slate-900" title={s.name}>{s.name}</h3>
+            {deleting?<span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-800">Exclusão incompleta</span>:badge(status)}
+          </div>
+          <p className="mt-1 truncate text-xs text-slate-500">⌖ {s.location||"Local não informado"}</p>
+          <p className="mt-1 text-[11px] text-slate-400">▣ {s.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
+        </>;
         return <article key={s.id} className={`rounded-[20px] border bg-white p-3.5 shadow-sm ${selected?"border-emerald-500 ring-1 ring-emerald-200":"border-white"}`}>
           <div className="flex items-start gap-3">
-            <Link href={`/painel?levantamento=${s.id}`} className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-100 to-slate-100 text-lg text-emerald-900">⌖</Link>
-            <Link href={`/painel?levantamento=${s.id}`} className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <h3 className="truncate text-sm font-semibold text-slate-900">{s.name}</h3>
-                {badge(status)}
-              </div>
-              <p className="mt-1 truncate text-xs text-slate-500">⌖ {s.location||"Local não informado"}</p>
-              <p className="mt-1 text-[11px] text-slate-400">▣ {s.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
-            </Link>
+            {deleting?<span aria-hidden="true" className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-50 text-lg text-amber-800">⌖</span>:<Link href={`/painel?levantamento=${s.id}`} aria-label={`Abrir levantamento ${s.name}`} className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-emerald-100 to-slate-100 text-lg text-emerald-900">⌖</Link>}
+            {deleting?<div className="min-w-0 flex-1">{details}</div>:<Link href={`/painel?levantamento=${s.id}`} className="min-w-0 flex-1">{details}</Link>}
           </div>
-          <div className="mt-3 flex justify-end">
-            {status?.status==="completed"?<Link href={`/processamento/resultados?levantamento=${s.id}`} className="rounded-xl bg-emerald-900 px-3 py-2 text-xs font-semibold text-white">Ver resultados →</Link>:<Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
+          {deleting?<p className="mt-3 text-xs leading-5 text-amber-800">Repita a exclusão para concluir a remoção dos arquivos.</p>:null}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <DeleteSurveyButton survey={s} processing={processing} compact/>
+            {deleting?null:status?.status==="completed"?<Link href={`/processamento/resultados?levantamento=${s.id}`} className="rounded-xl bg-emerald-900 px-3 py-2 text-xs font-semibold text-white">Ver resultados →</Link>:<Link href={`/processamento?levantamento=${s.id}`} className="text-xs font-semibold text-emerald-800">Processamento →</Link>}
           </div>
         </article>;
       })}

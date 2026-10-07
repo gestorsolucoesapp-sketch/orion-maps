@@ -6,14 +6,19 @@ export type AgroSaved = {id:string; name:string; survey_id:string|null; created_
 const uuid=(id:unknown):id is string=>typeof id==="string"&&/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id);
 const friendly=(e:unknown)=>e instanceof Error?e.message:"Não foi possível acessar os planos agrícolas.";
 export async function listAgroPlans(){
- try{const {token}=await surveySession();const rows=await supabaseRequest<AgroSaved[]>("/rest/v1/agro_plans?select=id,name,survey_id,created_at,summary&order=created_at.desc&limit=50",token);return {rows,error:""};}
- catch(e){return {rows:[] as AgroSaved[],error:friendly(e)};}
+ try{
+  const {token}=await surveySession();
+  const listed=await supabaseRequest<(AgroSaved&{survey:{deletion_requested_at:string|null}|null})[]>("/rest/v1/agro_plans?select=id,name,survey_id,created_at,summary,survey:surveys(deletion_requested_at)&order=created_at.desc&limit=50",token);
+  const rows=listed.flatMap(({survey,...row})=>row.survey_id===null||survey?.deletion_requested_at===null?[row]:[]);
+  return {rows,error:""};
+ }catch(e){return {rows:[] as AgroSaved[],error:friendly(e)};}
 }
 export async function loadAgroPlan(id:string){
  try{
   const {token}=await surveySession();if(!uuid(id))throw Error("Plano inválido.");
   const rows=await supabaseRequest<(AgroSaved&{plan:AgroPlan})[]>(`/rest/v1/agro_plans?id=eq.${id}&select=id,name,survey_id,plan,created_at,summary&limit=1`,token);
   if(!rows[0])throw Error("Plano não encontrado ou sem acesso.");
+  if(rows[0].survey_id)await requireSurvey(rows[0].survey_id,token);
   const plan=validateAgroPlan(rows[0].plan);calculateAgroPlan(plan);
   return {row:{...rows[0],plan},error:""};
  }catch(e){return {row:null,error:friendly(e)};}

@@ -8,6 +8,7 @@ import {listProcessingDevices,type ProcessingDevice} from "@/lib/supabase/proces
 import {listProcessingResults,type ProcessingResult} from "@/lib/supabase/processing-results";
 import {signOutAction} from "./actions";
 import {ImageWorkspace,SurveyForm,SurveySearch,type SurveyStatus} from "./workspace";
+import DeleteSurveyButton from "./delete-survey-button";
 import ForceUpdateButton from "@/components/force-update-button";
 
 import LiveProcessingRefresh from "@/components/live-processing-refresh";
@@ -16,15 +17,16 @@ import EnginePanel from "../processamento/engine-panel";
 
 type RecentResult={survey:Survey;result:ProcessingResult};
 
-export default async function PainelPage({searchParams}:{searchParams:Promise<{levantamento?:string;novo?:string}>}){
+export default async function PainelPage({searchParams}:{searchParams:Promise<{levantamento?:string;novo?:string;apagado?:string}>}){
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
   if(!user||!token)redirect("/entrar");
+  if(query.novo==="1")redirect("/painel/novo");
 
   let surveys:Survey[]=[],images:SurveyImage[]=[],error="",imageError="";
   try{surveys=await listSurveys(token);}catch{error="Não foi possível carregar os levantamentos. Atualize a página em instantes.";}
 
   const active=surveys.find(survey=>survey.id===query.levantamento);
-  if(active){
+  if(active&&!active.deletion_requested_at){
     try{images=await listImages(active.id,user.id,token);}
     catch{imageError="Não foi possível consultar as fotos. Atualize a página antes de enviar arquivos.";}
   }
@@ -34,7 +36,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
     try{
       const jobs=await listProcessingJobs(survey.id,token);
       const latest=jobs.find(j=>!["completed","error","cancelled"].includes(j.status))||jobs[0];
-      if(latest&&!["completed","error","cancelled"].includes(latest.status))liveJobs.push(latest);
+      if(!survey.deletion_requested_at&&latest&&!["completed","error","cancelled"].includes(latest.status))liveJobs.push(latest);
       let status:SurveyStatus={status:"none",progress:0,resultCount:0};
       if(latest){
         if(latest.status==="completed")status={status:"completed",progress:100,resultCount:1};
@@ -53,7 +55,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
 
   let recentResults:RecentResult[]=[];
   try{
-    const completed=surveys.filter(s=>statuses[s.id]?.status==="completed");
+    const completed=surveys.filter(s=>!s.deletion_requested_at&&statuses[s.id]?.status==="completed");
     const groups=await Promise.all(completed.map(async survey=>{
       const rows=await listProcessingResults(survey.id,token);
       const preferred=rows.filter(r=>["orthophoto","hypsometry","hillshade","slope","contours"].includes(r.kind));
@@ -63,8 +65,10 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
   }catch{}
 
   const activeStatus=active?statuses[active.id]:undefined;
-  const activeResultsHref=active?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
-  const activeProductsHref=active?`/processamento?levantamento=${active.id}`:"/processamento";
+  const activeProcessing=activeStatus?.status==="queued"||activeStatus?.status==="processing";
+  const activeDeleting=Boolean(active?.deletion_requested_at);
+  const activeResultsHref=active&&!activeDeleting?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
+  const activeProductsHref=active&&!activeDeleting?`/processamento?levantamento=${active.id}`:"/processamento";
 
   return <main className="min-h-screen bg-[#eaf1e7] text-slate-900" style={{backgroundImage:"radial-gradient(circle at 12% 0%,rgba(97,145,108,.22),transparent 30%),radial-gradient(circle at 100% 18%,rgba(30,83,67,.12),transparent 26%)"}}>
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
@@ -89,8 +93,8 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
         <div className="sticky top-2 z-30 -mt-5 mx-3 rounded-[20px] border border-white/70 bg-white/95 p-1.5 shadow-[0_8px_24px_rgba(32,76,54,.14)] backdrop-blur sm:mx-6">
           <nav className="grid grid-cols-3 gap-1 text-center text-xs font-semibold sm:text-sm">
             <Link href="/painel" className="rounded-2xl bg-emerald-900 px-2 py-3 text-white"><span aria-hidden className="mr-1">▤</span> Levantamentos</Link>
-            <Link href={activeProductsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">◇</span> Produtos</Link>
-            <Link href={activeResultsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">▥</span> Resultados</Link>
+            {activeDeleting?<span aria-disabled="true" className="rounded-2xl px-2 py-3 text-slate-400"><span aria-hidden className="mr-1">◇</span> Produtos</span>:<Link href={activeProductsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">◇</span> Produtos</Link>}
+            {activeDeleting?<span aria-disabled="true" className="rounded-2xl px-2 py-3 text-slate-400"><span aria-hidden className="mr-1">▥</span> Resultados</span>:<Link href={activeResultsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">▥</span> Resultados</Link>}
           </nav>
         </div>
       </header>
@@ -101,9 +105,10 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>
           <p className="mt-1 text-sm text-slate-600">Fotos, processamento e resultados organizados por projeto.</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Orion Agro · plantio e faixas</Link><Link href="/painel?novo=1" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
+        <div className="flex flex-wrap gap-2">{!activeDeleting?<Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Orion Agro · plantio e faixas</Link>:null}<Link href="/painel/novo" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
       </section>
 
+      {query.apagado==="1"?<p role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Levantamento apagado.</p>:null}
       <LiveProcessingRefresh/>
       {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="min-w-0 print:hidden">
@@ -121,10 +126,11 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
         </aside>
 
         <section className="min-w-0 overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_12px_34px_rgba(35,72,48,.10)]">
-          {query.novo==="1"?<div className="p-5 sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Novo levantamento</p>
-            <h2 className="mb-7 mt-2 text-2xl font-semibold">Dê um nome à próxima área.</h2>
-            <SurveyForm/>
+          {active?.deletion_requested_at?<div className="p-5 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-amber-800">Exclusão incompleta</p>
+            <h2 className="mt-2 break-words text-2xl font-semibold">{active.name}</h2>
+            <p role="status" className="mb-6 mt-4 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900">A exclusão deste levantamento já foi iniciada. Repita a ação para concluir a remoção dos arquivos vinculados.</p>
+            <DeleteSurveyButton survey={active} processing={activeProcessing}/>
           </div>:active?<>
             <div className="border-b border-slate-100 bg-gradient-to-br from-[#f8fbf5] to-[#eef6e9] p-5 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -136,6 +142,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
                   <h2 className="mt-2 break-words text-2xl font-semibold sm:text-3xl">{active.name}</h2>
                   <p className="mt-3 text-sm text-slate-500">⌖ {active.location||"Local a definir"} · {active.drone||"Drone a definir"} · {active.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
                 </div>
+                <div className="print:hidden"><DeleteSurveyButton survey={active} processing={activeProcessing}/></div>
               </div>
 
               <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
@@ -161,7 +168,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
             <span className="grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-3xl text-emerald-800">⌖</span>
             <h2 className="mt-5 text-2xl font-semibold">{query.levantamento?"Levantamento não encontrado":"Seu trabalho, organizado por área"}</h2>
             <p className="mt-3 max-w-md text-sm leading-7 text-slate-500">Escolha um levantamento ao lado ou crie uma nova área para começar.</p>
-            <Link href="/painel?novo=1" className="mt-6 rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Criar levantamento</Link>
+            <Link href="/painel/novo" className="mt-6 rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Criar levantamento</Link>
           </div>}
         </section>
       </div>}
@@ -169,7 +176,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
       {recentResults.length>0&&<section className="mt-7 print:hidden">
         <div className="mb-3 flex items-end justify-between gap-3">
           <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Acesso rápido</p><h2 className="mt-1 text-2xl font-semibold">Resultados recentes</h2></div>
-          {active&&<Link href={activeResultsHref} className="text-sm font-semibold text-emerald-900">Ver resultados →</Link>}
+          {active&&!activeDeleting?<Link href={activeResultsHref} className="text-sm font-semibold text-emerald-900">Ver resultados →</Link>:null}
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3 [scrollbar-width:none]">
           {recentResults.map(({survey,result})=>{
