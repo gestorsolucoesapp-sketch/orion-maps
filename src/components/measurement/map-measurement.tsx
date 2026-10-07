@@ -35,7 +35,7 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
  useEffect(()=>{
   if(!startPathRevision)return;
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing path control.
-  setOpen(true);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({...d,kind:"path"});
+  setOpen(true);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({kind:"path",points:[]});
  },[startPathRevision]);
  useEffect(()=>{onActiveChange?.(open);return()=>onActiveChange?.(false);},[open,onActiveChange]);
  useEffect(()=>{
