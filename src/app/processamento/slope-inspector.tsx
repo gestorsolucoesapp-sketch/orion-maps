@@ -118,7 +118,8 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
     if(!source)throw Error("Fonte indisponível.");
     return {source:{resultId:source.id,jobId:source.job_id,surveyId:source.survey_id,createdAt:source.created_at,crs:grid?.sourceCrs||null,resolutionM:grid?[grid.dx,grid.dy]:null},
       name:selection?.name||"Análise de inclinação",generatedAt:new Date().toISOString(),marks,
-      area:currentArea?{...currentArea,polygon:selection!.drawing.points}:null};
+      area:currentArea?{...currentArea,polygon:selection!.drawing.points}:null,
+      profile:currentProfile?{...currentProfile,path:selection!.drawing.points}:null};
   }
   function exportAnalysis(){
     try{const value=slopeAnalysisGeoJSON(snapshot()),href=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:"application/geo+json"}));
@@ -130,7 +131,7 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
       win.opener=null;win.document.write(html);win.document.close();const button=win.document.getElementById("print-report");if(button)button.onclick=()=>win.print();
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível abrir o relatório.");}
   }
-  const canExport=!!source&&(marks.length>0||!!currentArea);
+  const canExport=!!source&&(marks.length>0||!!currentArea||!!currentProfile);
   return <section className="slope-inspector" data-testid="slope-inspector" data-slope-state={loading?"loading":error?"error":grid?"ready":"idle"}>
     <header><div><span className="slope-eyebrow">ANÁLISE DO TERRENO</span><h3>Inclinação em %</h3></div><span className="slope-badge">DTM · estimativa</span></header>
     <div className="slope-actions">
