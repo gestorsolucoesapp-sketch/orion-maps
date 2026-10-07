@@ -15,8 +15,8 @@ function reducer(s:State,a:Action):State{
  return s;
 }
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
-type Props={map:LibreMap|null;surveyId?:string|null;disabled?:boolean;onActiveChange?:(active:boolean)=>void};
-export default function MapMeasurement({map,surveyId=null,disabled=false,onActiveChange}:Props){
+type Props={map:LibreMap|null;surveyId?:string|null;disabled?:boolean;onActiveChange?:(active:boolean)=>void;onDrawingChange?:(drawing:MeasureDrawing,name:string)=>void;startAreaRevision?:number};
+export default function MapMeasurement({map,surveyId=null,disabled=false,onActiveChange,onDrawingChange,startAreaRevision=0}:Props){
  const [state,dispatch]=useReducer(reducer,{drawing:{kind:"polygon",points:[]},past:[],future:[]});
  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[name,setName]=useState("Minha medição");
  const [areaUnit,setAreaUnit]=useState<AreaUnit>("m2"),[distanceUnit,setDistanceUnit]=useState<DistanceUnit>("m"),[picked,setPicked]=useState<number|null>(null);
@@ -26,6 +26,12 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
  const metrics=useMemo(()=>{try{return measureDrawing({kind:drawing.kind,points});}catch(e){return {area_m2:null,perimeter_m:null,distance_m:0,complete:false,issue:e instanceof Error?e.message:"Revise os pontos."};}},[drawing.kind,points]);
  function change(d:MeasureDrawing){try{const next=validateMeasureDrawing(d);requestId.current=null;dispatch({type:"change",drawing:next});setMessage("");setPicked(null);}catch(e){setMessage(e instanceof Error?e.message:"Ponto inválido.");}}
  useEffect(()=>{latest.current={drawing,busy,change};});
+ useEffect(()=>{onDrawingChange?.({kind:drawing.kind,points},name);},[drawing.kind,points,name,onDrawingChange]);
+ useEffect(()=>{
+  if(!startAreaRevision)return;
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing map drawing control, without erasing vertices.
+  setOpen(true);const d=latest.current.drawing;if(d.kind!=="polygon")latest.current.change({...d,kind:"polygon"});
+ },[startAreaRevision]);
  useEffect(()=>{onActiveChange?.(open);return()=>onActiveChange?.(false);},[open,onActiveChange]);
  useEffect(()=>{
   if(!map)return;

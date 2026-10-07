@@ -1,4 +1,5 @@
 import proj4 from "proj4";
+import {assertTerrainGrid,type TerrainGrid} from "@/lib/terrain-analysis";
 import {slopePercentAt, terrainColor, validRange, validSample, type TerrainPalette} from "@/lib/terrain-preview";
 
 export type RasterCorners = [[number,number],[number,number],[number,number],[number,number]];
@@ -6,12 +7,14 @@ type TiffImage = {
   getWidth:()=>number; getHeight:()=>number;
   getGDALNoData:()=>number|string|null|undefined;
   getBoundingBox:()=>number[];
+  getOrigin:()=>number[];getResolution:()=>number[];
+  getFileDirectory:()=>{ModelTransformation?:number[]};
   getGeoKeys?:()=>Record<string,number>;
   geoKeys?:Record<string,number>;
   readRasters:(options:{samples:number[]})=>Promise<ArrayLike<ArrayLike<number>>>;
 };
 type GeoTiffModule = {fromUrl:(url:string)=>Promise<{getImage:()=>Promise<TiffImage>}>};
-type SourceRaster = {band:ArrayLike<number>;width:number;height:number;noData:number|null;corners:RasterCorners;dx:number;dy:number;metric:boolean;min:number;max:number};
+type SourceRaster = TerrainGrid & {corners:RasterCorners;min:number;max:number;analysisCompatible:boolean};
 const sources = new Map<string,Promise<SourceRaster>>();
 
 function projection(code:number):string {
@@ -34,13 +37,15 @@ async function readSource(url:string):Promise<SourceRaster> {
     const code=Number(keys.ProjectedCSTypeGeoKey||keys.GeographicTypeGeoKey);
     if(!Number.isFinite(code))throw new Error("GeoTIFF sem projeção identificada. Não é possível posicionar a prévia com segurança.");
     const crs=projection(code),[west,south,east,north]=image.getBoundingBox();
+    const origin=image.getOrigin(),resolution=image.getResolution(),transform=image.getFileDirectory().ModelTransformation;
+    const analysisCompatible=resolution[0]>0&&resolution[1]<0&&(!transform||(transform[1]===0&&transform[4]===0))&&code!==3857&&(!keys.VerticalUnitsGeoKey||keys.VerticalUnitsGeoKey===9001);
     const corners=[[west,north],[east,north],[east,south],[west,south]].map(p=>proj4(crs,"EPSG:4326",p)) as RasterCorners;
     if(!corners.every(p=>p.every(Number.isFinite)&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90))throw new Error("Limites geográficos inválidos no GeoTIFF.");
     // Read native samples. Interpolating NoData (-9999) with elevations corrupts the colour range.
     const rasters=await image.readRasters({samples:[0]});
     const band=rasters[0],raw=image.getGDALNoData(),noData=raw==null?null:Number(raw);
     const {min,max}=validRange(band,noData);
-    return {band,width,height,noData,corners,dx:Math.abs(east-west)/width,dy:Math.abs(north-south)/height,metric:code!==4326&&(keys.ProjLinearUnitsGeoKey===9001||(code>=32601&&code<=32760)),min,max};
+    return {band,width,height,noData,corners,west:origin[0],north:origin[1],crs,sourceCrs:`EPSG:${code}`,analysisCompatible,dx:Math.abs(east-west)/width,dy:Math.abs(north-south)/height,metric:code!==4326&&(keys.ProjLinearUnitsGeoKey===9001||(code>=32601&&code<=32760)),min,max};
   })();
   sources.set(url,task);
   while(sources.size>2)sources.delete(sources.keys().next().value!);
@@ -75,4 +80,11 @@ export async function renderGeoTiffToDataUrl(url:string,palette:TerrainPalette) 
   }
   ctx.putImageData(imageData,0,0);
   return {url:canvas.toDataURL("image/png"),...range,width,height,corners:source.corners,sourceResolutionM:source.metric?[source.dx,source.dy]:null};
+}
+
+/** Shared, lazy, authenticated source already used by the colour layer; never mutates stored products. */
+export async function loadTerrainModel(url:string):Promise<TerrainGrid>{
+  const source=await readSource(url);
+  if(!source.analysisCompatible)throw new Error("A leitura pontual requer DTM com grade norte-acima e unidades métricas, sem rotação ou distorção Web Mercator.");
+  assertTerrainGrid(source);return source;
 }

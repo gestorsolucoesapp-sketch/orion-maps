@@ -2,7 +2,9 @@
 import MapMeasurement from "@/components/measurement/map-measurement";
 
 
-import {useEffect,useMemo,useRef,useState} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
+import SlopeInspector from "./slope-inspector";
+import type {MeasureDrawing} from "@/lib/map-measurement";
 import * as maplibregl from "maplibre-gl";
 import type {GeoJSONSource} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -96,6 +98,9 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
 export default function ResultsMap({results,planBoundary,focusKind,focusRevision}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
+  const [measureSelection,setMeasureSelection]=useState<{drawing:MeasureDrawing;name:string}|null>(null);
+  const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0);
+  const onMeasurementChange=useCallback((drawing:MeasureDrawing,name:string)=>setMeasureSelection({drawing,name}),[]);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
@@ -343,11 +348,11 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       {orthoError&&visible.orthophoto&&<div role="alert" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-amber-50/95 p-3 text-xs text-amber-950 shadow"><p>{orthoError}</p><button type="button" onClick={()=>setOrthoRetry(v=>v+1)} className="mt-2 rounded-lg border border-amber-700 px-3 py-1 font-semibold">Tentar novamente</button></div>}
       {elevationBusy&&<div role="status" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-center text-xs font-medium text-emerald-950 shadow">Preparando {elevationBusy==="slope"?"declividade":elevationBusy.toUpperCase()}…</div>}
       {visible.contours&&contoursState!=="ready"&&<div role={contoursState==="error"?"alert":"status"} className="absolute bottom-10 left-3 right-3 z-10 rounded-xl bg-white/95 px-3 py-2 text-xs text-amber-950 shadow">{contoursState==="error"?contoursError:"Carregando linhas de nível…"}</div>}
-      {visible.slope&&processedSlope&&<div aria-label="Legenda de declividade" className="absolute bottom-10 right-3 z-10 max-w-[230px] rounded-xl border border-white bg-white/95 p-3 text-[10px] text-slate-800 shadow-md">
+      {visible.slope&&processedSlope&&!measurementActive&&<div style={{pointerEvents:"none"}} aria-label="Legenda de declividade" className="absolute bottom-10 right-3 z-10 max-w-[230px] rounded-xl border border-white bg-white/95 p-3 text-[10px] text-slate-800 shadow-md">
         <strong className="text-xs">Declividade (%)</strong><div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1">{SLOPE_CLASSES.map(c=><span key={c.label} className="flex items-center gap-1"><i className="h-2.5 w-3 rounded-sm" style={{background:c.color}}/>{c.label}</span>)}</div>
         <p className="mt-2">Prévia calculada do DTM na grade original. Sem dados: transparente.</p>
       </div>}
-      {((visible.dtm&&dtmRange)||(visible.dsm&&dsmRange))&&(()=>{const r=visible.dtm?dtmRange!:dsmRange!;return <div aria-label="Legenda de elevação" className="absolute bottom-10 right-3 z-10 w-48 rounded-xl border border-white bg-white/95 p-3 text-[10px] text-slate-800 shadow-md"><strong className="text-xs">{visible.dtm?"DTM · terreno":"DSM · superfície"} (m)</strong><div className="mb-1 mt-2 h-2 rounded-full" style={{background:visible.dtm?"linear-gradient(90deg,#225e39,#689e4c,#c2c256,#dc9548,#845037)":"linear-gradient(90deg,#2c5fa0,#3a97b0,#5ba878,#d7be52,#b65240)"}}/><div className="flex justify-between"><span>{r.min.toLocaleString("pt-BR",{maximumFractionDigits:2})} m</span><span>{r.max.toLocaleString("pt-BR",{maximumFractionDigits:2})} m</span></div><p className="mt-1">Escala dos pixels válidos. Sem dados: transparente.</p></div>;})()}
+      {!measurementActive&&((visible.dtm&&dtmRange)||(visible.dsm&&dsmRange))&&(()=>{const r=visible.dtm?dtmRange!:dsmRange!;return <div style={{pointerEvents:"none"}} aria-label="Legenda de elevação" className="absolute bottom-10 right-3 z-10 w-48 rounded-xl border border-white bg-white/95 p-3 text-[10px] text-slate-800 shadow-md"><strong className="text-xs">{visible.dtm?"DTM · terreno":"DSM · superfície"} (m)</strong><div className="mb-1 mt-2 h-2 rounded-full" style={{background:visible.dtm?"linear-gradient(90deg,#225e39,#689e4c,#c2c256,#dc9548,#845037)":"linear-gradient(90deg,#2c5fa0,#3a97b0,#5ba878,#d7be52,#b65240)"}}/><div className="flex justify-between"><span>{r.min.toLocaleString("pt-BR",{maximumFractionDigits:2})} m</span><span>{r.max.toLocaleString("pt-BR",{maximumFractionDigits:2})} m</span></div><p className="mt-1">Escala dos pixels válidos. Sem dados: transparente.</p></div>;})()}
       <div className="absolute right-3 top-3 z-10">
         <button type="button" aria-expanded={layersOpen} onClick={()=>setLayersOpen(v=>!v)} className="grid h-11 w-11 place-items-center rounded-xl border border-white/80 bg-white/95 text-xl shadow-md backdrop-blur" title="Camadas">▱</button>
         {layersOpen&&<div className="mt-2 w-56 rounded-2xl border border-slate-200 bg-white/95 p-3 text-sm shadow-xl backdrop-blur">
@@ -367,7 +372,9 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       </div>
     </div>
 
-    <MapMeasurement map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null}/>
+    <SlopeInspector key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive} onDrawArea={()=>{setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
+    <MapMeasurement map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision}/>
+
     {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Perímetro</span><strong className="mt-1 block text-xl text-slate-950">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
