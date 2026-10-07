@@ -100,7 +100,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
   const [measureSelection,setMeasureSelection]=useState<{drawing:MeasureDrawing;name:string}|null>(null);
-  const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0);
+  const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0),[startPathRevision,setStartPathRevision]=useState(0);
   const onMeasurementChange=useCallback((drawing:MeasureDrawing,name:string)=>setMeasureSelection({drawing,name}),[]);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
@@ -376,8 +376,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       </div>
     </div>
 
-    <SlopeInspector key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive} onDrawArea={()=>{setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
-    <MapMeasurement map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision}/>
+    <SlopeInspector key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive} onDrawArea={()=>{setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
+    <MapMeasurement map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startPathRevision={startPathRevision}/>
 
     {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
