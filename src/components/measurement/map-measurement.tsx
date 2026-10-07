@@ -26,35 +26,43 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
  const [live,setLive]=useState<MeasurePoint[]|null>(null),[saved,setSaved]=useState<SavedMeasurement[]|null>(null);
  const requestId=useRef<string|null>(null),latest=useRef<{drawing:MeasureDrawing;busy:boolean;change:(d:MeasureDrawing)=>void}>({drawing:state.drawing,busy,change:()=>{}});
  const [tool,setTool]=useState<MapMeasureTool>(floating?"distance":"area"),[finished,setFinished]=useState(false),[detailsOpen,setDetailsOpen]=useState(false);
- const [drawingError,setDrawingError]=useState("");
+ const [drawingError,setDrawingError]=useState(""),[optionsOpen,setOptionsOpen]=useState(false);
  const detailsRef=useRef<HTMLDivElement>(null);
  const drawing=state.drawing,points=live||drawing.points;
  const editing=!!map&&!disabled&&open&&(!floating||(!finished&&tool!=="slope"));
  const showDrawing=floating?(tool!=="slope"&&(open||points.length>0)):open;
  const showPanel=floating?(detailsOpen||(points.length>0&&(finished||!open))):open;
  const metrics=useMemo(()=>{try{return measureDrawing({kind:drawing.kind,points});}catch(e){return {area_m2:null,perimeter_m:null,distance_m:0,complete:false,issue:e instanceof Error?e.message:"Revise os pontos."};}},[drawing.kind,points]);
- function change(d:MeasureDrawing){try{const next=validateMeasureDrawing(d);requestId.current=null;dispatch({type:"change",drawing:next});setFinished(false);setMessage("");setDrawingError("");setPicked(null);}catch(e){const error=e instanceof Error?e.message:"Ponto inválido.";setDrawingError(error);setMessage(error);}}
+ function change(d:MeasureDrawing){try{const next=validateMeasureDrawing(d);requestId.current=null;dispatch({type:"change",drawing:next});setFinished(false);setOptionsOpen(false);setMessage("");setDrawingError("");setPicked(null);}catch(e){const error=e instanceof Error?e.message:"Ponto inválido.";setDrawingError(error);setMessage(error);}}
  useEffect(()=>{latest.current={drawing,busy:busy||!editing,change};});
  useEffect(()=>{onDrawingChange?.({kind:drawing.kind,points},name);},[drawing.kind,points,name,onDrawingChange]);
  useEffect(()=>{
   if(!startAreaRevision)return;
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing map drawing control, without erasing vertices.
-  setOpen(true);setTool("area");setFinished(false);const d=latest.current.drawing;if(d.kind!=="polygon")latest.current.change({...d,kind:"polygon"});
+  setOpen(true);setOptionsOpen(false);setTool("area");setFinished(false);const d=latest.current.drawing;if(d.kind!=="polygon")latest.current.change({...d,kind:"polygon"});
  },[startAreaRevision]);
  useEffect(()=>{
   if(!startPathRevision)return;
   // eslint-disable-next-line react-hooks/set-state-in-effect -- Parent command opens the existing path control.
-  setOpen(true);setTool("profile");setFinished(false);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({kind:"path",points:[]});
+  setOpen(true);setOptionsOpen(false);setTool("profile");setFinished(false);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({kind:"path",points:[]});
  },[startPathRevision]);
  useEffect(()=>{onActiveChange?.(editing);return()=>onActiveChange?.(false);},[editing,onActiveChange]);
  useEffect(()=>{if(floating)onToolChange?.(open?tool:null);return()=>{if(floating)onToolChange?.(null);};},[floating,open,tool,onToolChange]);
  useEffect(()=>{
-  if(!map)return;
+  if(!map||!floating||!open||!optionsOpen)return;
+  const collapseOptions=(event:MapMouseEvent)=>{
+   if(!(event.originalEvent.target as Element)?.closest("button,[data-map-tool-ui],.maplibregl-control-container"))setOptionsOpen(false);
+  };
+  map.on("click",collapseOptions);
+  return()=>{map.off("click",collapseOptions);};
+ },[map,floating,open,optionsOpen]);
+ useEffect(()=>{
+  if(!map||floating)return;
   const element=document.createElement("div"),button=document.createElement("button");element.className="maplibregl-ctrl maplibregl-ctrl-group";
   button.type="button";button.title="Medir distância e área";button.setAttribute("aria-label","Medir distância e área");button.textContent="📏";button.style.cssText="width:40px;height:40px;font-size:20px";button.disabled=disabled;button.onclick=()=>setOpen(v=>!v);element.append(button);
   const control:IControl={onAdd:()=>element,onRemove:()=>element.remove()};map.addControl(control,"top-left");
   return()=>{if(map.hasControl(control))map.removeControl(control);};
- },[map,disabled]);
+ },[map,disabled,floating]);
  useEffect(()=>{
   if(!map||!showDrawing)return;
   if(!map.getSource("orion-measure")){map.addSource("orion-measure",{type:"geojson",data:empty});map.addLayer({id:"orion-measure-fill",source:"orion-measure",type:"fill",filter:["==",["geometry-type"],"Polygon"],paint:{"fill-color":"#fff6bb","fill-opacity":0.24}});map.addLayer({id:"orion-measure-line",source:"orion-measure",type:"line",paint:{"line-color":"#ffcf40","line-width":3}});}
@@ -103,17 +111,17 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
  function exportFile(){try{const value=measurementGeoJSON(name,requireMeasurement({schema_version:1,...drawing})),url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:"application/geo+json"})),a=document.createElement("a");a.href=url;a.download=(name.replace(/[^a-zA-Z0-9_-]/g,"_").slice(0,80)||"medicao")+".geojson";a.click();setTimeout(()=>URL.revokeObjectURL(url),30000);}catch(e){setMessage(e instanceof Error?e.message:"Revise a medição.");}}
  function selectTool(next:MapMeasureTool){
   if(busy||disabled)return;
-  setOpen(true);setTool(next);setFinished(false);setDetailsOpen(false);setPicked(null);setDrawingError("");
+  setOpen(true);setOptionsOpen(false);setTool(next);setFinished(false);setDetailsOpen(false);setPicked(null);setDrawingError("");
   if(next!=="slope"){const kind=next==="area"?"polygon":"path";if(drawing.kind!==kind)change({kind,points:[]});}
  }
  function editOnMap(){
   if(busy||disabled)return;
   setTool(drawing.kind==="polygon"?"area":tool==="profile"?"profile":"distance");
-  setOpen(true);setFinished(false);setPicked(null);setDrawingError("");
+  setOpen(true);setOptionsOpen(false);setFinished(false);setPicked(null);setDrawingError("");
  }
  function finish(){
   if(!metrics.complete||busy||disabled)return;
-  setFinished(true);setPicked(null);
+  setFinished(true);setOptionsOpen(false);setPicked(null);
   if(tool==="profile")onTerrainAction?.("profile");
   if(tool==="area"&&terrainAvailable)onTerrainAction?.("area");
  }
@@ -130,13 +138,50 @@ export default function MapMeasurement({map,surveyId=null,disabled=false,onActiv
  const quickArea=metrics.area_m2!==null&&metrics.area_m2>=10000?fmt(metrics.area_m2/10000,"ha"):fmt(metrics.area_m2,"m²");
  const primary=tool==="slope"?"Inclinação no ponto":tool==="area"?quickArea:quickDistance;
  const secondary=tool==="slope"?"Toque no terreno":tool==="area"?"Perímetro: "+fmt(metrics.perimeter_m,"m"):tool==="profile"?"Perfil · distância horizontal":"Distância horizontal";
+ // Attach the live value to the geometry, keeping the last vertex free to drag.
+ // Marker follows map navigation; the offset keeps the label inside the visible map.
+ const labelTerrain=finished&&(tool==="area"||tool==="profile")&&terrainFeedback.state==="ready"
+  ?terrainFeedback.title+(tool==="profile"&&terrainFeedback.detail?"\n"+terrainFeedback.detail:""):"";
+ useEffect(()=>{
+  if(!map||!floating||!showDrawing||points.length<2)return;
+  const element=document.createElement("div");
+  element.className="orion-measure-label";element.dataset.testid="map-measure-label";
+  element.dataset.invalid=String(!!metrics.issue);
+  const value=document.createElement("strong");
+  value.textContent=tool==="area"?"Área: "+primary:tool==="profile"?"Perfil: "+primary:primary;
+  element.append(value);
+  if(tool==="area"||tool==="profile"){
+   const detail=document.createElement("small");
+   detail.textContent=tool==="area"?secondary:"Distância horizontal";element.append(detail);
+  }
+  if(tool==="area"&&points.length<3){
+   const hint=document.createElement("small");hint.textContent="Adicione o terceiro ponto";element.append(hint);
+  }
+  if(labelTerrain){
+   for(const [i,line] of labelTerrain.split("\n").entries()){
+    const detail=document.createElement("small");detail.textContent=line;
+    if(i===0)detail.className="measure-label-terrain";element.append(detail);
+   }
+  }
+  const anchor=points[points.length-1];
+  const marker=new Marker({element,anchor:"bottom",offset:[0,-20]}).setLngLat(anchor).addTo(map);
+  const positionLabel=()=>{
+   const xy=map.project(anchor),container=map.getContainer(),w=element.offsetWidth,h=element.offsetHeight;
+   const half=w/2,margin=10;
+   const targetX=Math.max(half+margin,Math.min(container.clientWidth-half-margin,xy.x));
+   const offsetY=xy.y-h<64?h+20:-20;
+   marker.setOffset([targetX-xy.x,offsetY]);
+  };
+  positionLabel();map.on("move",positionLabel);map.on("resize",positionLabel);
+  return()=>{map.off("move",positionLabel);map.off("resize",positionLabel);marker.remove();};
+ },[map,floating,showDrawing,points,tool,primary,secondary,labelTerrain,metrics.issue]);
  const host=map?.getContainer().parentElement;
  return <section className="orion-measurement" data-testid="measurement-tool" data-open={open?"true":"false"} data-editing={editing} data-tool={tool}>
   {!floating&&<button type="button" className="measure-launch" disabled={!map||disabled} aria-expanded={open} onClick={()=>setOpen(v=>!v)}>📏 {open?"Fechar medição":"Medir no mapa"}<span>Distância · área · perímetro</span></button>}
-  {floating&&host&&createPortal(<MapMeasureToolbar open={open} tool={tool} finished={finished} points={points.length} valid={metrics.complete} busy={busy||disabled} terrainAvailable={terrainAvailable} primary={primary} secondary={secondary} issue={tool!=="slope"?(drawingError||metrics.issue):undefined} feedback={terrainFeedback}
+  {floating&&host&&createPortal(<MapMeasureToolbar open={open} optionsOpen={optionsOpen} onToggleOptions={()=>setOptionsOpen(v=>!v)} tool={tool} finished={finished} points={points.length} valid={metrics.complete} busy={busy||disabled} terrainAvailable={terrainAvailable} primary={primary} secondary={secondary} issue={tool!=="slope"?(drawingError||metrics.issue):undefined} feedback={terrainFeedback}
    canUndo={tool==="slope"?terrainFeedback.canUndo:state.past.length>0} canRedo={tool==="slope"?terrainFeedback.canRedo:state.future.length>0} canClear={tool==="slope"?terrainFeedback.canClear:points.length>0}
    picked={editing&&picked!==null&&picked<drawing.points.length?picked:null} onRemovePoint={()=>{if(picked!==null&&!busy)change({...drawing,points:drawing.points.filter((_,i)=>i!==picked)});}}
-   onOpen={()=>{if(!busy&&!disabled)setOpen(true);}} onClose={()=>{setOpen(false);setPicked(null);}} onTool={selectTool}
+   onOpen={()=>{if(!busy&&!disabled){setOpen(true);setOptionsOpen(true);}}} onClose={()=>{setOpen(false);setOptionsOpen(false);setPicked(null);}} onTool={selectTool}
    onUndo={()=>tool==="slope"?onTerrainAction?.("undo"):undo("undo")} onRedo={()=>tool==="slope"?onTerrainAction?.("redo"):undo("redo")} onClear={()=>tool==="slope"?onTerrainAction?.("clear"):change({...drawing,points:[]})}
    onFinish={finish} onEdit={editOnMap} onFix={()=>onTerrainAction?.("fix")} onRetry={()=>onTerrainAction?.("retry")} onDetails={showDetails}/>,host)}
   {showPanel&&<div ref={detailsRef} className="measure-sheet" data-testid="measurement-panel">
