@@ -5,6 +5,7 @@ import {isMeasuringMap} from "@/lib/measurement-map-state";
 import {measureDrawing,type MeasureDrawing} from "@/lib/map-measurement";
 import {analyseSlopePolygon,sampleTerrain,type TerrainGrid,type TerrainSample,type SlopeAreaSummary} from "@/lib/terrain-analysis";
 import {loadTerrainModel} from "./geotiff-preview";
+import {clearFreshProcessingUrl,freshProcessingUrl} from "@/lib/processing-fresh-url";
 import {slopeAnalysisGeoJSON,slopeReportHtml} from "./slope-report";
 import "./slope-inspector.css";
 
@@ -20,28 +21,28 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
   const [loading,setLoading]=useState(false),[error,setError]=useState("");
   const [sample,setSample]=useState<TerrainSample|null>(null),[marks,setMarks]=useState<Mark[]>([]),[labels,setLabels]=useState(true);
   const [area,setArea]=useState<{signature:string;summary:SlopeAreaSummary;computedAt:string}|null>(null),[analysing,setAnalysing]=useState(false),[progress,setProgress]=useState(0);
-  const nextId=useRef(1),pending=useRef<{url:string;task:Promise<TerrainGrid>}|null>(null),alive=useRef(true),controller=useRef<AbortController|null>(null);
+  const nextId=useRef(1),pending=useRef<{key:string;task:Promise<TerrainGrid>}|null>(null),alive=useRef(true),controller=useRef<AbortController|null>(null);
   const active=(mode==="on"||(mode==="auto"&&slopeVisible))&&!measuring;
-  const url=source?.download_url||null;
+  const available=!!source;
   const signature=JSON.stringify([source?.id,selection?.drawing]);
   const currentArea=area?.signature===signature?area:null;
   const metrics=useMemo(()=>{try{return selection?measureDrawing(selection.drawing):null;}catch{return null;}},[selection]);
   const validPolygon=selection?.drawing.kind==="polygon"&&!!metrics?.complete;
   useEffect(()=>{alive.current=true;return()=>{alive.current=false;controller.current?.abort();};},[]);
   const ensureGrid=useCallback(async()=>{
-    if(!url)throw Error("DTM indisponível neste processamento.");
-    if(pending.current?.url===url)return pending.current.task;
+    if(!source)throw Error("DTM indisponível neste processamento.");
+    if(pending.current?.key===source.id)return pending.current.task;
     setLoading(true);setError("");
-    const task=loadTerrainModel(url);pending.current={url,task};
+    const task=freshProcessingUrl(source,"download").then(url=>loadTerrainModel(url));pending.current={key:source.id,task};
     try{const value=await task;if(alive.current)setGrid(value);return value;}
     catch(e){if(pending.current?.task===task)pending.current=null;throw e;}
     finally{if(alive.current)setLoading(false);}
-  },[url]);
+  },[source]);
   useEffect(()=>{
-    if(!active||!map||!url)return;let stopped=false;
+    if(!active||!map||!available)return;let stopped=false;
     void ensureGrid().catch(e=>{if(!stopped)setError(e instanceof Error?e.message:"Não foi possível ler o DTM.");});
     return()=>{stopped=true;};
-  },[active,map,url,ensureGrid]);
+  },[active,map,available,ensureGrid]);
   useEffect(()=>{
     if(!map||!active||!grid)return;
     const previous=map.getCanvas().style.cursor;map.getCanvas().style.cursor="crosshair";
@@ -106,13 +107,13 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
   return <section className="slope-inspector" data-testid="slope-inspector" data-slope-state={loading?"loading":error?"error":grid?"ready":"idle"}>
     <header><div><span className="slope-eyebrow">ANÁLISE DO TERRENO</span><h3>Inclinação em %</h3></div><span className="slope-badge">DTM · estimativa</span></header>
     <div className="slope-actions">
-      <button type="button" aria-pressed={active} disabled={!map||!url||measuring} onClick={()=>setMode(active?"off":"on")}>{active?"Toque no mapa: % ativo":"Consultar % no mapa"}</button>
-      <button type="button" disabled={!map||!url} onClick={onDrawArea}>Desenhar área</button>
+      <button type="button" aria-pressed={active} disabled={!map||!available||measuring} onClick={()=>setMode(active?"off":"on")}>{active?"Toque no mapa: % ativo":"Consultar % no mapa"}</button>
+      <button type="button" disabled={!map||!available} onClick={onDrawArea}>Desenhar área</button>
     </div>
     <p className="slope-help">{measuring?"Régua aberta: os toques desenham a área. Feche a medição para consultar pontos.":active?"Toque no terreno para consultar a inclinação local e a elevação. Fixe os pontos que deseja comparar.":"Ative a consulta para marcar a inclinação sobre a ortofoto ou qualquer camada."}</p>
     {loading&&<p role="status">Lendo DTM existente… A ortofoto permanece disponível.</p>}
-    {!url&&<p role="status">Este resultado não tem DTM disponível para análise.</p>}
-    {error&&<div role="alert" className="slope-warning">{error}<button type="button" onClick={()=>void ensureGrid().then(()=>setError("")).catch(e=>setError(e instanceof Error?e.message:"Falha ao ler DTM."))}>Tentar ler DTM novamente</button></div>}
+    {!available&&<p role="status">Este resultado não tem DTM disponível para análise.</p>}
+    {error&&<div role="alert" className="slope-warning">{error}<button type="button" onClick={()=>{if(source){pending.current=null;clearFreshProcessingUrl(source.id);}void ensureGrid().then(()=>setError("")).catch(e=>setError(e instanceof Error?e.message:"Falha ao ler DTM."));}}>Tentar ler DTM novamente</button></div>}
     {sample&&<div className="slope-point" data-testid="slope-point" data-sample-status={sample.status} aria-live="polite">
       <div className="slope-values"><div><span>Inclinação local</span><strong data-testid="slope-point-value">{number(sample.slopePct)}{sample.slopePct!==null&&<small> %</small>}</strong></div><div><span>Elevação no DTM</span><strong>{number(sample.elevationM,2)}<small> m</small></strong></div></div>
       {sample.slopePct===null&&<p className="slope-warning">{noDataText(sample)}</p>}
@@ -124,7 +125,7 @@ export default function SlopeInspector({map,source,slopeVisible,selection,measur
     <div className="slope-area">
       <h4>Resumo da área desenhada</h4><p className="slope-help">{selection?.drawing.points.length?`${selection.name} · ${selection.drawing.points.length} vértices` : "Use Desenhar área e marque pelo menos três vértices."}</p>
       {metrics?.issue&&<p className="slope-warning">{metrics.issue}</p>}
-      <button type="button" disabled={!validPolygon||analysing||!url} onClick={()=>void analyse()}>{analysing?`Analisando células: ${number(progress,0)}%`:"Analisar inclinação da área"}</button>
+      <button type="button" disabled={!validPolygon||analysing||!available} onClick={()=>void analyse()}>{analysing?`Analisando células: ${number(progress,0)}%`:"Analisar inclinação da área"}</button>
       {area&&!currentArea&&<p role="status" className="slope-warning">O contorno mudou. Analise novamente; o resumo anterior não se aplica à seleção atual.</p>}
       {currentArea&&<div data-testid="slope-area-result">
         <div className="slope-values slope-three"><div><span>Média válida</span><strong data-testid="slope-area-mean">{number(currentArea.summary.meanPct)}<small> %</small></strong></div><div><span>Mínima</span><strong>{number(currentArea.summary.minPct)}<small> %</small></strong></div><div><span>Máxima local</span><strong>{number(currentArea.summary.maxPct)}<small> %</small></strong></div></div>
