@@ -188,3 +188,39 @@ html,body{background:var(--orion-paper);color:var(--orion-ink)}
 .orion-agro{background:var(--orion-paper)!important;color:var(--orion-ink)}
 .orion-agro > div > header{background:var(--orion-ink);border-radius:0}
 .orion-agro [class*="shadow"]{box-shadow:none!important}
+
+/* Shared application typography and dashboard surfaces. */
+:root{--orion-ink:#1b2220;--orion-paper:#f7f8f7;--orion-line:#dde4e0;--orion-accent:#07966c;--orion-muted:#64726b}
+html,body{background:var(--orion-paper);color:var(--orion-ink)}
+body,button,input,select,textarea{font-family:var(--font-work-sans),"Segoe UI",sans-serif}
+h1,h2,h3{font-family:var(--font-space-grotesk),var(--font-work-sans),sans-serif}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline-color:#0a9b72}
+::selection{background:#abecd5;color:#103a2c}
+.app-version-badge{border-color:#cddcd3;color:#155f48;font-family:var(--font-work-sans),sans-serif}
+.orion-workspace{background:var(--orion-paper)!important;color:var(--orion-ink)}
+.orion-workspace > div > header > div:first-child{background:#fff!important;border:1px solid var(--orion-line)!important;border-radius:0!important}
+.orion-workspace > div > header > div:first-child > div{min-height:78px!important}
+.orion-workspace-brand{color:var(--orion-ink);font-family:var(--font-space-grotesk),sans-serif;font-size:20px;letter-spacing:-.025em}
+.orion-workspace-brand b{color:#07966c;font-weight:700}
+.orion-workspace-brand small{color:#6b7b72;font:600 9px var(--font-work-sans),sans-serif;letter-spacing:.07em}
+.orion-workspace-brand .orion-symbol{width:36px;height:36px;border:1px solid #0a9b72;border-radius:8px;color:#07966c;font:700 22px var(--font-space-grotesk),sans-serif;padding:0;letter-spacing:-.04em}
+.orion-workspace > div > header > div:first-child p{color:#68776f!important;letter-spacing:.06em!important;text-transform:none!important;font-size:11px!important}
+.orion-workspace > div > header > div:first-child button,.orion-workspace > div > header > div:first-child a:not(.orion-workspace-brand){color:#255543}
+.orion-workspace .sticky{border-radius:0!important;border-top:0!important}
+.orion-workspace nav a[class*="bg-emerald"]{background:#e7f7ef!important;color:#087852!important;border-bottom:2px solid #0b9e72;border-radius:0!important}
+.orion-workspace nav a:not([class*="bg-emerald"]):hover{background:#eef6f1}
+.orion-workspace [class*="rounded-"]{border-radius:8px}
+.orion-workspace [class*="shadow"]{box-shadow:0 2px 8px #12251b0b!important}
+.orion-workspace [class*="bg-emerald-900"],.orion-workspace [class*="bg-emerald-800"]{background:#078d67!important}
+.orion-workspace [class*="text-emerald-900"],.orion-workspace [class*="text-emerald-800"],.orion-workspace [class*="text-emerald-700"]{color:#087d59!important}
+.orion-signin{background:#f7f8f7}
+.orion-signin>section:first-child{background:#171c1b}
+.orion-signin .orion-workspace-brand{color:#fff}
+.orion-signin .orion-workspace-brand small{color:#9bb9aa}
+.orion-signin h1,.orion-signin h2{font-family:var(--font-space-grotesk),sans-serif}
+.orion-calculator,.orion-agro{font-family:var(--font-work-sans),sans-serif}
+.orion-calculator h1,.orion-calculator h2,.orion-agro h1,.orion-agro h2{font-family:var(--font-space-grotesk),sans-serif}
+.orion-calculator [class*="bg-emerald-950"]{background:#171c1b}
+.orion-agro{background:var(--orion-paper)!important}
+.orion-agro > div > header{background:#171c1b}
+@media(max-width:650px){.orion-workspace > div > header > div:first-child > div{min-height:68px!important}}

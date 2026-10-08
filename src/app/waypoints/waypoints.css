@@ -70,3 +70,76 @@
   .mobile-flight-shortcuts a:focus-visible{outline:2px solid #bd572b;outline-offset:2px}
 }
 
+/* Operations dashboard styling shared with the Orion workspace. */
+.flight-app{--ink:#1b2220;--panel:#fff;--line:#dce4de;--copper:#07966c;--paper:#1b2220;background:#f7f8f7;color:#1b2220;font-family:var(--font-work-sans),sans-serif;overflow-x:clip}
+.flight-app :is(h1,h2,h3){font-family:var(--font-space-grotesk),sans-serif}
+.flight-sidebar{background:#fff;border-color:#e0e6e2;box-shadow:none}
+.flight-brand{font-family:var(--font-space-grotesk),sans-serif;letter-spacing:-.03em;color:#1b2220}
+.flight-brand .orion-symbol{border:1px solid #0b9e72;border-radius:8px;color:#0b9e72;font:700 22px var(--font-space-grotesk),sans-serif;padding:0}
+.flight-sidebar nav a{border:0;border-radius:5px;color:#44534b;font-size:12px;font-weight:600}
+.flight-sidebar nav a span{color:#708078}
+.flight-sidebar nav a[aria-current]{background:#e6f7ef;color:#087d59;border:0;box-shadow:none}
+.flight-sidebar nav a[aria-current] span{color:#087d59}
+.flight-sidebar nav a:hover{background:#f0f7f2;color:#087d59}
+.sidebar-label,.sidebar-bottom,.flight-topbar{color:#6a7970;font-family:var(--font-work-sans),sans-serif;letter-spacing:.03em}
+.status-dot{background:#0b9e72}
+.flight-main{background:#f7f8f7}
+.mission-title{padding:30px 0 25px}
+.mission-title h1{font-family:var(--font-space-grotesk),sans-serif;font-size:clamp(28px,2.7vw,38px);font-weight:700;letter-spacing:-.04em}
+.eyebrow{color:#07885f;font:700 11px var(--font-work-sans),sans-serif;letter-spacing:.06em}
+.flight-button,.flight-button.primary{border-radius:5px;box-shadow:none;font-family:var(--font-work-sans),sans-serif;font-size:12px!important}
+.flight-button{border-color:#cedbd2;background:#fff;color:#294a39}
+.flight-button:hover{background:#edf6ef}
+.flight-button.primary{border-color:#098e68;background:#098e68;color:#fff}
+.flight-button.primary:hover{background:#087b5a}
+.flight-workspace-tabs{border-color:#dce4de;background:#fff}
+.flight-workspace-tabs button[aria-selected="true"]{background:#e7f7ef;color:#087d59;border-color:#0b9e72}
+.mission-metrics{gap:10px;margin-bottom:18px}
+.mission-metrics>div,.mission-metrics>div:first-child,.mission-metrics>div:last-child{border:1px solid #dce4de;border-radius:8px;background:#fff;box-shadow:0 2px 6px #12251b0b;padding:14px}
+.mission-metrics span{color:#65736b;font:600 10px var(--font-work-sans),sans-serif;letter-spacing:0;text-transform:none}
+.mission-metrics strong{color:#1d2a23;font-family:var(--font-space-grotesk),sans-serif;font-weight:700;letter-spacing:-.04em}
+.mission-metrics small{color:#64716a;font-family:var(--font-work-sans),sans-serif;font-weight:500}
+.map-workspace,.control-section,.control-section:last-child,.saved-plans{border:1px solid #dce4de;border-radius:8px;background:#fff;box-shadow:0 2px 6px #12251b0b}
+.map-search{border-color:#dce4de;border-radius:6px;background:#f8faf8}
+.map-search input{color:#1d2a23}
+.map-search button{color:#087d59}
+.map-toolbar button{border-color:#d8e3dc;border-radius:5px;background:#fff;color:#355844;font-size:11px}
+.map-toolbar .location-button{border-color:#098e68;background:#098e68;color:#fff}
+.mission-map-wrap{border-color:#dce4de;border-radius:6px}
+.mode-selector{border-color:#dce4de;border-radius:7px;background:#f2f5f2}
+.mode-selector button{color:#46564d;font-size:11px}
+.mode-selector button.selected{background:#098e68;color:#fff;box-shadow:none}
+.mode-selector-heading{color:#1b2220;font-family:var(--font-space-grotesk),sans-serif}
+.mode-selector-heading a{color:#087d59}
+.section-heading>span{background:#e5f7ee;color:#087d59}
+.section-heading h2{color:#1d2a23;font-family:var(--font-space-grotesk),sans-serif;font-size:16px;font-weight:700}
+.flight-settings-heading strong{font-family:var(--font-space-grotesk),sans-serif}
+.control-section label{color:#384e40;font-size:12px;font-weight:600}
+.control-section input:not([type=range]):not([type=file]),.mission-controls select{border-color:#ccd9d1;border-radius:6px;background:#fff;color:#1d2a23;font-family:var(--font-work-sans),sans-serif}
+.slider-control input[type=range]{accent-color:#098e68}
+.gsd-readout{background:#ecf8f0;border-color:#098e68}
+.gsd-readout span,.gsd-readout small,.gsd-readout b{color:#205b40}
+.flight-app :focus-visible{outline-color:#0b9e72}
+.mobile-flight-shortcuts{border-color:#dce4de}
+.mobile-flight-shortcuts a{border-color:#d4e3d9;background:#f3f8f4;color:#166144}
+@media(max-width:800px){
+  .flight-app{display:block;width:100%;overflow-x:hidden}
+  .flight-sidebar{display:block;min-width:0;padding:12px 14px}
+  .flight-brand{margin-bottom:10px}
+  .flight-sidebar nav{display:flex;flex-wrap:nowrap;max-width:100%;margin:0;gap:4px;overflow-x:auto;scrollbar-width:none}
+  .flight-sidebar nav::-webkit-scrollbar{display:none}
+  .flight-sidebar nav a{white-space:nowrap;flex:none}
+  .flight-main{width:100%;padding:0 14px}
+  .mission-title{padding:22px 0}
+  .mobile-flight-shortcuts{border-color:#dce4de;border-radius:8px}
+  .mobile-flight-shortcuts strong{font-family:var(--font-space-grotesk),sans-serif}
+  .mobile-flight-shortcuts a:focus-visible{outline-color:#0b9e72}
+}
+@media(max-width:520px){
+  .flight-sidebar nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .flight-sidebar nav a{display:flex;align-items:center;justify-content:center;min-height:39px;padding:7px 5px;text-align:center;white-space:normal;line-height:1.2}
+  .title-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:8px}
+  .title-actions .flight-button{min-width:0;white-space:normal;text-align:center}
+  .title-actions .flight-button.primary{grid-column:1/-1}
+}
+

@@ -3,3 +3,7 @@
 @media(prefers-reduced-motion:reduce){.flight-simulation *{scroll-behavior:auto;transition:none!important}}
 
 .flight-simulation .sim-view-tools button[aria-pressed=true]:hover,.flight-simulation .sim-setting-actions button[aria-pressed=true]:hover{background:#0b5846;color:#fff}
+/* Keep the planning switch aligned with the operations dashboard. */
+.flight-workspace-tabs{max-width:480px;border-color:#dce4de;border-radius:8px;background:#fff}
+.flight-workspace-tabs button{border-radius:5px;color:#345747;font-family:var(--font-work-sans),sans-serif}
+.flight-workspace-tabs button[aria-selected=true]{background:#e4f6ed;color:#087d59;box-shadow:none}
