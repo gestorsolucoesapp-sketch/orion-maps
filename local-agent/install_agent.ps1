@@ -200,14 +200,21 @@ try {
   $AgentScript = Join-Path $AgentDir "run_agent.py"
   $Action = New-ScheduledTaskAction -Execute $Pythonw -Argument ('"' + $AgentScript + '"') -WorkingDirectory $AgentDir
   if ($ExistingTask) {
-    Set-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -Action $Action | Out-Null
+    $CurrentAction = $ExistingTask.Actions[0]
+    $SameAction = ([string]::Equals([string]$CurrentAction.Execute, [string]$Action.Execute, [StringComparison]::OrdinalIgnoreCase) -and
+                   [string]::Equals([string]$CurrentAction.Arguments, [string]$Action.Arguments, [StringComparison]::OrdinalIgnoreCase) -and
+                   [string]::Equals([string]$CurrentAction.WorkingDirectory, [string]$Action.WorkingDirectory, [StringComparison]::OrdinalIgnoreCase))
+    if (-not $SameAction) {
+      Set-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -Action $Action | Out-Null
+      $TaskChanged = $true
+    }
   } else {
     $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $Identity.Name
     $Principal = New-ScheduledTaskPrincipal -UserId $Identity.Name -LogonType Interactive -RunLevel Limited
     $Settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero)
     Register-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath -Action $Action -Trigger $Trigger -Principal $Principal -Settings $Settings -Description "Orion Maps - processador local" | Out-Null
+    $TaskChanged = $true
   }
-  $TaskChanged = $true
   Remove-Item -LiteralPath $MaintenancePath -Force
   $OwnMarker = $false
   if (-not $WasDisabled) { Start-ScheduledTask -TaskName $TaskName -TaskPath $TaskPath }
