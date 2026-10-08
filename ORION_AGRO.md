@@ -13,7 +13,7 @@ Rota privada: `/agro`. Acesso pelo painel e pela tela de resultados do levantame
 - Área total/útil/excluída e extensão das linhas em metros UTM. Não atribui uma área individual à cultura de uma linha.
 - Salvamento privado em versões imutáveis na conta. O mesmo ID de solicitação não duplica a versão em uma repetição de rede. Nova edição gera nova versão.
 - Exportação GeoJSON, CSV e JSON editável. Proteção de CSV contra interpretação de fórmulas.
-- Carregamento manual da ortofoto de um processamento concluído e vinculação ao levantamento. Sem ortofoto concluída, o editor pode usar o mapa-base.
+- Acesso pelos resultados abre outra aba do mesmo aplicativo com a mesma ortofoto e o mesmo processamento, carregados automaticamente. Usa a mesma prévia privada e o mesmo tratamento visual do mapa original; não duplica nem altera arquivos. Trocar o levantamento cancela respostas antigas e recarrega a referência. Sem ortofoto concluída, o editor informa a ausência e permite planejamento preliminar no mapa-base.
 
 ## Limites explícitos
 

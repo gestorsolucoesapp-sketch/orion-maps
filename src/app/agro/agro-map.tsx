@@ -8,14 +8,26 @@ import type {GeoJSONSource} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type {XY} from "@/lib/agro-plan";
 import type {AgroPreview} from "./actions";
+import {prepareOrthophotoPreview,type OrthoLoadProgress} from "../processamento/orthophoto-preview";
 
-type Props={surveyId?:string;data:GeoJSON.FeatureCollection;draft:XY[];drawing:"boundary"|"exclusion"|null;selected:string[];center:XY|null;fit:number;preview:AgroPreview|null;showOrtho:boolean;onPoint:(p:XY)=>void;onMove:(i:number,p:XY)=>void;onRow:(id:string)=>void};
+type Props={surveyId?:string;data:GeoJSON.FeatureCollection;draft:XY[];drawing:"boundary"|"exclusion"|null;selected:string[];center:XY|null;fit:number;preview:AgroPreview|null;showOrtho:boolean;previewBusy?:boolean;onPoint:(p:XY)=>void;onMove:(i:number,p:XY)=>void;onRow:(id:string)=>void};
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
 export default function AgroMap(props:Props){
  const element=useRef<HTMLDivElement>(null),map=useRef<maplibre.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState(""),[satellite,setSatellite]=useState(false);
+ const [orthoUrl,setOrthoUrl]=useState<string|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoError,setOrthoError]=useState(""),[orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRetry,setOrthoRetry]=useState(0);
  const [measurementMap,setMeasurementMap]=useState<maplibre.Map|null>(null);
  useEffect(()=>{latest.current=props;});
+ useEffect(()=>{
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the display-only loader when the selected ortho changes.
+  setOrthoUrl(null);setOrthoRendered(false);setOrthoError("");setOrthoProgress(null);
+  if(!props.preview)return;
+  const controller=new AbortController();
+  prepareOrthophotoPreview(props.preview.url,controller.signal,p=>{if(!controller.signal.aborted)setOrthoProgress(p);})
+   .then(url=>{if(!controller.signal.aborted)setOrthoUrl(url);})
+   .catch(e=>{if(!controller.signal.aborted)setOrthoError(e instanceof Error?e.message:"Não foi possível carregar a ortofoto.");});
+  return()=>controller.abort();
+ },[props.preview,orthoRetry]);
  useEffect(()=>{
   if(!element.current)return;let m:maplibre.Map|undefined;
   try{
@@ -34,13 +46,15 @@ export default function AgroMap(props:Props){
     current.addLayer({id:"draft-line",type:"line",source:"draft",paint:{"line-color":"#e96720","line-width":3,"line-dasharray":[2,2]}});
     setMeasurementMap(current);setReady(true);
    });
+   current.on("moveend",()=>{element.current?.setAttribute("data-map-zoom",String(current.getZoom()));element.current?.setAttribute("data-map-center",JSON.stringify(current.getCenter().toArray()));});
+   current.on("sourcedata",e=>{if(e.sourceId==="ortho"&&e.isSourceLoaded&&map.current===current)setOrthoRendered(true);});
    current.on("click",e=>{
     if(isMeasuringMap(current))return;const p=latest.current;if(p.drawing){p.onPoint([e.lngLat.lng,e.lngLat.lat]);return;}
     if(!current.getLayer("rows"))return;
     const hits=current.queryRenderedFeatures([[e.point.x-8,e.point.y-8],[e.point.x+8,e.point.y+8]],{layers:["rows"]});
     const id=hits[0]?.properties?.row_id;if(typeof id==="string")p.onRow(id);
    });
-   current.on("error",e=>{if("sourceId" in e&&e.sourceId==="base")setError("Mapa-base indisponível. Seus desenhos continuam preservados.");if("sourceId" in e&&e.sourceId==="ortho")setError("A ortofoto não carregou. Recarregue a ortofoto pelo painel sem perder o plano.");});
+   current.on("error",e=>{if("sourceId" in e&&e.sourceId==="base")setError("Mapa-base indisponível. Seus desenhos continuam preservados.");if("sourceId" in e&&e.sourceId==="ortho")setOrthoError("A ortofoto não carregou. Tente novamente sem perder o plano.");});
   }catch{
    // External WebGL initialization can fail independently from the form.
    // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -74,18 +88,25 @@ export default function AgroMap(props:Props){
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
   if(m.getLayer("ortho"))m.removeLayer("ortho");if(m.getSource("ortho"))m.removeSource("ortho");
-  if(props.preview&&props.showOrtho){const {url,bounds:b}=props.preview;m.addSource("ortho",{type:"image",url,coordinates:[[b.west,b.north],[b.east,b.north],[b.east,b.south],[b.west,b.south]]});m.addLayer({id:"ortho",type:"raster",source:"ortho",paint:{"raster-opacity":0.9,"raster-fade-duration":0}},"field-fill");}
- },[ready,props.preview,props.showOrtho]);
+  if(props.preview&&orthoUrl){const {bounds:b}=props.preview;m.addSource("ortho",{type:"image",url:orthoUrl,coordinates:[[b.west,b.north],[b.east,b.north],[b.east,b.south],[b.west,b.south]]});m.addLayer({id:"ortho",type:"raster",source:"ortho",paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:latest.current.showOrtho?"visible":"none"}},"field-fill");}
+ },[ready,props.preview,orthoUrl]);
+ useEffect(()=>{const m=map.current;if(ready&&m?.getLayer("ortho"))m.setLayoutProperty("ortho","visibility",props.showOrtho?"visible":"none");},[ready,props.showOrtho,orthoUrl]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready||!props.fit)return;
   const data=latest.current,field=data.data.features.find(f=>f.properties?.kind==="field");
   if(field?.geometry.type==="Polygon"){const pts=field.geometry.coordinates[0] as XY[];if(pts.length){const b=new maplibre.LngLatBounds(pts[0],pts[0]);pts.forEach(p=>b.extend(p));m.fitBounds(b,{padding:55,maxZoom:19,duration:500});}}
-  else if(data.preview){const b=data.preview.bounds;m.fitBounds([[b.west,b.south],[b.east,b.north]],{padding:30,maxZoom:19});}
+  else if(data.preview){const b=data.preview.bounds;m.resize();m.fitBounds([[b.west,b.south],[b.east,b.north]],{padding:30,maxZoom:19,duration:0});}
  },[ready,props.fit]);
+ const orthoLoading=!!props.previewBusy||!!(props.preview&&!orthoRendered&&!orthoError);
+ const loadingLabel=props.previewBusy?"Buscando ortofoto do levantamento…":orthoProgress?.phase==="download"?`Carregando ortofoto · ${(orthoProgress.loaded/1024/1024).toLocaleString("pt-BR",{maximumFractionDigits:1})} MB`:"Preparando ortofoto no mapa…";
  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 text-xs"><span>{props.drawing?"Toque nos vértices e conclua o contorno.":"Toque em uma linha para selecioná-la."}</span><label className="flex items-center gap-2">Fundo<select aria-label="Fundo do mapa agro" value={satellite?"satellite":"map"} onChange={e=>{setError("");setSatellite(e.target.value==="satellite");}} className="rounded-lg border p-2"><option value="map">Mapa</option><option value="satellite">Satélite</option></select></label></div>
-  <div ref={element} data-testid="agro-map" data-ready={ready?"true":"false"} className="h-[450px] w-full sm:h-[620px]" aria-label="Mapa de talhões e linhas de plantio"/>
+  <div className="relative">
+   <div ref={element} data-testid="agro-map" data-ready={ready?"true":"false"} data-ortho-ready={orthoRendered?"true":"false"} data-ortho-job={props.preview?.job_id||""} data-ortho-result={props.preview?.result_id||""} data-ortho-bounds={props.preview?JSON.stringify(props.preview.bounds):""} aria-busy={orthoLoading} className="h-[450px] w-full sm:h-[620px]" aria-label="Mapa de talhões e linhas de plantio"/>
+   {orthoLoading&&<div role="status" data-testid="agro-ortho-loading" className="absolute inset-0 z-10 grid place-items-center bg-[#eaf1e7]/95 p-5 text-center text-sm font-semibold text-emerald-950"><div><span className="mx-auto mb-3 block h-7 w-7 animate-spin rounded-full border-2 border-emerald-800 border-t-transparent"/>{loadingLabel}<p className="mt-2 text-xs font-normal">O resultado original permanece intacto.</p></div></div>}
+  </div>
+  {orthoError&&<div role="alert" className="flex flex-wrap items-center gap-3 p-3 text-xs text-amber-900"><span>{orthoError}</span><button type="button" onClick={()=>setOrthoRetry(n=>n+1)} className="rounded-lg border px-3 py-2">Tentar novamente</button></div>}
   <MapMeasurement map={ready?measurementMap:null} surveyId={props.surveyId||null} disabled={!!props.drawing}/>
   {error&&<p role="alert" className="p-3 text-xs text-amber-900">{error}</p>}
   <p className="border-t border-slate-100 p-3 text-xs text-slate-600">Limite verde · exclusões vermelhas · seleção laranja · linhas coloridas por cultura. As linhas não possuem conexões automáticas através das exclusões.</p>

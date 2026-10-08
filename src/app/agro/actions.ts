@@ -42,20 +42,15 @@ export async function saveAgroPlan(request:{id:string;name:string;survey_id:stri
 
 import {listProcessingResults} from "@/lib/supabase/processing-results";
 import {listProcessingJobs} from "@/lib/supabase/processing-jobs";
-export type AgroPreview={url:string;bounds:{west:number;south:number;east:number;north:number};job_id:string};
-export async function loadAgroPreview(surveyId:string){
+import {selectAgroPreview} from "@/lib/agro-preview";
+export type {AgroPreview} from "@/lib/agro-preview";
+export async function loadAgroPreview(surveyId:string,jobId?:string|null){
  try{
   const {token}=await surveySession();await requireSurvey(surveyId,token);
+  if(jobId&&!uuid(jobId))throw Error("Processamento inválido.");
   const [jobs,results]=await Promise.all([listProcessingJobs(surveyId,token),listProcessingResults(surveyId,token)]);
-  const completed=new Set(jobs.filter(j=>j.status==="completed").map(j=>j.id));
-  for(const r of results){
-   if(r.kind!=="orthophoto"||!completed.has(r.job_id)||!["image/png","image/jpeg"].includes(r.mime_type||""))continue;
-   const b=r.metadata?.bounds_wgs84 as AgroPreview['bounds']|undefined;
-   const url=r.original_preview_url||r.preview_url;
-   if(!b||!url||![b.west,b.south,b.east,b.north].every(Number.isFinite)||b.west>=b.east||b.south>=b.north||Math.abs(b.west)>180||Math.abs(b.east)>180||Math.abs(b.south)>85||Math.abs(b.north)>85)continue;
-   const parsed=new URL(url);if(parsed.protocol!=="https:"||!parsed.hostname.endsWith(".supabase.co"))continue;
-   return {preview:{url,bounds:b,job_id:r.job_id} satisfies AgroPreview,error:""};
-  }
-  return {preview:null,error:"Ainda não há ortofoto concluída para este levantamento. O mapa-base pode ser usado para planejamento preliminar."};
+  const preview=selectAgroPreview(surveyId,jobs,results,jobId);
+  if(preview)return {preview,error:""};
+  return {preview:null,error:jobId?"A ortofoto deste processamento não está disponível. O resultado original não foi alterado.":"Ainda não há ortofoto concluída para este levantamento. O mapa-base pode ser usado para planejamento preliminar."};
  }catch(e){return {preview:null,error:friendly(e)};}
 }

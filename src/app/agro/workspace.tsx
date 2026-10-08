@@ -1,11 +1,11 @@
 "use client";
 import dynamic from "next/dynamic";
-import {useEffect,useMemo,useRef,useState} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import type {Survey} from "@/lib/supabase/surveys";
 import {agroCsv,calculateAgroPlan,cropColor,DEFAULT_AGRO_SETTINGS,EMPTY_ASSIGNMENT,exportAgroGeoJSON,importAgroGeometry,ROW_STATUS_LABELS,validAgroPoint,validateAgroPlan,type AgroPlan,type AgroSettings,type RowAssignment,type RowStatus,type XY} from "@/lib/agro-plan";
 import {listAgroPlans,loadAgroPlan,loadAgroPreview,saveAgroPlan,type AgroSaved,type AgroPreview} from "./actions";
 const AgroMap=dynamic(()=>import("./agro-map"),{ssr:false,loading:()=> <div className="grid h-[450px] place-items-center rounded-2xl bg-white text-sm">Preparando mapa agrícola…</div>});
-type Props={surveys:Survey[];initialSurveyId:string|null;initialPlan:AgroPlan|null;initialName:string;initialSaved:AgroSaved[];initialError:string};
+type Props={surveys:Survey[];initialSurveyId:string|null;initialJobId:string|null;initialPlan:AgroPlan|null;initialName:string;initialSaved:AgroSaved[];initialError:string};
 const fmt=(n:number,digits=2)=>n.toLocaleString("pt-BR",{maximumFractionDigits:digits});
 const inputClass="mt-1 w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
 const button="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold disabled:opacity-40";
@@ -14,8 +14,10 @@ const values=(s:AgroSettings)=>({mode:s.mode,spacing:String(s.spacing_m),bearing
 function settings(v:ReturnType<typeof values>):AgroSettings{return {mode:v.mode,spacing_m:Number(v.spacing),bearing_deg:Number(v.bearing),end_margin_m:Number(v.margin),application_l_ha:v.application.trim()===""?null:Number(v.application)};}
 function download(content:string,type:string,name:string){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
-export default function AgroWorkspace({surveys,initialSurveyId,initialPlan,initialName,initialSaved,initialError}:Props){
+export default function AgroWorkspace({surveys,initialSurveyId,initialJobId,initialPlan,initialName,initialSaved,initialError}:Props){
  const [plan,setPlan]=useState<AgroPlan|null>(initialPlan),[name,setName]=useState(initialName),[surveyId,setSurveyId]=useState(initialSurveyId||"");
+ const [jobId,setJobId]=useState(initialJobId);
+ const mapSection=useRef<HTMLDivElement>(null),scrollToMap=useRef(true);
  const [params,setParams]=useState(values(initialPlan?.settings||DEFAULT_AGRO_SETTINGS));
  const [drawing,setDrawing]=useState<"boundary"|"exclusion"|null>(null),[draft,setDraft]=useState<XY[]>([]),[selected,setSelected]=useState<string[]>([]),[fit,setFit]=useState(initialPlan?1:0);
  const [center,setCenter]=useState<XY|null>(null),[coordinate,setCoordinate]=useState(""),[message,setMessage]=useState(initialError),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false);
@@ -66,9 +68,30 @@ export default function AgroWorkspace({surveys,initialSurveyId,initialPlan,initi
   }catch(e){setMessage((e as Error).message);}finally{setBusy(false);saveLock.current=false;}
  }
  async function openHistory(){setHistoryOpen(true);setBusy(true);try{const data=await listAgroPlans();if(data.error)throw Error(data.error);setSaved(data.rows);}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
- async function load(id:string){if(dirty&&!window.confirm("Abrir uma versão salva e substituir o rascunho atual?"))return;setBusy(true);try{const a=await loadAgroPlan(id);if(a.error||!a.row)throw Error(a.error);setPlan(a.row.plan);setParams(values(a.row.plan.settings));setName(a.row.name);setSurveyId(a.row.survey_id||"");setSelected([]);setDrawing(null);setDraft([]);setPage(0);setFit(n=>n+1);setDirty(false);requestId.current=null;setHistoryOpen(false);setPreview(null);setPreviewMessage("");setMessage("Versão carregada. Novas alterações serão salvas como outra versão.");}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
- async function loadOrtho(){if(!surveyId)return;const seq=++previewRequest.current;setPreviewBusy(true);try{const a=await loadAgroPreview(surveyId);if(seq!==previewRequest.current)return;setPreview(a.preview);setPreviewMessage(a.error||"Ortofoto concluída carregada. O limite do talhão deve ser desenhado por você.");if(a.preview&&!plan)setFit(n=>n+1);}catch{setPreviewMessage("Não foi possível carregar a ortofoto agora.");}finally{if(seq===previewRequest.current)setPreviewBusy(false);}}
- useEffect(()=>{if(!surveyId){setPreview(null);setPreviewMessage("");return;}void loadOrtho();},[surveyId]);
+ async function load(id:string){if(dirty&&!window.confirm("Abrir uma versão salva e substituir o rascunho atual?"))return;setBusy(true);try{const a=await loadAgroPlan(id);if(a.error||!a.row)throw Error(a.error);setPlan(a.row.plan);setParams(values(a.row.plan.settings));setName(a.row.name);setSurveyId(a.row.survey_id||"");setJobId(null);setSelected([]);setDrawing(null);setDraft([]);setPage(0);setFit(n=>n+1);setDirty(false);requestId.current=null;setHistoryOpen(false);setMessage("Versão carregada. Novas alterações serão salvas como outra versão.");}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
+ const loadOrtho=useCallback(async()=>{
+  const seq=++previewRequest.current;
+  setPreview(null);setPreviewMessage("");setPreviewBusy(!!surveyId);setShowOrtho(true);
+  if(!surveyId)return;
+  try{
+   const answer=await loadAgroPreview(surveyId,jobId);
+   if(seq!==previewRequest.current)return;
+   setPreview(answer.preview);setPreviewMessage(answer.error||"Mesma ortofoto do levantamento. Seus desenhos não alteram o resultado original.");
+   if(answer.preview){
+    setFit(n=>n+1);
+    if(scrollToMap.current&&window.location.hash==="#mapa-plantio"){
+     scrollToMap.current=false;requestAnimationFrame(()=>mapSection.current?.scrollIntoView({block:"start"}));
+    }
+   }
+  }catch{if(seq===previewRequest.current)setPreviewMessage("Não foi possível carregar a ortofoto agora. Tente novamente; o original permanece intacto.");}
+  finally{if(seq===previewRequest.current)setPreviewBusy(false);}
+ },[surveyId,jobId]);
+ useEffect(()=>{
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronize the external survey preview loader, canceling stale responses.
+  void loadOrtho();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- This is a request counter, not a DOM ref; invalidate outstanding responses.
+  return()=>{previewRequest.current++;};
+ },[loadOrtho]);
  const filename=(name||"talhao").replace(/[^\w-]/g,"_").slice(0,80);
  return <>
   <div className="mb-4 flex flex-wrap items-center gap-2"><button className={primary} onClick={save} disabled={!plan||!result||busy||!!drawing||paramsChanged}>{busy?"Aguarde…":"Salvar versão na conta"}</button><button className={button} onClick={openHistory} disabled={busy}>Planos salvos</button><span className="text-xs text-slate-500">{dirty?"Rascunho com alterações não salvas":"Versões anteriores são preservadas"}</span></div>
@@ -78,10 +101,13 @@ export default function AgroWorkspace({surveys,initialSurveyId,initialPlan,initi
   <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
    <section className="min-w-0">
     <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{[["Área do talhão",result?fmt(result.area_m2/10000)+" ha":"—"],["Área útil",result?fmt(result.usable_area_m2/10000)+" ha":"—"],["Linhas / faixas",result?String(rows.length):"—"],["Extensão ativa",result?fmt(result.active_length_m/1000)+" km":"—"]].map(([label,value])=><div key={label} className="min-w-0 rounded-xl border border-white bg-white p-3"><span className="text-xs text-slate-500">{label}</span><strong data-testid={label==="Linhas / faixas"?"agro-row-count":undefined} className="mt-1 block text-xl tabular-nums">{value}</strong></div>)}</div>
+    <div ref={mapSection} id="mapa-plantio" className="scroll-mt-3">
+    {surveyId&&<p className="mb-2 text-xs font-semibold text-emerald-900">{previewBusy?"Buscando a ortofoto do levantamento…":preview?"Ortofoto do levantamento · original preservado":previewMessage}</p>}
     <div className="mb-3 flex flex-wrap gap-2"><button className={button} disabled={busy} onClick={()=>begin("boundary")}>Desenhar talhão</button><button className={button} disabled={!plan||busy} onClick={()=>begin("boundary",true)}>Editar limite</button><button className={button} disabled={!plan||busy} onClick={()=>begin("exclusion")}>Desenhar exclusão</button><button className={button} disabled={!plan&&!preview} onClick={()=>setFit(v=>v+1)}>Enquadrar</button></div>
     {drawing&&<div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-orange-200 bg-orange-50 p-3"><b className="text-xs">{drawing==="boundary"?"Limite do talhão":"Área de exclusão"} · {draft.length} vértices</b><button className={primary} disabled={draft.length<3} onClick={finish}>Concluir contorno</button><button className={button} disabled={!draft.length} onClick={()=>setDraft(v=>v.slice(0,-1))}>Desfazer ponto</button><button className={button} onClick={()=>{setDraft([]);setDrawing(null);}}>Cancelar desenho</button></div>}
-    <form onSubmit={e=>{e.preventDefault();go();}} className="mb-3 flex min-w-0 gap-2"><input className={inputClass} aria-label="Latitude e longitude do talhão" placeholder="Latitude, longitude para localizar" value={coordinate} onChange={e=>setCoordinate(e.target.value)}/><button className={button}>Ir</button></form>
-    <AgroMap surveyId={surveyId} data={data} draft={draft} drawing={drawing} selected={selected} center={center} fit={fit} preview={preview} showOrtho={showOrtho} onPoint={p=>{if(validAgroPoint(p)&&draft.length<200)setDraft(v=>[...v,p]);}} onMove={(i,p)=>{if(validAgroPoint(p))setDraft(v=>v.map((q,j)=>i===j?p:q));}} onRow={selectRow}/>
+    {!preview&&<form onSubmit={e=>{e.preventDefault();go();}} className="mb-3 flex min-w-0 gap-2"><input className={inputClass} aria-label="Latitude e longitude do talhão" placeholder="Latitude, longitude para localizar" value={coordinate} onChange={e=>setCoordinate(e.target.value)}/><button className={button}>Ir</button></form>}
+    <AgroMap surveyId={surveyId} data={data} draft={draft} drawing={drawing} selected={selected} center={center} fit={fit} preview={preview} showOrtho={showOrtho} previewBusy={previewBusy} onPoint={p=>{if(validAgroPoint(p)&&draft.length<200)setDraft(v=>[...v,p]);}} onMove={(i,p)=>{if(validAgroPoint(p))setDraft(v=>v.map((q,j)=>i===j?p:q));}} onRow={selectRow}/>
+    </div>
     <section className="mt-4 rounded-2xl border border-white bg-white p-4">
      <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Linhas do talhão</h2><span className="text-xs">{selected.length} selecionada(s)</span></div>
      <div className="mt-3 flex flex-wrap gap-2"><button className={button} disabled={!rows.length} onClick={()=>setSelected(rows.map(r=>r.id))}>Selecionar todas</button><button className={button} disabled={!selected.length} onClick={()=>setSelected([])}>Limpar seleção</button></div>
@@ -92,7 +118,7 @@ export default function AgroWorkspace({surveys,initialSurveyId,initialPlan,initi
     </section>
    </section>
    <aside className="min-w-0 space-y-4">
-    <section className="rounded-2xl bg-white p-4"><h2 className="mb-3 font-semibold">01 · Talhão e levantamento</h2><label className="block text-xs">Nome do talhão<input aria-label="Nome do talhão" maxLength={120} className={inputClass} value={name} onChange={e=>{setName(e.target.value);changed();}}/></label><label className="mt-3 block text-xs">Vincular ao levantamento<select aria-label="Levantamento do plano agro" className={inputClass} value={surveyId} onChange={e=>{setSurveyId(e.target.value);changed();previewRequest.current++;setPreviewBusy(false);setPreview(null);setPreviewMessage("");}}><option value="">Planejamento independente</option>{surveys.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button className={button+" mt-3 w-full"} disabled={!surveyId||previewBusy} onClick={loadOrtho}>{previewBusy?"Carregando…":"Carregar ortofoto concluída"}</button>{preview&&<label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={showOrtho} onChange={e=>setShowOrtho(e.target.checked)}/>Mostrar ortofoto</label>}{previewMessage&&<p className="mt-2 text-xs leading-5 text-slate-500">{previewMessage}</p>}
+    <section className="rounded-2xl bg-white p-4"><h2 className="mb-3 font-semibold">01 · Talhão e levantamento</h2><label className="block text-xs">Nome do talhão<input aria-label="Nome do talhão" maxLength={120} className={inputClass} value={name} onChange={e=>{setName(e.target.value);changed();}}/></label><label className="mt-3 block text-xs">Vincular ao levantamento<select aria-label="Levantamento do plano agro" className={inputClass} value={surveyId} onChange={e=>{setSurveyId(e.target.value);setJobId(null);changed();previewRequest.current++;setPreviewBusy(false);setPreview(null);setPreviewMessage("");}}><option value="">Planejamento independente</option>{surveys.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><button className={button+" mt-3 w-full"} disabled={!surveyId||previewBusy} onClick={loadOrtho}>{previewBusy?"Carregando…":"Carregar ortofoto concluída"}</button>{preview&&<label className="mt-3 flex items-center gap-2 text-xs"><input type="checkbox" checked={showOrtho} onChange={e=>setShowOrtho(e.target.checked)}/>Mostrar ortofoto</label>}{previewMessage&&<p className="mt-2 text-xs leading-5 text-slate-500">{previewMessage}</p>}
     </section>
     <section className="rounded-2xl bg-white p-4"><h2 className="mb-3 font-semibold">02 · Gerar linhas / faixas</h2><div className="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de planejamento">{([['planting','Plantio'],['spraying','Pulverização']] as const).map(([v,label])=><button key={v} className={params.mode===v?primary:button} aria-pressed={params.mode===v} onClick={()=>setParams(p=>({...p,mode:v}))}>{label}</button>)}</div>
      <label className="mt-3 block text-xs">{params.mode==="planting"?"Espaçamento entre linhas (m)":"Distância entre faixas centrais (m)"}<input aria-label="Espaçamento em metros" type="number" min={0.2} max={100} step="any" className={inputClass} value={params.spacing} onChange={e=>setParams(p=>({...p,spacing:e.target.value}))}/></label>
