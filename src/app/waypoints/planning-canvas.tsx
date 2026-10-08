@@ -1,4 +1,5 @@
 "use client";
+import type {ImportedMapLocation} from "@/lib/google-maps-location";
 import InfoPopover from "@/components/info-popover";
 
 import MapMeasurement from "@/components/measurement/map-measurement";
@@ -17,7 +18,7 @@ const basemaps={
  relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:'Shaded relief © 2014 <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>'}
 } as const;
 type Basemap=keyof typeof basemaps;
-type Props={adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
+type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
@@ -77,7 +78,13 @@ export default function PlanningCanvas(props:Props){
   const marker=new maplibregl.Marker({element}).setLngLat(point).addTo(m);
   return()=>{marker.remove();};
  },[ready,props.userPosition]);
+ useEffect(()=>{
+  const m=map.current,p=props.importedLocation;if(!m||!ready||!p)return;
+  const marker=new maplibregl.Marker({color:"#176953"}).setLngLat([p.lon,p.lat]).addTo(m);
+  marker.getElement().setAttribute("aria-label",p.kind==="view"?"Centro importado do Google Maps":"Ponto importado do Google Maps");marker.getElement().dataset.testid="planning-imported-marker";marker.getElement().style.pointerEvents="none";
+  return()=>{marker.remove();};
+ },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <><div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
+ return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
 }

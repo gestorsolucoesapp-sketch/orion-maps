@@ -1,7 +1,8 @@
+import {validateImportedMapLocation,type ImportedMapLocation} from "./google-maps-location";
 import {validateMeasureDrawing,measureDrawing,type MeasureDrawing,type MeasurePoint} from "./map-measurement";
 import {droneProfiles,type CameraProfile,type DroneProfile} from "./drone-cameras";
 export type SurveyBasemap="streets"|"satellite"|"topo";
-export type SurveyPlanning={version:1;center:MeasurePoint|null;zoom:number;basemap:SurveyBasemap;cityQuery:string;drawing:MeasureDrawing};
+export type SurveyPlanning={importedLocation?:ImportedMapLocation|null;version:1;center:MeasurePoint|null;zoom:number;basemap:SurveyBasemap;cityQuery:string;drawing:MeasureDrawing};
 export type CustomDroneProfile={id:string;name:string;camera:CameraProfile;source:string;features:string;created_at?:string};
 export type SurveyDroneConfig={version:1;name:string;camera:CameraProfile|null;custom_id:string|null;source:string;features:string};
 export const SUGGESTED_DRONE="DJI Mini 5 Pro";
@@ -15,7 +16,7 @@ export function validateSurveyPlanning(v:unknown):SurveyPlanning{
  if(!["streets","satellite","topo"].includes(String(p.basemap)))throw Error("Camada do mapa inválida.");
  const center=p.center===null?null:validateMeasureDrawing({kind:"path",points:[p.center]}).points[0];
  const drawing=validateMeasureDrawing(p.drawing),metrics=measureDrawing(drawing);if(metrics.issue)throw Error(metrics.issue);
- return {version:1,center,zoom:numeric(p.zoom,0,22,"o zoom"),basemap:p.basemap as SurveyBasemap,cityQuery:text(p.cityQuery,200,"a cidade"),drawing};
+ return {version:1,center,zoom:numeric(p.zoom,0,22,"o zoom"),basemap:p.basemap as SurveyBasemap,cityQuery:text(p.cityQuery,200,"a cidade"),drawing,...(p.importedLocation!==undefined?{importedLocation:p.importedLocation===null?null:validateImportedMapLocation(p.importedLocation)}:{})};
 }
 export function validateCustomDrone(v:unknown):CustomDroneProfile{
  if(!v||typeof v!=="object")throw Error("Cadastro de drone inválido.");const p=v as Record<string,unknown>,c=p.camera as Record<string,unknown>|undefined;
