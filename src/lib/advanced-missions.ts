@@ -42,5 +42,6 @@ export function flightWarnings(args:{drone:string;mode:string;points:number;wayp
  if(a.requiredInterval!==null&&a.requiredInterval<a.photoInterval)w.push("Sobreposição frontal insuficiente para velocidade e intervalo selecionados.");
  if(!a.terrainConfirmed)w.push("Altura relativa à decolagem: o seguimento de relevo e obstáculos não foram verificados.");
  if(a.mode==='orbit')w.push("Órbita calculada em altitude única. Verifique árvores, edificações e obstáculos em toda a circunferência.");
+ if(a.mode==='oblique')w.push("Grade oblíqua: GSD, espaçamento e sobreposição são aproximações de câmera nadir e não garantem cobertura de fachadas. Verifique enquadramento e obstáculos.");
  return w;
 }
