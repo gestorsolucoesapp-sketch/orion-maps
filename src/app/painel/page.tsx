@@ -145,7 +145,8 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
                 <div className="print:hidden"><DeleteSurveyButton survey={active} processing={activeProcessing}/></div>
               </div>
 
-              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
+              <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5 print:hidden">
+                <Link href={`/waypoints?levantamento=${active.id}`} className="rounded-2xl border border-white bg-white/90 p-3 text-center text-xs font-semibold text-slate-700 shadow-sm"><span className="mb-1 block text-lg">⌁</span>Planejar voo</Link>
                 <a href="#editar" className="rounded-2xl border border-white bg-white/90 p-3 text-center text-xs font-semibold text-slate-700 shadow-sm"><span className="mb-1 block text-lg">✎</span>Editar informações</a>
                 <a href="#imagens" className="rounded-2xl border border-white bg-white/90 p-3 text-center text-xs font-semibold text-slate-700 shadow-sm"><span className="mb-1 block text-lg">▧</span>Adicionar imagens</a>
                 <Link href={activeProductsHref} className="rounded-2xl border border-white bg-white/90 p-3 text-center text-xs font-semibold text-slate-700 shadow-sm"><span className="mb-1 block text-lg">▶</span>Processamento</Link>

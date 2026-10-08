@@ -1,7 +1,8 @@
+import type {SurveyPlanning,SurveyDroneConfig} from "../survey-planning";
 import { getCurrentAccessToken, getCurrentUser } from "./auth";
 import { getSupabaseConfig } from "./config";
 
-export type Survey = { id: string; name: string; location: string; drone: string; flight_date: string | null; notes: string; created_at: string; deletion_requested_at: string | null };
+export type Survey = { planning_context?:SurveyPlanning|null; drone_config?:SurveyDroneConfig|null; id: string; name: string; location: string; drone: string; flight_date: string | null; notes: string; created_at: string; deletion_requested_at: string | null };
 export type SurveyImage = { name: string; id: string; created_at: string; metadata: { size?: number; mimetype?: string } | null };
 export const imageBucket = "survey-images";
 
@@ -32,7 +33,7 @@ export async function supabaseRequest<T>(path: string, token: string, init: Requ
 }
 
 export async function listSurveys(token: string) {
-  return supabaseRequest<Survey[]>("/rest/v1/surveys?select=id,name,location,drone,flight_date,notes,created_at,deletion_requested_at&order=created_at.desc&limit=500", token);
+  return supabaseRequest<Survey[]>("/rest/v1/surveys?select=id,name,location,drone,flight_date,notes,created_at,deletion_requested_at,planning_context,drone_config&order=created_at.desc&limit=500", token);
 }
 
 export async function requireSurvey(id: string, token: string) {

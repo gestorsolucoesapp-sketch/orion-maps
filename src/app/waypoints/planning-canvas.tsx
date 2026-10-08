@@ -1,4 +1,6 @@
 "use client";
+import InfoPopover from "@/components/info-popover";
+
 import MapMeasurement from "@/components/measurement/map-measurement";
 import {isMeasuringMap} from "@/lib/measurement-map-state";
 
@@ -77,5 +79,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.userPosition]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <><div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small>}{basemap==="relief"&&<small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
+ return <><div className="mission-map-wrap"><div ref={el} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
 }

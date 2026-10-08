@@ -1,4 +1,6 @@
 "use client";
+import InfoPopover from "@/components/info-popover";
+
 import dynamic from "next/dynamic";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import type {Survey} from "@/lib/supabase/surveys";
@@ -127,7 +129,7 @@ export default function AgroWorkspace({surveys,initialSurveyId,initialJobId,init
      {params.mode==="spraying"&&<label className="mt-3 block text-xs">Volume de aplicação informado (L/ha), opcional<input aria-label="Volume informado por hectare" type="number" min={0.01} step="any" className={inputClass} placeholder="Sem recomendação automática" value={params.application} onChange={e=>setParams(p=>({...p,application:e.target.value}))}/></label>}
      <button className={primary+" mt-4 w-full"} onClick={regenerate} disabled={!plan||!!drawing||busy}>Gerar linhas com estes parâmetros</button>
      {paramsChanged&&<p role="status" className="mt-2 text-xs text-amber-800">Parâmetros editados: gere novamente antes de salvar/exportar.</p>}
-     <p className="mt-3 text-xs leading-5 text-slate-500">Valores iniciais são exemplos editáveis, não recomendações agronômicas. Linhas retas em planta; não são linhas em nível.</p>
+     <InfoPopover title="Planejamento agrícola"><p className="mt-3 text-xs leading-5 text-slate-500">Valores iniciais são exemplos editáveis, não recomendações agronômicas. Linhas retas em planta; não são linhas em nível.</p></InfoPopover>
      {plan?.exclusions.length? <div className="mt-3 border-t pt-3 text-xs"><b>{plan.exclusions.length} exclusão(ões)</b>{plan.exclusions.map((_,i)=><button key={i} className="mt-2 block text-red-800 underline" disabled={!!drawing} onClick={()=>removeExclusion(i)}>Remover exclusão {i+1}</button>)}</div>:null}
     </section>
     <section id="agro-culture-panel" className="scroll-mt-4 rounded-2xl border border-emerald-200 bg-white p-4"><h2 className="font-semibold">03 · O que vai em cada linha</h2><p className="mt-1 text-xs text-slate-500">Selecione no mapa ou na lista e aplique.</p>
@@ -139,7 +141,7 @@ export default function AgroWorkspace({surveys,initialSurveyId,initialJobId,init
     </section>
     <section className="rounded-2xl bg-white p-4"><h2 className="mb-3 font-semibold">04 · Importar e exportar</h2><label className="block text-xs">GeoJSON de talhão ou JSON Orion<input aria-label="Importar plano agro" type="file" accept=".json,.geojson" className="mt-2 w-full min-w-0 text-xs" onChange={e=>{const file=e.target.files?.[0];if(file)void importFile(file);e.target.value="";}}/></label>
      <div className="mt-3 grid gap-2"><button className={button} disabled={!plan||!result||paramsChanged||!!drawing} onClick={()=>{if(plan)download(JSON.stringify({format:"orion-agro",name,plan},null,2),"application/json",filename+'-editavel.json');}}>Exportar JSON editável</button><button className={button} disabled={!plan||!result||paramsChanged||!!drawing} onClick={()=>download(JSON.stringify(data,null,2),"application/geo+json",filename+'.geojson')}>Exportar GeoJSON</button><button className={button} disabled={!result||paramsChanged||!!drawing} onClick={()=>{if(result)download(agroCsv(result),"text/csv;charset=utf-8",filename+'-linhas.csv');}}>Exportar CSV das linhas</button></div>
-     <p className="mt-3 text-xs leading-5 text-slate-500">Arquivos para planejamento e GIS. Não enviam comandos ao drone.</p>
+     <InfoPopover title="Planejamento agrícola"><p className="mt-3 text-xs leading-5 text-slate-500">Arquivos para planejamento e GIS. Não enviam comandos ao drone.</p></InfoPopover>
     </section>
    </aside>
   </div>

@@ -1,3 +1,4 @@
+import InfoPopover from "@/components/info-popover";
 import Link from "next/link";
 import Image from "next/image";
 import {redirect} from "next/navigation";
@@ -24,7 +25,7 @@ export default async function AgroPage({searchParams}:{searchParams:Promise<{lev
     <nav className="flex flex-wrap gap-2 text-sm">{surveyId&&<Link className="rounded-xl border border-white/20 px-4 py-3" href={`/processamento/resultados?levantamento=${surveyId}`}>Ver resultado original</Link>}<Link className="rounded-xl border border-white/20 px-4 py-3" href="/painel">Levantamentos</Link><Link className="rounded-xl border border-white/20 px-4 py-3" href="/waypoints">Planejar voo</Link></nav>
    </header>
    <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Talhões, linhas e culturas</h1>
-   <p className="mb-5 mt-2 text-sm text-slate-600">Planeje sobre a ortofoto do levantamento. Os desenhos ficam separados; a ortofoto e os resultados originais não são alterados.</p>
+   <InfoPopover title="Planejamento sobre a ortofoto"><p className="mb-5 mt-2 text-sm text-slate-600">Planeje sobre a ortofoto do levantamento. Os desenhos ficam separados; a ortofoto e os resultados originais não são alterados.</p></InfoPopover>
    <AgroWorkspace surveys={surveys} initialSurveyId={surveyId} initialJobId={loaded.row?null:query.processamento||null} initialPlan={loaded.row?.plan||null} initialName={loaded.row?.name||"Novo talhão"} initialSaved={availablePlans} initialError={loaded.error||saved.error}/>
   </div>
  </main>;

@@ -1,4 +1,6 @@
 "use client";
+import InfoPopover from "@/components/info-popover";
+
 import MapMeasurement from "@/components/measurement/map-measurement";
 import {isMeasuringMap} from "@/lib/measurement-map-state";
 
@@ -109,6 +111,6 @@ export default function AgroMap(props:Props){
   {orthoError&&<div role="alert" className="flex flex-wrap items-center gap-3 p-3 text-xs text-amber-900"><span>{orthoError}</span><button type="button" onClick={()=>setOrthoRetry(n=>n+1)} className="rounded-lg border px-3 py-2">Tentar novamente</button></div>}
   <MapMeasurement map={ready?measurementMap:null} surveyId={props.surveyId||null} disabled={!!props.drawing}/>
   {error&&<p role="alert" className="p-3 text-xs text-amber-900">{error}</p>}
-  <p className="border-t border-slate-100 p-3 text-xs text-slate-600">Limite verde · exclusões vermelhas · seleção laranja · linhas coloridas por cultura. As linhas não possuem conexões automáticas através das exclusões.</p>
+  <InfoPopover title="Legenda do planejamento"><p className="border-t border-slate-100 p-3 text-xs text-slate-600">Limite verde · exclusões vermelhas · seleção laranja · linhas coloridas por cultura. As linhas não possuem conexões automáticas através das exclusões.</p></InfoPopover>
  </div>;
 }

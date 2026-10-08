@@ -1,28 +1,15 @@
 "use client";
+import InfoPopover from "@/components/info-popover";
+
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Survey, SurveyImage } from "@/lib/supabase/surveys";
-import { openImage, prepareImageUpload, saveSurvey } from "./survey-actions";
+import { openImage, prepareImageUpload } from "./survey-actions";
 import DeleteSurveyButton from "./delete-survey-button";
-import CityMapPreview from "./city-map-preview";
 
-const input = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
-export function SurveyForm({ survey }: { survey?: Survey }) {
-  const [state, action, pending] = useActionState(saveSurvey, {});
-  const [city, setCity] = useState(survey?.location ?? "");
-  return <form action={action} className="space-y-5">
-    <input type="hidden" name="id" value={survey?.id ?? ""} />
-    <label className="block text-sm font-semibold">Nome do levantamento<input className={input} name="name" required minLength={2} maxLength={120} defaultValue={survey?.name} placeholder="Ex.: Área experimental — setembro" /></label>
-    <div className="grid gap-5 sm:grid-cols-2"><label className="block text-sm font-semibold">Local<input className={input} name="location" maxLength={200} value={city} onChange={event => setCity(event.target.value)} placeholder="Ex.: Mococa - SP" /></label><label className="block text-sm font-semibold">Data do voo<input className={input} name="flight_date" type="date" defaultValue={survey?.flight_date ?? ""} /></label></div>
-    <CityMapPreview city={city} />
-    <label className="block text-sm font-semibold">Drone / câmera<input className={input} name="drone" maxLength={100} defaultValue={survey?.drone} placeholder="Modelo utilizado no levantamento" /></label>
-    <label className="block text-sm font-semibold">Anotações<textarea className={input} name="notes" rows={4} maxLength={3000} defaultValue={survey?.notes} placeholder="Objetivo, condições do voo e observações de campo" /></label>
-    {state.error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}
-    <button disabled={pending} aria-busy={pending} className="rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{pending ? "Salvando" : survey ? "Salvar alterações" : "Criar levantamento"}</button>
-  </form>;
-}
+export {default as SurveyForm} from "./survey-form";
 
 function sizeLabel(bytes: number) { return `${(bytes / 1024 / 1024).toFixed(1)} MB`; }
 function originalName(name: string) { return name.replace(/^[0-9a-f-]{36}_/, ""); }
@@ -85,7 +72,7 @@ export function ImageWorkspace({ survey, images }: { survey: Survey; images: Sur
   return <div className="space-y-6">
     <div className="rounded-2xl border border-dashed border-emerald-300 bg-emerald-50/60 p-6 print:hidden">
       <h3 className="font-semibold">Adicionar imagens do voo</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">JPG e PNG originais, até 50 MB por foto e 200 fotos por lote. O envio vai diretamente ao armazenamento privado. Mantenha esta página aberta até concluir.</p>
+      <InfoPopover title="Envio de fotografias"><p className="mt-2 text-sm leading-6 text-slate-600">JPG e PNG originais, até 50 MB por foto e 200 fotos por lote. O envio vai diretamente ao armazenamento privado. Mantenha esta página aberta até concluir.</p></InfoPopover>
       <input aria-label="Selecionar fotos do levantamento" className="mt-4 block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-4 file:py-2 file:font-semibold" type="file" accept="image/jpeg,image/png" multiple disabled={busy} onChange={event => {
         const files = Array.from(event.target.files ?? []);
         if (files.length > 200) { setMessage("Selecione no máximo 200 fotos por lote."); event.target.value = ""; return; }

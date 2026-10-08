@@ -1,5 +1,7 @@
 "use server";
 
+import {validateStoredConfig,validateSurveyPlanning,customConfig} from "@/lib/survey-planning";
+import {readCustomDroneProfile} from "./drone-actions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getSupabaseConfig } from "@/lib/supabase/config";
@@ -21,7 +23,13 @@ export async function saveSurvey(_state: Result, form: FormData): Promise<Result
     if (name.length < 2 || name.length > 120) return { error: "Informe um nome entre 2 e 120 caracteres." };
     if (location.length > 200 || drone.length > 100 || notes.length > 3000) return { error: "Um dos campos ultrapassou o limite de texto." };
     if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)))) return { error: "Informe uma data válida." };
-    const data = { name, location, drone, notes, flight_date: date || null };
+    const contextRaw=String(form.get("planning_context")||"null"),configRaw=String(form.get("drone_config")||"null");
+    if(contextRaw.length>50000||configRaw.length>16000)throw Error("Os dados do mapa ou do drone ultrapassam o limite permitido.");
+    const planning=form.has("planning_context")?validateSurveyPlanning(JSON.parse(contextRaw)):undefined;
+    let config=form.has("drone_config")?validateStoredConfig(JSON.parse(configRaw)):undefined;
+    if(config&&config.name!==drone)throw Error("O perfil selecionado não corresponde ao nome do drone.");
+    if(config?.custom_id)config=customConfig(await readCustomDroneProfile(config.custom_id));
+    const data = { name, location, drone, notes, flight_date: date || null,...(planning!==undefined?{planning_context:planning}:{}),...(config!==undefined?{drone_config:config}:{}) };
     if (id) {
       await requireSurvey(id, token);
       await supabaseRequest(`/rest/v1/surveys?id=eq.${id}`, token, { method: "PATCH", body: JSON.stringify(data) });
@@ -31,6 +39,7 @@ export async function saveSurvey(_state: Result, form: FormData): Promise<Result
     }
   } catch (error) { return { error: errorText(error) }; }
   revalidatePath("/painel");
+  if(form.get("destination")==="waypoints")redirect(`/waypoints?levantamento=${id}`);
   redirect(`/painel?levantamento=${id}`);
 }
 

@@ -1,35 +1,28 @@
 "use client";
-
-import { useEffect, useState } from "react";
-
-type Place = { lat: number; lon: number; label: string };
-export default function CityMapPreview({ city }: { city: string }) {
-  const [place, setPlace] = useState<Place | null>(null);
-  const [message, setMessage] = useState("");
-  useEffect(() => {
-    const query = city.trim();
-    if (query.length < 3) return;
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setMessage("Localizando cidade…");
-      try {
-        const response = await fetch(`/api/city-location?q=${encodeURIComponent(query)}`, { signal: controller.signal });
-        const result = await response.json() as Place & { error?: string };
-        if (!response.ok) throw new Error(result.error || "Cidade não encontrada.");
-        setPlace(result); setMessage("");
-      } catch (error) {
-        if (!controller.signal.aborted) { setPlace(null); setMessage(error instanceof Error ? error.message : "Falha ao localizar."); }
-      }
-    }, 900);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [city]);
-  if (!place) return <p role="status" className="mt-2 text-xs font-normal text-slate-500">{message || "Digite o município e o estado para posicionar o mapa."}</p>;
-  const delta = 0.06;
-  const bbox = [place.lon-delta,place.lat-delta,place.lon+delta,place.lat+delta].join(",");
-  const url = `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${place.lat},${place.lon}`)}`;
-  return <div className="mt-3 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50">
-    <div className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-normal text-emerald-900"><span className="truncate">📍 {place.label}</span><span className="shrink-0">Local aproximado</span></div>
-    <iframe key={url} src={url} title={`Mapa centralizado em ${place.label}`} loading="lazy" className="h-56 w-full border-0 sm:h-64" referrerPolicy="strict-origin-when-cross-origin" />
-    <p className="px-3 py-2 text-xs font-normal text-slate-600">O mapa indica o centro da cidade, não os limites do terreno. © OpenStreetMap contributors.</p>
-  </div>;
+import dynamic from "next/dynamic";
+import {useEffect,useRef,useState} from "react";
+import type {SurveyPlanning} from "@/lib/survey-planning";
+import type {CityPlace} from "./survey-map-canvas";
+const SurveyMapCanvas=dynamic(()=>import("./survey-map-canvas"),{ssr:false,loading:()=> <div className="grid min-h-96 place-items-center rounded-2xl bg-slate-50 text-sm" role="status">Preparando mapa…</div>});
+export default function CityMapPreview({city,value,onChange}:{city:string;value:SurveyPlanning;onChange:(value:SurveyPlanning)=>void}){
+ const [place,setPlace]=useState<CityPlace|null>(null),[status,setStatus]=useState(""),[error,setError]=useState("");
+ const initial=useRef(true),saved=useRef(value);
+ useEffect(()=>{
+  const query=city.trim(),skip=initial.current&&!!saved.current.center&&saved.current.cityQuery===query;initial.current=false;
+  if(skip)return;
+  const controller=new AbortController();
+  setError("");setStatus("");setPlace(null);
+  if(query.length<3)return;
+  const timer=setTimeout(async()=>{
+   setStatus("Localizando…");
+   try{
+    const response=await fetch(`/api/city-location?q=${encodeURIComponent(query)}`,{signal:controller.signal});
+    const result=await response.json();if(!response.ok)throw Error(result.error||"Cidade não encontrada.");
+    if(typeof result.lat!=="number"||typeof result.lon!=="number"||!Number.isFinite(result.lat)||!Number.isFinite(result.lon)||Math.abs(result.lat)>80||Math.abs(result.lon)>180||typeof result.label!=="string")throw Error("Coordenadas da cidade inválidas.");
+    if(!controller.signal.aborted){setPlace({lat:result.lat,lon:result.lon,label:result.label,query});setStatus("");}
+   }catch(e){if(!controller.signal.aborted){setError(e instanceof Error?e.message:"Falha ao localizar a cidade.");setStatus("");}}
+  },1000);
+  return()=>{clearTimeout(timer);controller.abort();};
+ },[city]);
+ return <SurveyMapCanvas city={city} value={value} onChange={onChange} place={place} status={status} error={error}/>;
 }
