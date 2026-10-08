@@ -57,3 +57,16 @@
 .gsd-readout{background:#f7f4e9;border-color:#bd572b}
 @media(max-width:800px){.flight-sidebar{background:#fff}.flight-sidebar nav{overflow-x:auto;flex-wrap:nowrap;max-width:100%}.flight-sidebar nav a{white-space:nowrap}}
 
+.flight-settings-heading{display:grid;gap:4px;padding:5px 2px 0;color:#17252a}
+.flight-settings-heading strong{font-size:16px;font-weight:650}
+.flight-settings-heading span{font-size:12px;color:#596665}
+.mobile-flight-shortcuts{display:none}
+#flight-camera,#flight-parameters,#flight-photos{scroll-margin-top:16px}
+@media(max-width:800px){
+  .mobile-flight-shortcuts{display:block;margin:0 0 14px;padding:14px;background:#fff;border:1px solid #d7d9d2;border-radius:6px}
+  .mobile-flight-shortcuts strong{display:block;margin-bottom:10px;color:#17252a;font-size:14px}
+  .mobile-flight-shortcuts div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .mobile-flight-shortcuts a{display:flex;align-items:center;justify-content:center;min-height:48px;padding:7px 5px;border:1px solid #c8cec9;border-radius:5px;color:#17252a;background:#f5f4ef;font-size:11px;font-weight:600;text-align:center;text-decoration:none;line-height:1.25}
+  .mobile-flight-shortcuts a:focus-visible{outline:2px solid #bd572b;outline-offset:2px}
+}
+
