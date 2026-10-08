@@ -26,11 +26,12 @@ import httpx
 import keyring
 import requests
 from supabase import create_client
+from PIL import Image, UnidentifiedImageError
 
 SUPABASE_URL = "https://zxmhpkcxwlpvkelqapbf.supabase.co"
 SUPABASE_KEY = "sb_publishable_Tcg2rXYt-HlQuvIP9jkdog_5CaSBVs-"
 SERVICE = "OrionMapsAgent"
-AGENT_VERSION = "0.3.18"
+AGENT_VERSION = "0.3.19"
 NODEODM = os.environ.get("ORION_NODEODM_URL", "http://127.0.0.1:3000").rstrip("/")
 ROOT = Path(os.environ.get("ORION_ROOT", r"D:\OrionMaps"))
 JOBS = ROOT / "jobs"
@@ -191,6 +192,39 @@ def download_images(sb, user_id: str, survey_id: str, dest: Path, job_id: str) -
                        progress=min(18, 2 + round(i / len(items) * 16)),
                        message=f"Baixando imagens: {i}/{len(items)}")
     return files
+
+def inspect_input_images(images: list[Path]) -> dict[str, Any]:
+    """Reject unusable input and record evidence; EXIF GPS is not an accuracy check."""
+    hashes: set[str] = set()
+    gps_count = 0
+    small_count = 0
+    duplicates = 0
+    for path in images:
+        try:
+            with Image.open(path) as photo:
+                width, height = photo.size
+                if width * height < 2_000_000:
+                    small_count += 1
+                if photo.getexif().get(34853):
+                    gps_count += 1
+                photo.verify()
+        except (OSError, ValueError, UnidentifiedImageError) as exc:
+            raise RuntimeError(f"Imagem inválida para fotogrametria: {path.name}") from exc
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        fingerprint = digest.hexdigest()
+        if fingerprint in hashes:
+            duplicates += 1
+        hashes.add(fingerprint)
+    if duplicates:
+        raise RuntimeError(f"Foram encontradas {duplicates} fotos duplicadas. Revise o lote antes de processar.")
+    if gps_count == 0:
+        raise RuntimeError("Nenhuma foto tem coordenadas GPS no EXIF. Este fluxo ainda não aceita GCP para georreferenciar o lote.")
+    return {"image_count": len(images), "gps_tagged_count": gps_count,
+            "small_image_count": small_count, "duplicate_count": 0,
+            "note": "GPS no EXIF não comprova precisão. Cobertura, nitidez e checkpoints precisam de conferência independente."}
 
 def nodeodm_json(response, operation: str) -> dict[str, Any]:
     response.raise_for_status()
@@ -392,11 +426,48 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
     web = products / "web"
     web.mkdir(exist_ok=True)
     ortho_src = find_one(odm, ["odm_orthophoto.tif"])
-    laz_src = find_one(odm, ["odm_georeferenced_model.laz", "*.laz"])
-
     ortho = products / "orthophoto.tif"
     cloud = products / "source_cloud.laz"
     shutil.copy2(ortho_src, ortho)
+
+    # The browser uses a small WGS84 preview; the technical raster keeps its own CRS.
+    requested = set(config.get("products") or [])
+    requested.add("orthophoto")
+    product_crs = {}
+    gdal = "ghcr.io/osgeo/gdal:ubuntu-full-latest"
+    mount = ["docker", "run", "--rm", "-v", f"{products}:/data", gdal]
+    def raster_crs(name: str) -> str | None:
+        raw = run(mount + ["gdalsrsinfo", "-o", "epsg", f"/data/{name}"], capture=True).strip()
+        return raw if raw.startswith("EPSG:") and raw[5:].isdigit() else None
+
+    if not requested.intersection({"dsm", "dtm", "contours", "hillshade", "slope", "hypsometry", "point_cloud"}):
+        update_job(sb, job_id, status="derivatives", stage="cartography", progress=80,
+                   message="Preparando ortofoto e arquivo técnico.")
+        run(mount + ["gdalwarp", "-t_srs", "EPSG:4326", "-r", "bilinear", "-dstalpha",
+                     "/data/orthophoto.tif", "/data/web/orthophoto_4326.tif"])
+        run(mount + ["gdal_translate", "-of", "PNG", "-co", "ZLEVEL=9",
+                     "/data/web/orthophoto_4326.tif", "/data/web/orthophoto_web.png"])
+        info = json.loads(run(mount + ["gdalinfo", "-json", "/data/web/orthophoto_4326.tif"], capture=True))
+        cc = info.get("cornerCoordinates") or {}
+        ul, lr = cc.get("upperLeft"), cc.get("lowerRight")
+        bounds = ({"west": float(ul[0]), "north": float(ul[1]),
+                   "east": float(lr[0]), "south": float(lr[1])} if ul and lr else None)
+        crs = raster_crs("orthophoto.tif")
+        intake_file = products.parent / "image_intake.json"
+        intake = json.loads(intake_file.read_text(encoding="utf-8")) if intake_file.exists() else None
+        report = products / "relatorio.json"
+        report.write_text(json.dumps({"generated_at": utcnow(), "source_crs": crs,
+                                      "product_crs": {"orthophoto": crs}, "bounds_wgs84": bounds,
+                                      "quality_status": "not_verified_without_independent_checkpoints",
+                                      "image_intake": intake}, ensure_ascii=False, indent=2), encoding="utf-8")
+        paths = {"orthophoto": web / "orthophoto_web.png", "report": report, "_meta": report}
+        if config.get("generate_cog"):
+            run(mount + ["gdal_translate", "-of", "COG", "-co", "COMPRESS=DEFLATE",
+                         "/data/orthophoto.tif", "/data/orthophoto_cog.tif"])
+            paths["other"] = products / "orthophoto_cog.tif"
+        return paths
+
+    laz_src = find_one(odm, ["odm_georeferenced_model.laz", "*.laz"])
     shutil.copy2(laz_src, cloud)
 
     update_job(sb, job_id, status="derivatives", stage="classifying_ground", progress=72,
@@ -426,9 +497,6 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
 
     update_job(sb, job_id, status="derivatives", stage="cartography", progress=81,
                message="Gerando curvas, relevo, declividade e hipsometria.")
-
-    gdal = "ghcr.io/osgeo/gdal:ubuntu-full-latest"
-    mount = ["docker", "run", "--rm", "-v", f"{products}:/data", gdal]
 
     run(mount + ["gdal_contour", "-a", "elev", "-i", "0.5", "/data/dtm.tif", "/data/curvas_050m.gpkg"])
     run(mount + ["gdaldem", "hillshade", "/data/dtm.tif", "/data/hillshade.tif", "-compute_edges"])
@@ -484,19 +552,27 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
     if cloud_web.stat().st_size >= 48 * 1024 * 1024:
         raise RuntimeError("A nuvem de pontos web permaneceu acima de 48 MB.")
 
+    product_crs["orthophoto"] = raster_crs("orthophoto.tif")
+    product_crs["dtm"] = raster_crs("dtm.tif")
+    product_crs["dsm"] = raster_crs("dsm.tif")
     report = products / "relatorio.json"
+    intake_file = products.parent / "image_intake.json"
+    intake = json.loads(intake_file.read_text(encoding="utf-8")) if intake_file.exists() else None
     report.write_text(json.dumps({
         "generated_at": utcnow(),
         "altitude_min_m": round(zmin, 3),
         "altitude_max_m": round(zmax, 3),
         "elevation_range_m": round(zmax-zmin, 3),
-        "source_crs": "EPSG:32723",
+        "source_crs": product_crs["orthophoto"],
+        "product_crs": product_crs,
+        "quality_status": "not_verified_without_independent_checkpoints",
+        "image_intake": intake,
         "bounds_wgs84": bounds,
         "contour_interval_m": 0.5,
         "notice": "Produtos derivados por fotogrametria. DTM em vegetação é uma estimativa e requer validação para uso topográfico/legal."
     }, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return {
+    paths = {
         "orthophoto": web / "orthophoto_web.png",
         "hillshade": web / "hillshade_web.png",
         "hypsometry": web / "hipsometria_web.png",
@@ -508,6 +584,12 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
         "report": report,
         "_meta": products / "relatorio.json",
     }
+    if config.get("generate_cog"):
+        run(mount + ["gdal_translate", "-of", "COG", "-co", "COMPRESS=DEFLATE",
+                     "/data/orthophoto.tif", "/data/orthophoto_cog.tif"])
+        paths["other"] = products / "orthophoto_cog.tif"
+    # Only requested deliverables are uploaded. The JSON report remains a provenance record.
+    return {kind: path for kind, path in paths.items() if kind in requested or kind in ("_meta", "report", "other")}
 
 def upload_file(sb, local: Path, remote: str, content_type: str,
                 *, bucket_limit_bytes: int | None = None) -> None:
@@ -578,6 +660,8 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
         "elevation_range_m": meta.get("elevation_range_m"),
         "bounds_wgs84": bounds,
         "preview_crs": "EPSG:4326",
+        "quality_status": meta.get("quality_status"),
+        "image_intake": meta.get("image_intake"),
     }
     specs = {
         "orthophoto": ("Ortofoto", "image/png", True),
@@ -589,6 +673,7 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
         "dsm": ("DSM", "image/tiff", False),
         "point_cloud": ("Nuvem de pontos - visualização web", "application/octet-stream", False),
         "report": ("Relatório do processamento", "application/json", False),
+        "other": ("Ortofoto técnica COG · GeoTIFF", "image/tiff", False),
     }
     bucket_limit_bytes = None
     try:
@@ -625,7 +710,8 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
             "web_preview_path": remote if preview else None,
             "mime_type": mime,
             "size_bytes": size,
-            "source_crs": "EPSG:32723",
+            "source_crs": ("EPSG:4326" if preview else
+                           (meta.get("product_crs") or {}).get("orthophoto" if kind == "other" else kind)),
             "bounds_wgs84": bounds,
             "metadata": row_meta,
         }
@@ -659,8 +745,11 @@ def process_job(sb, user, job: dict[str, Any]) -> None:
                        started_at=utcnow(), message="Preparando arquivos do levantamento.")
             images = download_images(sb, user.id, survey_id, images_dir, job_id)
 
+            intake = inspect_input_images(images)
+            (root / "image_intake.json").write_text(json.dumps(intake, ensure_ascii=False), encoding="utf-8")
+
             update_job(sb, job_id, status="validating", stage="validating", progress=19,
-                       message=f"{len(images)} imagens disponíveis. Preparando NodeODM.")
+                       message=f"{len(images)} imagens válidas; {intake['gps_tagged_count']} com GPS. Preparando NodeODM.")
 
             def remember_task(task_uuid: str) -> None:
                 # Preserve identity before commit, even when its HTTP response is lost.

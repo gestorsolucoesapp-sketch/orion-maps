@@ -37,7 +37,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
-  const reference=sorted[0];
+  const reference=sorted.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||sorted[0];
   const min=num(reference?.metadata??null,"altitude_min_m");
   const max=num(reference?.metadata??null,"altitude_max_m");
   const range=num(reference?.metadata??null,"elevation_range_m");
@@ -47,6 +47,12 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
     setDownloading(item.id);
     try{
       const signed=await freshProcessingUrl(item,"download");
+      if((item.size_bytes||0)>100*1024*1024){
+        const direct=document.createElement("a");
+        direct.href=signed;direct.target="_blank";direct.rel="noopener noreferrer";
+        document.body.appendChild(direct);direct.click();direct.remove();
+        return;
+      }
       const response=await fetch(signed,{cache:"no-store"});
       if(!response.ok)throw new Error();
       const blob=await response.blob();

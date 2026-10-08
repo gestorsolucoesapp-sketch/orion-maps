@@ -29,7 +29,7 @@ export default function GsdPage() {
     const blob = new Blob([JSON.stringify({ parameters: plan, results: result, assumptions: "Nadir; terreno plano; altura da imagem alinhada ao voo. Parâmetros informados pelo usuário." }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "orion-planejamento-gsd.json"; document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
-  return <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
+  return <main className="orion-calculator mx-auto max-w-6xl px-5 py-8 sm:px-8">
     <header className="flex items-center justify-between border-b border-slate-200 pb-6 print:hidden"><Link href="/painel" className="text-xl font-bold">ORION <span className="font-normal">MAPS</span></Link><Link href="/painel" className="text-sm font-semibold text-emerald-800">← Meus levantamentos</Link></header>
     <div className="py-9"><p className="text-xs font-bold tracking-widest text-emerald-700">PLANEJAMENTO · GSD</p><h1 className="mt-3 text-4xl font-semibold tracking-tight">Veja o detalhe antes do voo.</h1><p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600">Calcule a resolução esperada no solo, a cobertura de cada foto e o espaçamento para a sobreposição desejada.</p></div>
     <div className="grid items-start gap-7 lg:grid-cols-2">

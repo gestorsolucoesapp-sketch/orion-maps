@@ -1,13 +1,22 @@
-# Preparação de processamento — 19/09/2026
+# Processamento de ortofoto — estado em 08/10/2026
 
-Rota /processamento, protegida pela sessão existente e pelo proxy. Consulta levantamentos e imagens pelo token do usuário e pelas mesmas verificações de propriedade do painel. Sem credencial privilegiada no cliente. Upload e visualização reutilizam ImageWorkspace e suas server actions.
+O aplicativo cria tarefas privadas na página `/processamento`. O agente Windows da mesma conta baixa as fotos, usa NodeODM no Docker e envia produtos ao bucket privado `processing-results`. A página web não executa fotogrametria no servidor Vercel. Consulte `local-agent/README.md` para instalar ou atualizar o agente.
 
-Funciona: selecionar área, consultar/enviar fotos privadas, escolher quatro combinações de produtos, qualidade e resolução desejadas, registrar intenção de GCP, salvar/abrir rascunhos e exportar ficha JSON. Rascunhos ficam no navegador sob orion-processing-v1:<userId>, não no banco. Dados corrompidos bloqueiam gravação em vez de serem substituídos. A ficha não inclui fotos nem GCP.
+## Entrada e execução
 
-Pendente: servidor NodeODM/ODM, fila e execução real, progresso, resultados e download de produtos, importação/marcação GCP, RTK/MRK, correção geoidal e saída CAD. Não foram criados créditos, cobrança ou resultados fictícios. Nenhuma opção de processamento é enviada para um motor nesta etapa.
+- Fotos JPG/PNG originais no levantamento; até 50 MB por arquivo e 200 por lote na interface atual.
+- Antes de enviar ao NodeODM, o agente valida abertura das imagens, conta coordenadas GPS no EXIF e rejeita arquivos duplicados ou lotes sem nenhuma foto georreferenciada. GPS no EXIF não prova precisão; a triagem não avalia nitidez nem cobertura.
+- Presets: ortofoto, elevação, nuvem e completo. O preset de ortofoto evita derivados de terreno. Nos demais, o agente ainda calcula derivados antes de filtrar os produtos pedidos para upload.
+- A resolução em cm/pixel é uma configuração do motor, não uma promessa de acurácia.
+- Marcar “Este levantamento exige pontos de controle” impede iniciar o processamento enquanto GCP e checkpoints não puderem ser importados, marcados nas fotos e validados. O rascunho continua disponível.
 
-Referências: fluxo visual observado em Maps4me; produtos e conceitos consultados em https://docs.opendronemap.org/arguments/ . Interface e código próprios.
+## Saída e limites
 
-Verificação: quatro testes de validação/persistência; lint e build. Navegador local com área sintética: rascunho salvo, intenção GCP identificada como pendente, iniciar indisponível. Autenticação da rota verificada por redirecionamento; envio real de fotos na nova rota depende de sessão do proprietário. A tela temporária de teste foi removida.
+- A prévia da ortofoto é um PNG privado em WGS84. O novo arquivo técnico é um COG GeoTIFF no CRS extraído do raster produzido pelo NodeODM; aparece como download separado. O arquivo original local permanece no diretório do job. O armazenamento aceita objetos de até 2 GB; arquivos maiores falham com diagnóstico, sem fingir que foram entregues.
+- DTM e DSM mantêm seus próprios CRS técnicos. Os metadados não presumem uma zona UTM fixa. Quando o EPSG não puder ser identificado, o campo fica vazio em vez de receber um código inventado.
+- O relatório JSON guarda a triagem das imagens, CRS e rastreabilidade. A página imprimível mostra os produtos e deixa claro quando não há RMSE de checkpoints independentes.
+- Curvas, relevo, hipsometria, declividade e nuvem de pontos dependem do preset. O visualizador 3D depende de WebGPU no navegador.
 
-Também: ajuste manual da posição no mapa. Próximo clique tem prioridade sobre criação de waypoint; marcador manual sem círculo GPS e com rótulo próprio. Cancelar mantém a posição anterior. Uma nova consulta à localização do navegador substitui a posição manual. A posição permanece apenas em memória da aba, sem entrar na missão salva.
+## Validação desta revisão
+
+Build de produção Next.js, lint, testes Node e Python, triagem local de um lote existente de 93 fotos, e conversão GDAL de uma ortofoto sintética EPSG:31983 para prévia WGS84 e COG. Isso não substitui uma validação de precisão em campo ou um novo processamento completo de fotos.

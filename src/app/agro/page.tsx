@@ -18,7 +18,7 @@ export default async function AgroPage({searchParams}:{searchParams:Promise<{lev
  const surveys=allSurveys.filter(s=>!s.deletion_requested_at);
  const availablePlans=saved.rows.filter(p=>!p.survey_id||!pendingIds.has(p.survey_id));
  const surveyId=loaded.row?.survey_id||(surveys.some(s=>s.id===query.levantamento)?query.levantamento:null)||null;
- return <main className="min-h-screen bg-[#eaf1e7] text-slate-900">
+ return <main className="orion-agro min-h-screen bg-[#eaf1e7] text-slate-900">
   <div className="mx-auto max-w-[1600px] px-3 pb-16 pt-4 sm:px-6">
    <header className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-[#071b20] p-4 text-white sm:p-6">
     <Link href="/painel" className="flex items-center gap-3"><Image src="/orion-maps-logo.jpg" alt="Orion Maps" width={60} height={60} className="rounded-xl"/><span><strong className="block text-xl tracking-wide">ORION AGRO</strong><small className="text-emerald-100/80">Do mapa ao planejamento do campo</small></span></Link>

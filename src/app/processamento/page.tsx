@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getCurrentUser,getCurrentAccessToken} from "@/lib/supabase/auth";
@@ -33,13 +32,13 @@ export default async function ProcessingPage({searchParams}:{searchParams:Promis
   const productsHref=active?`/processamento?levantamento=${active.id}`:"/processamento";
   const resultsHref=active?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
 
-  return <main className="min-h-screen bg-[#edf3ea] text-slate-900">
+  return <main className="orion-workspace min-h-screen bg-[#edf3ea] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-4 pb-10 sm:px-7 lg:px-9">
       <header className="print:hidden">
         <div className="mt-4 overflow-hidden rounded-[28px] bg-[#071b20] text-white shadow-[0_14px_36px_rgba(10,45,31,.18)]">
           <div className="flex min-h-[112px] items-center justify-between gap-4 px-5 py-4 sm:px-8">
             <Link href="/painel" className="min-w-0">
-              <Image src="/orion-maps-logo.jpg" width={96} height={96} alt="Orion Maps Drones" className="h-[76px] w-[76px] rounded-2xl object-cover shadow-sm sm:h-[88px] sm:w-[88px]"/>
+              <span className="orion-workspace-brand"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b><small>LEVANTAMENTO AÉREO</small></span></span>
             </Link>
             <Link href={projectHref} className="rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold">← Projeto</Link>
           </div>

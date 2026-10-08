@@ -219,6 +219,26 @@ class AgentUploadTests(unittest.TestCase):
             self.assertEqual(calls[0].args[0][key], calls[1].args[0][key])
         self.sb.table.return_value.delete.assert_not_called()
 
+    def test_cog_keeps_measured_crs_and_preview_uses_wgs84(self):
+        paths = self.paths()
+        paths["_meta"].write_text(json.dumps({
+            "bounds_wgs84": {"west": -47, "east": -46},
+            "product_crs": {"orthophoto": "EPSG:31983"},
+            "quality_status": "not_verified_without_independent_checkpoints",
+        }), encoding="utf-8")
+        cog = self.root / "orthophoto_cog.tif"
+        cog.write_bytes(b"cog-test")
+        paths["other"] = cog
+        self.module["upload_results"](self.sb, "owner", "survey", "job", paths)
+        rows = [call.args[0] for call in self.sb.table.return_value.upsert.call_args_list]
+        self.assertEqual([row["kind"] for row in rows], ["orthophoto", "other"])
+        self.assertEqual(rows[0]["source_crs"], "EPSG:4326")
+        self.assertEqual(rows[1]["source_crs"], "EPSG:31983")
+        self.assertEqual(rows[1]["mime_type"], "image/tiff")
+        self.assertIsNone(rows[1]["web_preview_path"])
+        self.assertEqual(rows[1]["metadata"]["quality_status"],
+                         "not_verified_without_independent_checkpoints")
+
     def test_bucket_metadata_permission_failure_does_not_prevent_upload(self):
         self.sb.storage.get_bucket.side_effect = StorageError(403)
         self.module["upload_results"](self.sb, "owner", "survey", "job", self.paths())

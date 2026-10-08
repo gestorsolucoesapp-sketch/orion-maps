@@ -1,4 +1,4 @@
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element -- Private signed map previews bypass the public image optimizer. */
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getCurrentAccessToken,getCurrentUser} from "@/lib/supabase/auth";
@@ -70,7 +70,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
   const activeResultsHref=active&&!activeDeleting?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
   const activeProductsHref=active&&!activeDeleting?`/processamento?levantamento=${active.id}`:"/processamento";
 
-  return <main className="min-h-screen bg-[#eaf1e7] text-slate-900" style={{backgroundImage:"radial-gradient(circle at 12% 0%,rgba(97,145,108,.22),transparent 30%),radial-gradient(circle at 100% 18%,rgba(30,83,67,.12),transparent 26%)"}}>
+  return <main className="orion-workspace min-h-screen bg-[#eaf1e7] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <header className="print:hidden">
         <div className="mt-3 overflow-hidden rounded-[30px] border border-white/10 bg-[#071a1c] text-white shadow-[0_18px_44px_rgba(6,32,24,.22)]">
@@ -78,7 +78,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
             <div className="absolute inset-0 opacity-55" style={{backgroundImage:"radial-gradient(circle at 78% 20%,rgba(42,129,117,.28),transparent 28%),repeating-radial-gradient(ellipse at 88% 85%,transparent 0 18px,rgba(54,148,157,.16) 19px 20px)"}}/>
             <div className="relative flex items-start justify-between gap-4">
               <Link href="/painel" className="min-w-0">
-                <Image src="/orion-maps-logo.jpg" width={420} height={180} alt="Orion Maps Drones · Mapeamento de precisão" className="h-[105px] w-[230px] rounded-2xl object-contain object-left sm:h-[122px] sm:w-[290px]"/>
+                <span className="orion-workspace-brand"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b><small>LEVANTAMENTO AÉREO</small></span></span>
               </Link>
               <div className="flex items-center gap-2 sm:gap-3">
                 <ForceUpdateButton/>
@@ -105,7 +105,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>
           <p className="mt-1 text-sm text-slate-600">Fotos, processamento e resultados organizados por projeto.</p>
         </div>
-        <div className="flex flex-wrap gap-2">{!activeDeleting?<Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Orion Agro · plantio e faixas</Link>:null}<Link href="/painel/novo" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
+        <div className="flex flex-wrap gap-2"><Link href={active?`/waypoints?levantamento=${active.id}`:"/waypoints"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Planejar voo · Grid ↗</Link>{!activeDeleting?<Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Plantio e faixas</Link>:null}<Link href="/painel/novo" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
       </section>
 
       {query.apagado==="1"?<p role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Levantamento apagado.</p>:null}

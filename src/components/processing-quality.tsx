@@ -15,17 +15,21 @@ export default function ProcessingQuality({job,results,compact=false}:{job:Proce
   const quality=label(job.config?.quality);
   const precisionKeys=["rmse_horizontal_m","rmse_vertical_m","checkpoint_rmse_m","accuracy_horizontal_m","accuracy_vertical_m"];
   const validated=results.some(r=>precisionKeys.some(k=>n(r.metadata?.[k])!==null));
+  const intake=results.find(r=>r.metadata?.image_intake)?.metadata?.image_intake;
+  const intakeData=intake&&typeof intake==="object"&&!Array.isArray(intake)?intake as Record<string,unknown>:null;
+  const tagged=n(intakeData?.gps_tagged_count),imageCount=n(intakeData?.image_count),small=n(intakeData?.small_image_count);
   const itemClass=compact?"rounded-xl border border-slate-200 p-3":"rounded-2xl border border-slate-200 bg-white p-4";
   return <section className={compact?"mt-6":"mt-5"}>
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-700">Controle de qualidade</p><h2 className={compact?"mt-1 text-lg font-semibold":"mt-1 text-xl font-semibold"}>Rastreabilidade do resultado</h2></div>
       <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold text-slate-700">Job {job.id.slice(0,8)}</span>
     </div>
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <div className={itemClass}><span className="text-xs text-slate-500">Processamento</span><strong className="mt-1 block">{job.status==="completed"?"Concluído · 100%":job.status+" · "+job.progress+"%"}</strong><small className="text-slate-500">{job.input_image_count} imagens · {job.engine}</small></div>
       <div className={itemClass}><span className="text-xs text-slate-500">Produtos esperados</span><strong className="mt-1 block">{complete}/{expected.length||results.length}</strong><small className="text-slate-500">Preset {label(job.config?.preset)} · qualidade {quality}</small></div>
-      <div className={itemClass}><span className="text-xs text-slate-500">Controle terrestre</span><strong className="mt-1 block">{gcp?"GCP solicitado":"GCP não solicitado"}</strong><small className="text-slate-500">RTK/checkpoints: dados insuficientes para verificar</small></div>
-      <div className={itemClass}><span className="text-xs text-slate-500">Precisão certificada</span><strong className="mt-1 block">{validated?"Métrica registrada":"Não"}</strong><small className="text-slate-500">{validated?"Consulte as métricas registradas.":"Sem RMSE/checkpoints registrados neste resultado."}</small></div>
+      <div className={itemClass}><span className="text-xs text-slate-500">Fotos recebidas</span><strong className="mt-1 block">{tagged!==null&&imageCount!==null?`${tagged}/${imageCount} com GPS`:"Sem triagem registrada"}</strong><small className="text-slate-500">{small!==null?`${small} abaixo de 2 MP · `:""}GPS no EXIF não comprova precisão.</small></div>
+      <div className={itemClass}><span className="text-xs text-slate-500">Controle terrestre</span><strong className="mt-1 block">{gcp?"GCP planejado":"GCP não informado"}</strong><small className="text-slate-500">A marcação de GCP e checkpoints ainda não integra este processamento.</small></div>
+      <div className={itemClass}><span className="text-xs text-slate-500">Precisão posicional</span><strong className="mt-1 block">{validated?"Métrica registrada":"Não verificada"}</strong><small className="text-slate-500">{validated?"Confira a origem e os checkpoints da métrica.":"Sem RMSE de checkpoints independentes."}</small></div>
     </div>
     {dtm&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
       <strong>Altimetria do DTM deste processamento:</strong> {min!==null&&max!==null?`${min.toLocaleString("pt-BR",{maximumFractionDigits:2})} m a ${max.toLocaleString("pt-BR",{maximumFractionDigits:2})} m`:"extremos não registrados"}{range!==null?` · amplitude ${range.toLocaleString("pt-BR",{maximumFractionDigits:2})} m`:""}.

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import {getCurrentAccessToken,getCurrentUser} from "@/lib/supabase/auth";
@@ -41,7 +40,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const projectHref=`/painel?levantamento=${active.id}`;
   const productsHref=`/processamento?levantamento=${active.id}`;
 
-  return <main className="min-h-screen bg-[#eaf1e7] text-slate-900" style={{backgroundImage:"radial-gradient(circle at 10% 0%,rgba(94,145,105,.2),transparent 28%),radial-gradient(circle at 100% 20%,rgba(23,77,63,.10),transparent 26%)"}}>
+  return <main className="orion-workspace min-h-screen bg-[#eaf1e7] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <header className="print:hidden">
         <div className="mt-3 overflow-hidden rounded-[30px] border border-white/10 bg-[#071a1c] text-white shadow-[0_18px_44px_rgba(6,32,24,.22)]">
@@ -49,7 +48,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
             <div className="absolute inset-0 opacity-55" style={{backgroundImage:"radial-gradient(circle at 78% 20%,rgba(42,129,117,.28),transparent 28%),repeating-radial-gradient(ellipse at 88% 85%,transparent 0 18px,rgba(54,148,157,.16) 19px 20px)"}}/>
             <div className="relative flex items-center justify-between gap-4">
               <Link href="/painel" className="min-w-0">
-                <Image src="/orion-maps-logo.jpg" width={420} height={180} alt="Orion Maps Drones" className="h-[96px] w-[220px] rounded-2xl object-contain object-left sm:h-[112px] sm:w-[285px]"/>
+                <span className="orion-workspace-brand"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b><small>LEVANTAMENTO AÉREO</small></span></span>
               </Link>
               <Link href={projectHref} className="rounded-2xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white backdrop-blur">← Projeto</Link>
             </div>

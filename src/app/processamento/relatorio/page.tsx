@@ -32,7 +32,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   ]);
   const completed=jobs.find(j=>j.status==="completed");
   const currentResults=completed?results.filter(r=>r.job_id===completed.id):results;
-  const reference=currentResults[0];
+  const reference=currentResults.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||currentResults[0];
   const meta=reference?.metadata||{};
   const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m);
   const bounds=(()=>{

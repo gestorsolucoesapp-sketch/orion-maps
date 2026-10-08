@@ -1,5 +1,4 @@
 import InfoPopover from "@/components/info-popover";
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentAccessToken, getCurrentUser } from "@/lib/supabase/auth";
@@ -9,11 +8,11 @@ export default async function NewSurveyPage() {
   const [user, token] = await Promise.all([getCurrentUser(), getCurrentAccessToken()]);
   if (!user || !token) redirect("/entrar");
 
-  return <main className="min-h-screen bg-[#eaf1e7] px-3 pb-24 pt-5 text-slate-900 sm:px-7 sm:pt-8">
+  return <main className="orion-workspace min-h-screen bg-[#eaf1e7] px-3 pb-24 pt-5 text-slate-900 sm:px-7 sm:pt-8">
     <div className="mx-auto max-w-5xl">
       <header className="mb-5 flex items-center justify-between gap-4">
         <Link href="/painel" aria-label="Voltar aos levantamentos" className="rounded-2xl bg-[#071a1c] px-4 py-2">
-          <Image src="/orion-maps-logo.jpg" width={420} height={180} alt="Orion Maps Drones" className="h-14 w-40 object-contain" />
+          <span className="orion-workspace-brand"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b><small>LEVANTAMENTO AÉREO</small></span></span>
         </Link>
         <Link href="/painel" className="rounded-xl border border-emerald-800/20 bg-white px-4 py-3 text-sm font-semibold text-emerald-900">Cancelar</Link>
       </header>

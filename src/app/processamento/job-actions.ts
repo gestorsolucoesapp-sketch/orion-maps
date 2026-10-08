@@ -30,19 +30,17 @@ export async function queueProcessing(input:QueueInput){
     if(!productMap[input.product])throw new Error("Produto de processamento inválido.");
     if(!["medium","high"].includes(input.quality))throw new Error("Qualidade inválida.");
     if(!Number.isFinite(input.resolution)||input.resolution<0.5||input.resolution>100)throw new Error("Resolução inválida.");
+    if(input.gcp)throw new Error("O uso de GCP ainda não está integrado ao motor. Desmarque esta opção para um processamento sem controle terrestre, ou aguarde a implantação da marcação de pontos.");
 
     const job=await createProcessingJob(token,{
       survey_id:input.surveyId,
       input_image_count:input.inputImageCount,
       config:{
-        preset:"orion_complete_v1",
+        preset:"orion_processing_v2",
         resume:true,
         quality:input.quality==="high"?"high":"balanced",
         products:productMap[input.product],
-        target_crs:"auto_utm_sirgas2000",
         generate_cog:true,
-        generate_laz:true,
-        contour_intervals_m:[0.5,1,2,5],
         orthophoto_resolution_cm:input.resolution,
         gcp_requested:input.gcp,
         notes:input.notes.slice(0,3000),

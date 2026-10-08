@@ -39,3 +39,21 @@
 .mobile-mode-selector{display:none}.mode-selector-heading{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 6px;color:#264933;font-size:12px}.mode-selector-heading a{color:#214f3b;text-decoration:underline;text-underline-offset:2px;font-weight:600}
 @media(max-width:800px){.mobile-mode-selector{display:block;margin:0 0 14px}.mission-controls>.mode-selector{display:none}.mobile-mode-selector .mode-selector{width:100%}}
 
+/* Align flight planning with the Orion fieldbook workspace. */
+.flight-app{background:#f5f4ef;background-image:none;color:#17252a}
+.flight-sidebar{background:#fff;border-color:#d7d9d2;box-shadow:none}
+.flight-brand{color:#17252a}.flight-brand .orion-symbol{flex:none;width:38px;height:38px;border-color:#bd572b;color:#bd572b}
+.flight-sidebar nav a[aria-current]{background:#17252a;color:#fff;border-color:#17252a;box-shadow:none}
+.flight-main{background:#f5f4ef}
+.mission-title h1{color:#17252a;font-weight:560;letter-spacing:-.055em}
+.eyebrow,.section-heading>span{color:#bd572b}
+.mission-metrics>div,.mission-metrics>div:first-child,.mission-metrics>div:last-child{background:#fff;border:1px solid #d7d9d2;border-radius:5px;box-shadow:none}
+.mission-metrics>div:last-child :is(span,strong,small){color:#17252a}
+.map-workspace,.control-section,.control-section:last-child,.saved-plans{background:#fff;border:1px solid #d7d9d2;border-radius:6px;box-shadow:none}
+.mode-selector{background:#eef0eb;border:1px solid #d7d9d2;border-radius:5px}
+.mode-selector button.selected{background:#17252a;color:#fff;box-shadow:none}
+.mode-selector-heading{color:#17252a}.mode-selector-heading a{color:#9d4723}
+.flight-button.primary,.map-toolbar .location-button{background:#17252a;border-color:#17252a;box-shadow:none}
+.gsd-readout{background:#f7f4e9;border-color:#bd572b}
+@media(max-width:800px){.flight-sidebar{background:#fff}.flight-sidebar nav{overflow-x:auto;flex-wrap:nowrap;max-width:100%}.flight-sidebar nav a{white-space:nowrap}}
+
