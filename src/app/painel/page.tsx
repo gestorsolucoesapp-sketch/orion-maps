@@ -12,6 +12,7 @@ import DeleteSurveyButton from "./delete-survey-button";
 import ForceUpdateButton from "@/components/force-update-button";
 
 import LiveProcessingRefresh from "@/components/live-processing-refresh";
+import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 import JobStatusCard from "../processamento/job-status-card";
 import EnginePanel from "../processamento/engine-panel";
 
@@ -109,7 +110,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
       </section>
 
       {query.apagado==="1"?<p role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Levantamento apagado.</p>:null}
-      <LiveProcessingRefresh/>
+      <LiveProcessingRefresh active={liveJobs.length>0}/>
       {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="min-w-0 print:hidden">
           <EnginePanel devices={devices} error={devicesError}/>
@@ -184,7 +185,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
             const visual=!!result.preview_url&&(result.mime_type==="image/jpeg"||result.mime_type==="image/png");
             return <Link key={result.id} href={`/processamento/resultados?levantamento=${survey.id}`} className="min-w-[210px] max-w-[250px] flex-1 overflow-hidden rounded-[20px] border border-white bg-white shadow-sm">
               <div className="h-28 overflow-hidden bg-gradient-to-br from-emerald-950 to-slate-900">
-                {visual?<img src={result.preview_url!} alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-sm font-bold tracking-widest text-white/85">{result.kind.toUpperCase()}</div>}
+                {visual?<img src={result.kind==="orthophoto"?orthophotoPreviewUrl(result)!:result.preview_url!} loading="lazy" decoding="async" alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-sm font-bold tracking-widest text-white/85">{result.kind.toUpperCase()}</div>}
               </div>
               <div className="p-3">
                 <strong className="block truncate text-sm">{result.display_name||result.kind}</strong>

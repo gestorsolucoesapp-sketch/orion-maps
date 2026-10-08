@@ -54,7 +54,7 @@ export default function ProcessingWorkspace({userId,surveys,active,images,imageE
   <Link className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700" href="/painel/novo">+ Novo levantamento</Link>
  </section>
  <EnginePanel devices={devices} error={devicesError}/>
- <LiveProcessingRefresh/>
+ <LiveProcessingRefresh active={!!activeJob}/>
  {activeJob&&<JobStatusCard job={activeJob} featured/>}
  <div className="mb-6 grid gap-3 sm:grid-cols-3">
   <div className={card}><p className="text-xs text-slate-500">Fotos do levantamento</p><p className="mt-1 text-2xl font-semibold">{imageError?'—':active?images.length:'—'}</p></div>

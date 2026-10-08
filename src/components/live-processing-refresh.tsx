@@ -2,8 +2,8 @@
 import {useEffect,useRef,useTransition} from "react";
 import {useRouter} from "next/navigation";
 
-/** Refresh both idle and busy pages; jobs can be started from another device. */
-export default function LiveProcessingRefresh(){
+/** Keep active jobs responsive without repeatedly loading idle result pages. */
+export default function LiveProcessingRefresh({active=false}:{active?:boolean}){
   const router=useRouter();
   const [pending,startTransition]=useTransition();
   const pendingRef=useRef(false),last=useRef(0);
@@ -14,7 +14,7 @@ export default function LiveProcessingRefresh(){
       last.current=Date.now();
       startTransition(()=>router.refresh());
     }
-    const timer=window.setInterval(refresh,10000);
+    const timer=window.setInterval(refresh,active?10000:300000);
     document.addEventListener("visibilitychange",refresh);
     window.addEventListener("focus",refresh);
     window.addEventListener("online",refresh);
@@ -24,6 +24,6 @@ export default function LiveProcessingRefresh(){
       window.removeEventListener("focus",refresh);
       window.removeEventListener("online",refresh);
     };
-  },[router]);
-  return <p className="mb-3 text-xs text-slate-500" role="status">{pending?"Consultando o processador…":"Acompanhamento automático a cada 10 s com esta tela aberta."}</p>;
+  },[router,active]);
+  return <p className="mb-3 text-xs text-slate-500" role="status">{pending?"Consultando o processador…":active?"Processamento em andamento · atualização a cada 10 s.":"Atualização a cada 5 min quando não há tarefa em andamento."}</p>;
 }
