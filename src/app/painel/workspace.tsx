@@ -6,14 +6,17 @@ import { useRouter } from "next/navigation";
 import type { Survey, SurveyImage } from "@/lib/supabase/surveys";
 import { openImage, prepareImageUpload, saveSurvey } from "./survey-actions";
 import DeleteSurveyButton from "./delete-survey-button";
+import CityMapPreview from "./city-map-preview";
 
 const input = "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100";
 export function SurveyForm({ survey }: { survey?: Survey }) {
   const [state, action, pending] = useActionState(saveSurvey, {});
+  const [city, setCity] = useState(survey?.location ?? "");
   return <form action={action} className="space-y-5">
     <input type="hidden" name="id" value={survey?.id ?? ""} />
     <label className="block text-sm font-semibold">Nome do levantamento<input className={input} name="name" required minLength={2} maxLength={120} defaultValue={survey?.name} placeholder="Ex.: Área experimental — setembro" /></label>
-    <div className="grid gap-5 sm:grid-cols-2"><label className="block text-sm font-semibold">Local<input className={input} name="location" maxLength={200} defaultValue={survey?.location} placeholder="Município ou identificação da área" /></label><label className="block text-sm font-semibold">Data do voo<input className={input} name="flight_date" type="date" defaultValue={survey?.flight_date ?? ""} /></label></div>
+    <div className="grid gap-5 sm:grid-cols-2"><label className="block text-sm font-semibold">Local<input className={input} name="location" maxLength={200} value={city} onChange={event => setCity(event.target.value)} placeholder="Ex.: Mococa - SP" /></label><label className="block text-sm font-semibold">Data do voo<input className={input} name="flight_date" type="date" defaultValue={survey?.flight_date ?? ""} /></label></div>
+    <CityMapPreview city={city} />
     <label className="block text-sm font-semibold">Drone / câmera<input className={input} name="drone" maxLength={100} defaultValue={survey?.drone} placeholder="Modelo utilizado no levantamento" /></label>
     <label className="block text-sm font-semibold">Anotações<textarea className={input} name="notes" rows={4} maxLength={3000} defaultValue={survey?.notes} placeholder="Objetivo, condições do voo e observações de campo" /></label>
     {state.error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}
