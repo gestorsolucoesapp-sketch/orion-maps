@@ -7,6 +7,7 @@ export default function RcTransfer({plan,route,disabled}:{plan:{name:string;dron
  async function connect(){setBusy(true);try{const r=await controllerStatus();if(r.error)throw new Error(r.error);setStatus(r.device?.last_seen&&Date.now()-Date.parse(r.device.last_seen)<60000?"Assistente do computador conectado. Conecte também o RC 2 por USB.":"Abra Conectar Orion RC2 na área de trabalho deste computador.");}catch(e){setStatus((e as Error).message);}finally{setBusy(false);}}
  async function inspect(){setBusy(true);try{const r=await latestControllerTransfer();if(r.error)throw new Error(r.error);setStatus(r.transfer?new Date(r.transfer.created_at).toLocaleString("pt-BR")+" — "+(r.transfer.message||"Aguardando o assistente"):"Nenhum envio solicitado.");}catch(e){setStatus((e as Error).message);}finally{setBusy(false);}}
  async function send(){
+  if(!window.confirm("ATENÇÃO: este envio pode substituir uma missão existente no DJI RC 2. O controle deve estar conectado por USB e o drone em solo. Confirma a substituição após revisar a rota e o backup?"))return;
   setBusy(true);
   try{
    const queued=await queueControllerTransfer({plan,route,ready:true});if(queued.error)throw new Error(queued.error);

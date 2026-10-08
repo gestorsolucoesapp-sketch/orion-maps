@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const ts=require('typescript');
+const fs=require('node:fs');
+const file=path.resolve(__dirname,'../src/lib/advanced-missions.ts');
+const code=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const mod={exports:{}};new Function('module','exports','require',code)(mod,mod.exports,require);
+const {orbitRoute,corridorRoute,flightWarnings,metres}=mod.exports;
+const a=[-47.0024,-21.4647],b=[-47.0014,-21.4647],c=[-47.0014,-21.4637];
+assert.ok(metres(a,b)>90&&metres(a,b)<110);
+const empty=orbitRoute([]);assert.equal(empty.legs.length,0);
+const orbit=orbitRoute([a,b],36);assert.equal(orbit.legs[0].length,37);assert.deepEqual(orbit.legs[0][0],orbit.legs[0].at(-1));assert.ok(orbit.area>20000);
+assert.throws(()=>orbitRoute([a,a]),/raio/);
+const corridor=corridorRoute([a,b,c],30,12);assert.equal(corridor.legs.length,4);assert.equal(corridor.legs[0].length,3);assert.ok(corridor.area>6000);
+assert.throws(()=>corridorRoute([a,b],600,12),/Largura/);
+const warnings=flightWarnings({drone:'DJI Mini 5 Pro',mode:'grid',points:4,waypoints:201,speed:16,height:100,minutes:30,batteryMinutes:20,photoInterval:2,minInterval:5,requiredInterval:1.5,terrainConfirmed:false});
+assert.ok(warnings.some(s=>s.includes('200 waypoints')));assert.ok(warnings.some(s=>s.includes('autonomia')));assert.ok(warnings.some(s=>s.includes('intervalo')||s.includes('Intervalo')));
+console.log('ADVANCED_MISSIONS_TESTS_PASSED: 10 checks');
