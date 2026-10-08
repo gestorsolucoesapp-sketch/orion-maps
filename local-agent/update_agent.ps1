@@ -47,8 +47,10 @@ root = pathlib.Path(sys.argv[1])
 for name in ("orion_agent.py", "orion_agent_staged.py", "setup_credentials.py"):
     ast.parse((root / name).read_text(encoding="utf-8-sig"), filename=name)
 '@
+  $CheckFile = Join-Path $StageDir "validate_package.py"
+  [IO.File]::WriteAllText($CheckFile, $Check, [Text.UTF8Encoding]::new($false))
   $PythonCommand = Get-Command python -ErrorAction Stop
-  & $PythonCommand.Source -c $Check $StageDir
+  & $PythonCommand.Source $CheckFile $StageDir
   if ($LASTEXITCODE -ne 0) { throw "Pacote recusado: erro de sintaxe Python." }
   foreach ($Name in @("install_agent.ps1", "update_agent.ps1")) {
     $ParseTokens = $null
