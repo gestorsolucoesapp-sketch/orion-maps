@@ -15,6 +15,7 @@ import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
+import {streetBasemap,esriImagery,reliefBasemap} from "@/lib/basemaps";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
@@ -28,10 +29,8 @@ type Props={
 
 const rasterKinds=["orthophoto","hillshade","hypsometry","slope"] as const;
 const baseMaps={
-  streets:{label:"Padrão",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:"© OpenStreetMap contributors"},
-  satellite:{label:"Satélite",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:"Imagery © Esri, Vantor, Earthstar Geographics, GIS User Community"},
-  relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:"Shaded relief © Esri"}
-} as const;
+  satellite:esriImagery,streets:streetBasemap,relief:reliefBasemap
+};
 type BaseMap=keyof typeof baseMaps;
 
 function pxToCoord(x:number,y:number,w:number,h:number,b:Bounds):Coord{
@@ -107,7 +106,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const [terrainCommand,setTerrainCommand]=useState<TerrainToolCommand|null>(null);
   const onTerrainAction=useCallback((action:TerrainToolAction)=>setTerrainCommand(v=>({sequence:(v?.sequence||0)+1,action})),[]);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
-  const [basemap,setBasemap]=useState<BaseMap>("streets"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
+  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
   const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
@@ -194,7 +193,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     if(!el.current||!bounds)return;
     setReady(false);setOrthoRendered(false);setContoursState("loading");setContoursError("");setContoursCount(0);
     maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-    const bm=baseMaps[basemap];
+    const bm=baseMaps[basemap]??esriImagery;
     const m=new maplibregl.Map({
       container:el.current,
       style:{
@@ -370,7 +369,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
           </div>
           <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
           <div className="grid gap-1">
-            {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>{setBasemap(key);setLayersOpen(false);}} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{baseMaps[key].label}</button>)}
+            {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>{setBasemap(key);setLayersOpen(false);}} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{(baseMaps[key]??esriImagery).label}</button>)}
           </div>
           <p className="mb-2 mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Sobreposições</p>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Ortofoto</span><input type="checkbox" checked={!!visible.orthophoto} onChange={()=>toggleLayer("orthophoto")}/></label>

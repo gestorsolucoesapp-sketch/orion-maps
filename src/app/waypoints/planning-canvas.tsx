@@ -11,19 +11,17 @@ import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Coordinate } from "@/lib/flight-plan";
 import { accuracyRing } from "@/lib/location-circle";
+import {streetBasemap,esriImagery,topoBasemap,reliefBasemap} from "@/lib/basemaps";
 const basemaps={
- streets:{label:"Mapa",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'},
- satellite:{label:"Satélite",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",maxzoom:17,attribution:'Imagery © <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, Vantor, Earthstar Geographics, GIS User Community'},
- topo:{label:"Topográfico",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:'Sources: Esri, HERE, Garmin, Intermap, increment P Corp., GEBCO, USGS, FAO, NPS, NRCAN, GeoBase, IGN, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), © OpenStreetMap contributors, GIS User Community'},
- relief:{label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:'Shaded relief © 2014 <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>'}
-} as const;
+ satellite:esriImagery,streets:streetBasemap,topo:topoBasemap,relief:reliefBasemap
+};
 type Basemap=keyof typeof basemaps;
 type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
  const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
- const [basemap,setBasemap]=useState<Basemap>("streets");
+ const [basemap,setBasemap]=useState<Basemap>("satellite");
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
   if(!el.current)return;
@@ -31,7 +29,7 @@ export default function PlanningCanvas(props:Props){
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
    // Only visible map tiles are requested; browser caching follows the provider headers.
-   m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
+   m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
    m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("O mapa de fundo não carregou. Confira sua conexão e recarregue. Seus pontos continuam no editor.");});
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
@@ -55,7 +53,7 @@ export default function PlanningCanvas(props:Props){
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
-  const selected=basemaps[basemap];
+  const selected=basemaps[basemap]??esriImagery;
   // Replace only the background: mission geometry, location and camera stay intact.
   m.removeLayer("basemap");m.removeSource("basemap");
   m.addSource("basemap",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});

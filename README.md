@@ -2,9 +2,11 @@
 
 Plataforma pessoal de fotogrametria e levantamentos com drone. Aplicação publicada em https://orion-maps.vercel.app.
 
+O fundo padrão dos mapas é Esri World Imagery. Rua, topografia e relevo continuam disponíveis onde havia seletor; ortofotos, desenhos, medições e resultados ficam em camadas próprias. Mapbox Satellite depende de um token público legítimo (`pk.`), criado para este aplicativo e restrito ao domínio publicado, além da atribuição e marca exigidas pelo Mapbox. A alternativa não está ativada nesta versão. Nunca coloque um token secreto (`sk.`) no navegador ou no repositório.
+
 ## Planejamento de voo
 
-Prévia em `/waypoints`: pontos manuais, grades simples/dupla, importação KML/KMZ/GeoJSON, planos locais e exportações para revisão. Consulte `WAYPOINTS.md` para limitações e validações. O mapa-base utiliza OpenStreetMap; o KMZ não é executável DJI Fly.
+Prévia em `/waypoints`: pontos manuais, grades simples/dupla, importação KML/KMZ/GeoJSON, planos locais e exportações para revisão. Consulte `WAYPOINTS.md` para limitações e validações. O mapa-base inicia em Esri World Imagery, com OpenStreetMap como alternativa; o KMZ não é executável DJI Fly.
 
 ## Recursos implementados
 

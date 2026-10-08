@@ -1,0 +1,5 @@
+/** Raster basemaps only. Project imagery and editable overlays stay in separate layers. */
+export const streetBasemap={label:"Mapa (ruas)",url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'};
+export const esriImagery={label:"Satélite · Esri",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",maxzoom:19,attribution:'Imagery © <a href="https://www.esri.com/" target="_blank" rel="noopener noreferrer">Esri</a>, Vantor, Earthstar Geographics, GIS User Community'};
+export const topoBasemap={label:"Topográfico",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",maxzoom:19,attribution:"Sources: Esri, HERE, Garmin, USGS, © OpenStreetMap contributors, GIS User Community"};
+export const reliefBasemap={label:"Relevo",url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}",maxzoom:13,attribution:"Shaded relief © Esri"};

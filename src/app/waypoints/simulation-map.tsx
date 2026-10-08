@@ -5,13 +5,14 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type {Coordinate} from "@/lib/flight-plan";
 import {simulationTrace,type FlightFrame,type FlightSimulation} from "@/lib/flight-simulation";
 import {SimulationDrone} from "./simulation-drone";
+import {streetBasemap,esriImagery} from "@/lib/basemaps";
 
 type Props={simulation:FlightSimulation;frame:FlightFrame;boundary:Coordinate[];running:boolean;pickHome:boolean;onPick:(point:Coordinate)=>void;onReady:(ready:boolean)=>void;children:ReactNode};
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
-const raster={map:{url:"https://tile.openstreetmap.org/{z}/{x}/{y}.png",zoom:19,credit:"© OpenStreetMap contributors"},satellite:{url:"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false",zoom:17,credit:"Imagery © Esri, Vantor, Earthstar Geographics"}};
+const raster={satellite:esriImagery,map:streetBasemap};
 export default function SimulationMap(props:Props){
  const element=useRef<HTMLDivElement>(null),map=useRef<maplibre.Map|null>(null),drone=useRef<SimulationDrone|null>(null),latest=useRef(props),lastTrace=useRef(-1),lastPhoto=useRef(-1);
- const [ready,setReady]=useState(false),[error,setError]=useState(""),[background,setBackground]=useState<"map"|"satellite">("map"),[perspective,setPerspective]=useState(false),[follow,setFollow]=useState(false);
+ const [ready,setReady]=useState(false),[error,setError]=useState(""),[background,setBackground]=useState<keyof typeof raster>("satellite"),[perspective,setPerspective]=useState(false),[follow,setFollow]=useState(false);
  const view=useRef({perspective,follow,background});
  useEffect(()=>{latest.current=props;});useEffect(()=>{view.current={perspective,follow,background};},[perspective,follow,background]);
  function fit(){const m=map.current;if(!m)return;const sim=latest.current.simulation,b=new maplibre.LngLatBounds(sim.home,sim.home);sim.route.forEach(p=>b.extend(p));if(view.current.perspective){const margin=sim.height*1.2/111195,longitudeMargin=margin/Math.cos(sim.home[1]*Math.PI/180);b.extend([b.getWest()-longitudeMargin,b.getSouth()-margin]);b.extend([b.getEast()+longitudeMargin,b.getNorth()+margin]);}m.fitBounds(b,{padding:{top:70,left:55,right:55,bottom:155},maxZoom:18,duration:0,pitch:view.current.perspective?45:0,bearing:0});}
@@ -20,8 +21,8 @@ export default function SimulationMap(props:Props){
   setReady(false);setError("");latest.current.onReady(false);lastTrace.current=-1;lastPhoto.current=-1;
   let m:maplibre.Map|undefined,observer:ResizeObserver|undefined;const markers:maplibre.Marker[]=[];
   try{
-   maplibre.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");const base=raster[view.current.background];
-   m=new maplibre.Map({container:element.current,center:props.simulation.home,zoom:16,renderWorldCopies:false,attributionControl:false,pitchWithRotate:false,dragRotate:false,style:{version:8,sources:{base:{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.zoom,attribution:base.credit}},layers:[{id:"background",type:"background",paint:{"background-color":"#dce6df"}},{id:"base",type:"raster",source:"base"}]}});
+   maplibre.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");const base=raster[view.current.background]??esriImagery;
+   m=new maplibre.Map({container:element.current,center:props.simulation.home,zoom:16,renderWorldCopies:false,attributionControl:false,pitchWithRotate:false,dragRotate:false,style:{version:8,sources:{base:{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.maxzoom,attribution:base.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#dce6df"}},{id:"base",type:"raster",source:"base"}]}});
    const current=m;map.current=m;
    current.addControl(new maplibre.NavigationControl({showCompass:false}),"top-right");current.addControl(new maplibre.ScaleControl({unit:"metric"}),"bottom-left");current.addControl(new maplibre.AttributionControl({compact:true}),"bottom-right");
    current.on("load",()=>{
@@ -60,12 +61,12 @@ export default function SimulationMap(props:Props){
   if(lastPhoto.current!==f.photosTaken){m.setFilter("sim-photo-taken",["<=",["get","number"],f.photosTaken]);lastPhoto.current=f.photosTaken;}
   if(view.current.follow)m.jumpTo({center:f.position});m.triggerRepaint();
  },[ready,props.frame,props.simulation,props.running,perspective]);
- useEffect(()=>{const m=map.current;if(!m||!ready)return;const base=raster[background];m.removeLayer("base");m.removeSource("base");m.addSource("base",{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.zoom,attribution:base.credit});m.addLayer({id:"base",type:"raster",source:"base"},"boundary-fill");},[ready,background]);
+ useEffect(()=>{const m=map.current;if(!m||!ready)return;const base=raster[background]??esriImagery;m.removeLayer("base");m.removeSource("base");m.addSource("base",{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.maxzoom,attribution:base.attribution});m.addLayer({id:"base",type:"raster",source:"base"},"boundary-fill");},[ready,background]);
  useEffect(()=>{if(ready){view.current.perspective=perspective;fit();}},[ready,perspective]);
  useEffect(()=>{if(map.current)map.current.getCanvas().style.cursor=props.pickHome?"crosshair":"grab";},[props.pickHome,ready]);
  return <div className="sim-map-shell">
   <div ref={element} className="sim-map" data-testid="simulation-map" data-ready={ready} data-phase={props.frame.phase} data-altitude={props.frame.height.toFixed(3)} data-lng={props.frame.position[0]} data-lat={props.frame.position[1]} aria-label="Mapa da simulação de voo, sem controle do drone"/>
-  <div className="sim-view-tools"><button type="button" aria-pressed={perspective} onClick={()=>setPerspective(v=>!v)}>{perspective?"Vista 2D":"Vista 3D"}</button><button type="button" aria-pressed={follow} onClick={()=>setFollow(v=>!v)}>Seguir drone</button><button type="button" onClick={()=>{setFollow(false);fit();}}>Enquadrar rota</button><select aria-label="Fundo da simulação" value={background} onChange={e=>{setError("");setBackground(e.target.value as "map"|"satellite");}}><option value="map">Mapa</option><option value="satellite">Satélite</option></select></div>
+  <div className="sim-view-tools"><button type="button" aria-pressed={perspective} onClick={()=>setPerspective(v=>!v)}>{perspective?"Vista 2D":"Vista 3D"}</button><button type="button" aria-pressed={follow} onClick={()=>setFollow(v=>!v)}>Seguir drone</button><button type="button" onClick={()=>{setFollow(false);fit();}}>Enquadrar rota</button><select aria-label="Fundo da simulação" value={background} onChange={e=>{setError("");setBackground(e.target.value as keyof typeof raster);}}><option value="satellite">{esriImagery.label}</option><option value="map">{streetBasemap.label}</option></select></div>
   {props.pickHome&&<p role="status" className="sim-pick-message">Toque no mapa para definir a base apenas desta simulação.</p>}
   {error&&<p role="alert" className="sim-map-error">{error}</p>}
   {props.children}

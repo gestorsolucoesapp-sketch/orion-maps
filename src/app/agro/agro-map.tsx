@@ -11,12 +11,13 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type {XY} from "@/lib/agro-plan";
 import type {AgroPreview} from "./actions";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "../processamento/orthophoto-preview";
+import {streetBasemap,esriImagery} from "@/lib/basemaps";
 
 type Props={surveyId?:string;data:GeoJSON.FeatureCollection;draft:XY[];drawing:"boundary"|"exclusion"|null;selected:string[];center:XY|null;fit:number;preview:AgroPreview|null;showOrtho:boolean;previewBusy?:boolean;onPoint:(p:XY)=>void;onMove:(i:number,p:XY)=>void;onRow:(id:string)=>void};
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
 export default function AgroMap(props:Props){
  const element=useRef<HTMLDivElement>(null),map=useRef<maplibre.Map|null>(null),latest=useRef(props);
- const [ready,setReady]=useState(false),[error,setError]=useState(""),[satellite,setSatellite]=useState(false);
+ const [ready,setReady]=useState(false),[error,setError]=useState(""),[basemap,setBasemap]=useState<"satellite"|"streets">("satellite");
  const [orthoUrl,setOrthoUrl]=useState<string|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoError,setOrthoError]=useState(""),[orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRetry,setOrthoRetry]=useState(0);
  const [measurementMap,setMeasurementMap]=useState<maplibre.Map|null>(null);
  useEffect(()=>{latest.current=props;});
@@ -34,7 +35,7 @@ export default function AgroMap(props:Props){
   if(!element.current)return;let m:maplibre.Map|undefined;
   try{
    maplibre.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-   m=new maplibre.Map({container:element.current,center:[-52,-14],zoom:4,renderWorldCopies:false,dragRotate:false,pitchWithRotate:false,attributionControl:false,style:{version:8,sources:{base:{type:"raster",tiles:["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,maxzoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'}},layers:[{id:"background",type:"background",paint:{"background-color":"#dce7d9"}},{id:"base",type:"raster",source:"base"}]}});
+   m=new maplibre.Map({container:element.current,center:[-52,-14],zoom:4,renderWorldCopies:false,dragRotate:false,pitchWithRotate:false,attributionControl:false,style:{version:8,sources:{base:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#dce7d9"}},{id:"base",type:"raster",source:"base"}]}});
    map.current=m;const current=m;
    current.addControl(new maplibre.NavigationControl(),"top-right");current.addControl(new maplibre.ScaleControl({unit:"metric"}),"bottom-left");current.addControl(new maplibre.AttributionControl({compact:true}));
    current.on("load",()=>{
@@ -84,9 +85,10 @@ export default function AgroMap(props:Props){
  },[ready,props.draft,props.drawing]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;m.removeLayer("base");m.removeSource("base");
-  m.addSource("base",{type:"raster",tiles:[satellite?"https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false":"https://tile.openstreetmap.org/{z}/{x}/{y}.png"],tileSize:256,maxzoom:satellite?17:19,attribution:satellite?'Imagery © Esri, Vantor, Earthstar Geographics':'© OpenStreetMap contributors'});
+  const selected=basemap==="streets"?streetBasemap:esriImagery;
+  m.addSource("base",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});
   m.addLayer({id:"base",type:"raster",source:"base"},m.getLayer("ortho")?"ortho":"field-fill");
- },[ready,satellite]);
+ },[ready,basemap]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
   if(m.getLayer("ortho"))m.removeLayer("ortho");if(m.getSource("ortho"))m.removeSource("ortho");
@@ -103,7 +105,7 @@ export default function AgroMap(props:Props){
  const orthoLoading=!!props.previewBusy||!!(props.preview&&!orthoRendered&&!orthoError);
  const loadingLabel=props.previewBusy?"Buscando ortofoto do levantamento…":orthoProgress?.phase==="download"?`Carregando ortofoto · ${(orthoProgress.loaded/1024/1024).toLocaleString("pt-BR",{maximumFractionDigits:1})} MB`:"Preparando ortofoto no mapa…";
  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 text-xs"><span>{props.drawing?"Toque nos vértices e conclua o contorno.":"Toque em uma linha para selecioná-la."}</span><label className="flex items-center gap-2">Fundo<select aria-label="Fundo do mapa agro" value={satellite?"satellite":"map"} onChange={e=>{setError("");setSatellite(e.target.value==="satellite");}} className="rounded-lg border p-2"><option value="map">Mapa</option><option value="satellite">Satélite</option></select></label></div>
+  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-3 py-2 text-xs"><span>{props.drawing?"Toque nos vértices e conclua o contorno.":"Toque em uma linha para selecioná-la."}</span><label className="flex items-center gap-2">Fundo<select aria-label="Fundo do mapa agro" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as typeof basemap);}} className="rounded-lg border p-2"><option value="satellite">{esriImagery.label}</option><option value="streets">{streetBasemap.label}</option></select></label></div>
   <div className="relative">
    <div ref={element} data-testid="agro-map" data-ready={ready?"true":"false"} data-ortho-ready={orthoRendered?"true":"false"} data-ortho-job={props.preview?.job_id||""} data-ortho-result={props.preview?.result_id||""} data-ortho-bounds={props.preview?JSON.stringify(props.preview.bounds):""} aria-busy={orthoLoading} className="h-[450px] w-full sm:h-[620px]" aria-label="Mapa de talhões e linhas de plantio"/>
    {orthoLoading&&<div role="status" data-testid="agro-ortho-loading" className="absolute inset-0 z-10 grid place-items-center bg-[#eaf1e7]/95 p-5 text-center text-sm font-semibold text-emerald-950"><div><span className="mx-auto mb-3 block h-7 w-7 animate-spin rounded-full border-2 border-emerald-800 border-t-transparent"/>{loadingLabel}<p className="mt-2 text-xs font-normal">O resultado original permanece intacto.</p></div></div>}

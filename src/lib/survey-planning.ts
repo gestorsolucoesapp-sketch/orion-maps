@@ -6,7 +6,7 @@ export type SurveyPlanning={importedLocation?:ImportedMapLocation|null;version:1
 export type CustomDroneProfile={id:string;name:string;camera:CameraProfile;source:string;features:string;created_at?:string};
 export type SurveyDroneConfig={version:1;name:string;camera:CameraProfile|null;custom_id:string|null;source:string;features:string};
 export const SUGGESTED_DRONE="DJI Mini 5 Pro";
-export const EMPTY_SURVEY_PLANNING:SurveyPlanning={version:1,center:null,zoom:4,basemap:"streets",cityQuery:"",drawing:{kind:"polygon",points:[]}};
+export const EMPTY_SURVEY_PLANNING:SurveyPlanning={version:1,center:null,zoom:4,basemap:"satellite",cityQuery:"",drawing:{kind:"polygon",points:[]}};
 export const uuid=(v:unknown):v is string=>typeof v==="string"&&/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(v);
 const text=(v:unknown,max:number,label:string,min=0)=>{if(typeof v!=="string"||v.trim().length<min||v.trim().length>max)throw Error(`Revise ${label}.`);return v.trim();};
 const numeric=(v:unknown,min:number,max:number,label:string,integer=false)=>{if(typeof v!=="number"||!Number.isFinite(v)||v<min||v>max||(integer&&!Number.isInteger(v)))throw Error(`Revise ${label}.`);return v;};
