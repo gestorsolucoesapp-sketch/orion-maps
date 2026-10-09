@@ -1,5 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- Private signed map previews bypass the public image optimizer. */
 import Link from "next/link";
+import Image from "next/image";
 import {redirect} from "next/navigation";
 import {getCurrentAccessToken,getCurrentUser} from "@/lib/supabase/auth";
 import {listImages,listSurveys,type Survey,type SurveyImage} from "@/lib/supabase/surveys";
@@ -74,6 +75,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
   return <main className="orion-workspace orion-panel-workspace min-h-screen bg-[#14231b] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <section className="orion-panel-intro mt-3 flex flex-wrap items-center justify-between gap-4 border border-[#41614c] bg-[#1c2a21] px-5 py-6 text-white print:hidden sm:px-7">
+        <div className="orion-panel-visual"><Image src="/orion-home-flight.jpg" alt="Drone em voo sobre uma área rural" fill priority sizes="(max-width: 640px) 100vw, 90vw" className="orion-panel-flight-photo"/><span className="orion-panel-visual-label">CAPTURA AÉREA <i/> LEVANTAMENTOS</span><span className="orion-panel-visual-credit">Foto: Andreas Psaltis / Unsplash</span></div>
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#36e8a2]">Orion Maps · Campo</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>

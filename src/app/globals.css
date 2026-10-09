@@ -291,4 +291,16 @@ main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space
 .orion-panel-workspace{background:#14231b!important}
 .orion-panel-intro{background-image:linear-gradient(#7fe8a909 1px,transparent 1px),linear-gradient(90deg,#7fe8a909 1px,transparent 1px);background-size:42px 42px}
 .orion-panel-refresh p{color:#bdd1c1}
+.orion-app-navigation-symbol{width:40px;height:40px;border-color:#16e99a;background:#123b28}
+.orion-app-navigation-drone{width:35px;height:35px;object-fit:contain;filter:brightness(0) saturate(100%) invert(75%) sepia(66%) saturate(662%) hue-rotate(93deg) brightness(105%) contrast(95%)}
+.orion-symbol{position:relative;padding:0!important;background:#123b28;color:transparent!important;font-size:0!important}
+.orion-symbol::before{content:"";width:88%;height:88%;background:url('/orion-drone-concept.png') center/contain no-repeat;filter:brightness(0) saturate(100%) invert(75%) sepia(66%) saturate(662%) hue-rotate(93deg) brightness(105%) contrast(95%)}
+.orion-panel-visual{position:relative;flex-basis:100%;height:clamp(200px,26vw,320px);overflow:hidden;border:1px solid #527660;background:#253d2a}
+.orion-panel-flight-photo{object-fit:cover;object-position:70% 47%;filter:saturate(.9) contrast(1.06)}
+.orion-panel-visual:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0a1e14a8,transparent 37%,#0919109e);pointer-events:none}
+.orion-panel-visual-label,.orion-panel-visual-credit{position:absolute;z-index:1;color:#edfff2;font:700 10px var(--font-work-sans),sans-serif;letter-spacing:.13em;text-shadow:0 1px 8px #000}
+.orion-panel-visual-label{top:16px;left:16px;display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid #bbefc477;background:#142b1fc2}
+.orion-panel-visual-label i{width:5px;height:5px;border-radius:50%;background:#16e99a}
+.orion-panel-visual-credit{right:14px;bottom:11px;color:#deede0;font-size:8px;letter-spacing:.04em}
 @media(min-width:1051px){.orion-app-navigation--workspace .orion-app-navigation-brand{border-color:#385043}.orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#164b32;color:#69f3b2}}
+@media(max-width:640px){.orion-panel-visual{height:205px}.orion-panel-flight-photo{object-position:72% center}.orion-panel-visual-label{font-size:8px}}
