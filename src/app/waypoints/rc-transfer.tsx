@@ -26,9 +26,9 @@ export default function RcTransfer({plan,route,disabled}:{plan:{name:string;dron
   {route.length>0&&plan.drone!=="DJI Mini 5 Pro"&&<p>Selecione DJI Mini 5 Pro para usar este controle.</p>}
   <button className="flight-button primary" disabled={busy||disabled||plan.drone!=="DJI Mini 5 Pro"} onClick={send}>{busy?"Enviando…":"Enviar plano ao controle"}</button>
   <p>Substitui a missão no RC 2 e guarda a anterior no histórico. Não inicia o voo.</p>
+  <p>Esta conexão transfere arquivos de missão. Ela não acessa o código do drone ou do controle, não lê a bateria em voo e não comanda retorno ou retomada automática.</p>
   <details><summary>Conexão e detalhes do envio</summary><button className="flight-button" disabled={busy} onClick={connect}>Conferir conexão</button><button className="flight-button" disabled={busy} onClick={inspect}>Consultar último envio</button><p>Não edite a missão no DJI Fly durante a cópia. Confira a nova rota no controle antes do voo. Fotos temporizadas são iniciadas no controle; esta missão não acompanha o relevo.</p></details>
   {status&&<p role="status">{status}</p>}
  </section>;
 }
-
 

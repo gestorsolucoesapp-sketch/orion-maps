@@ -178,3 +178,4 @@
 .flight-mode-tabs .mode-selector button:hover{border-color:#6db392;background:#edf8f0}
 .flight-mode-tabs .mode-selector button.selected{border-color:#087852;background:#087852;color:#fff}
 @media(max-width:700px){.flight-mode-tabs .mode-selector{grid-template-columns:repeat(3,minmax(0,1fr))}.flight-mode-tabs .mode-selector button{font-size:11px;min-height:45px}}
+.battery-reserve-note{margin:8px 0 0;color:#315e44;font-size:12px;line-height:1.5}

@@ -7,3 +7,17 @@
 .flight-workspace-tabs{max-width:480px;border-color:#dce4de;border-radius:8px;background:#fff}
 .flight-workspace-tabs button{border-radius:5px;color:#345747;font-family:var(--font-work-sans),sans-serif}
 .flight-workspace-tabs button[aria-selected=true]{background:#e4f6ed;color:#087d59;box-shadow:none}
+.sim-mission-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:#dce9df;border-bottom:1px solid #c9dccc}
+.sim-mission-summary>div{display:grid;gap:2px;padding:14px 18px;background:#f8fcf8}
+.sim-mission-summary>div>span{color:#4b6d57;font-size:10px;font-weight:800;letter-spacing:.08em}
+.sim-mission-summary strong{color:#0c4d36;font:700 28px var(--font-space-grotesk),sans-serif}
+.sim-mission-summary small{color:#52695a;font-size:11px}
+.sim-mission-summary>p{grid-column:1/-1;margin:0;padding:8px 18px;background:#eaf3eb;color:#496453;font-size:11px}
+.sim-battery-plan{margin:16px 18px;padding:18px;border:1px solid #bfd5c4;border-radius:12px;background:#fff}
+.sim-battery-plan h3{margin:0 0 7px;color:#173f2e;font-size:18px}
+.sim-battery-plan p{margin:7px 0;color:#4b6755;font-size:12px;line-height:1.6}
+.sim-battery-plan ol{display:grid;gap:8px;max-height:280px;margin:13px 0;padding:0;overflow:auto;list-style:none}
+.sim-battery-plan li{display:grid;grid-template-columns:90px 1fr;gap:2px 12px;padding:10px 12px;border:1px solid #dbe8de;border-radius:8px;background:#f5faf5;font-size:12px}
+.sim-battery-plan li b{color:#087852}.sim-battery-plan li small{grid-column:2;color:#5e7462;font-size:11px}
+.sim-battery-plan .sim-battery-caution{margin-top:12px;padding-top:10px;border-top:1px solid #dbe8de;color:#695936}
+@media(max-width:600px){.sim-mission-summary strong{font-size:23px}.sim-mission-summary>div{padding:11px}.sim-mission-summary small{font-size:10px}.sim-battery-plan{margin:10px;padding:13px}.sim-battery-plan li{grid-template-columns:1fr}.sim-battery-plan li small{grid-column:1}}
