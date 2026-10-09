@@ -4,6 +4,7 @@ import "./globals.css";
 import AppVersion from "@/components/app-version";
 import AppInteractions from "@/components/app-interactions";
 import AutoUpdater from "@/components/auto-updater";
+import AppNavigation from "@/components/app-navigation";
 
 const workSans = Work_Sans({ subsets: ["latin"], display: "swap", variable: "--font-work-sans" });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], display: "swap", variable: "--font-space-grotesk" });
@@ -26,5 +27,5 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const build=process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7)||"local";
-  return <html lang="pt-BR" className={`${workSans.variable} ${spaceGrotesk.variable}`}><body><AppVersion/><AutoUpdater currentBuild={build}/><AppInteractions/>{children}</body></html>;
+  return <html lang="pt-BR" className={`${workSans.variable} ${spaceGrotesk.variable}`}><body><AppVersion/><AutoUpdater currentBuild={build}/><AppInteractions/><AppNavigation/>{children}</body></html>;
 }

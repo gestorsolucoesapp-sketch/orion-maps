@@ -143,3 +143,31 @@
   .title-actions .flight-button.primary{grid-column:1/-1}
 }
 
+/* The map and controls share the application navigation above the planner. */
+.flight-app{display:block;background:var(--orion-bg);color:var(--orion-text)}
+.flight-sidebar,.flight-topbar{display:none!important}
+.flight-main{max-width:1600px;margin:auto;padding:0 clamp(14px,2vw,30px)}
+.mission-title{padding:20px 0 15px}
+.mission-layout{grid-template-columns:minmax(0,1fr) minmax(300px,340px)}
+.mission-map{height:min(64vh,650px);min-height:390px}
+.mission-metrics>div,.map-workspace,.control-section,.control-section:last-child{border-color:var(--orion-border);border-radius:var(--orion-radius);box-shadow:var(--orion-shadow)}
+.mission-controls{gap:9px}
+.mode-selector{background:#edf3ee;border-color:var(--orion-border)}
+.mode-selector button.selected{background:var(--orion-green);color:#fff}
+#flight-camera,#flight-parameters,#flight-photos{scroll-margin-top:75px}
+@media(max-width:900px){.mission-layout{grid-template-columns:1fr}.mission-map{height:410px;min-height:320px}.mission-title{gap:12px}.title-actions{flex-wrap:wrap}}
+@media(max-width:600px){.flight-main{padding:0 12px}.mission-title h1{font-size:27px}.mission-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.mission-map{height:340px}.mission-controls{margin-top:0}}
+@media(max-width:600px){.mission-metrics{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:7px}.mission-metrics>div,.mission-metrics>div:first-child,.mission-metrics>div:last-child{flex:0 0 130px;min-height:85px;scroll-snap-align:start}.mission-metrics strong{font-size:20px}}
+@media(min-width:901px){
+ .mission-title{padding:12px 0 6px}.mission-title h1{font-size:29px;margin:4px 0}
+ .flight-workspace-tabs{margin:4px 0 10px}
+ .mission-metrics{grid-template-columns:repeat(8,minmax(0,1fr));gap:5px;margin:8px 0 10px}
+ .mission-metrics>div,.mission-metrics>div:first-child,.mission-metrics>div:last-child{min-height:70px;padding:8px 9px}
+ .mission-metrics strong{font-size:18px;margin-top:4px}.mission-metrics span{font-size:9px}
+ .mission-metrics small{font-size:9px;margin-top:1px}
+ .mission-map{height:min(65vh,620px)}
+}
+.map-workspace{display:flex;flex-direction:column}
+.map-workspace>.map-search{order:-2}
+.map-workspace>.mission-map-wrap{order:-1}
+.map-workspace>.map-toolbar{margin-top:8px}

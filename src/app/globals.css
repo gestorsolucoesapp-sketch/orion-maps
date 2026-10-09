@@ -224,3 +224,40 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,su
 .orion-agro{background:var(--orion-paper)!important}
 .orion-agro > div > header{background:#171c1b}
 @media(max-width:650px){.orion-workspace > div > header > div:first-child > div{min-height:68px!important}}
+
+/* Shared navigation and surface tokens. */
+:root{--orion-bg:#f5f6f4;--orion-surface:#fff;--orion-text:#171f1b;--orion-subtle:#506159;--orion-border:#dce4de;--orion-green:#087852;--orion-green-soft:#e7f5ed;--orion-radius:10px;--orion-shadow:0 2px 10px #14291b0a}
+html,body{background:var(--orion-bg);color:var(--orion-text)}
+body,button,input,select,textarea{font-family:var(--font-work-sans),sans-serif}
+main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space-grotesk),sans-serif}
+.orion-app-navigation{position:relative;z-index:40;display:flex;align-items:center;gap:clamp(16px,2vw,30px);min-height:68px;padding:8px clamp(16px,2.4vw,36px);border-bottom:1px solid var(--orion-border);background:#fff;color:var(--orion-text)}
+.orion-app-navigation-brand{display:flex;align-items:center;gap:9px;flex:none;white-space:nowrap;text-decoration:none;font-size:16px;font-weight:700;letter-spacing:-.04em;color:var(--orion-text)}
+.orion-app-navigation-brand b{color:var(--orion-green)}
+.orion-app-navigation-symbol{display:grid;place-items:center;width:34px;height:34px;border:1px solid var(--orion-green);border-radius:8px;color:var(--orion-green);font-size:22px}
+.orion-app-navigation>nav{display:flex;align-items:center;justify-content:space-between;gap:clamp(12px,1.6vw,25px);width:100%}
+.orion-app-navigation-group{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.orion-app-navigation-group>span{width:100%;padding-left:9px;color:var(--orion-subtle);font-size:10px;font-weight:700}
+.orion-app-navigation-group a,.orion-app-navigation-signin{display:inline-flex;align-items:center;min-height:34px;padding:7px 9px;border-radius:6px;color:#243d30;text-decoration:none;font-size:12px;font-weight:650;white-space:nowrap}
+.orion-app-navigation-group a:hover,.orion-app-navigation-group a.active{background:var(--orion-green-soft);color:#075f43}
+.orion-app-navigation-group a.active{box-shadow:inset 0 -2px var(--orion-green)}
+.orion-app-navigation-signin{border:1px solid var(--orion-border)}
+.orion-app-navigation-mobile{display:none}
+.orion-home-header{display:none!important}
+.orion-workspace>div>header>.sticky{display:none!important}
+.orion-workspace>div>header>div:first-child>div{min-height:58px!important}
+.orion-workspace>div>header>div:first-child{margin-top:0!important}
+.orion-calculator>header{display:none!important}
+@media(max-width:1050px){
+ .orion-app-navigation{justify-content:space-between;min-height:60px}
+ .orion-app-navigation>nav{display:none}
+ .orion-app-navigation-mobile{display:block;position:relative;margin-left:auto}
+ .orion-app-navigation-mobile summary{list-style:none;cursor:pointer;border:1px solid var(--orion-border);border-radius:7px;padding:9px 14px;color:var(--orion-green);font-size:13px;font-weight:700}
+ .orion-app-navigation-mobile summary::-webkit-details-marker{display:none}
+ .orion-app-navigation-mobile nav{position:absolute;right:0;top:44px;display:grid;grid-template-columns:repeat(2,minmax(145px,1fr));gap:15px;width:min(92vw,410px);max-height:76vh;overflow:auto;padding:16px;border:1px solid var(--orion-border);border-radius:10px;background:#fff;box-shadow:0 12px 32px #152b1b24}
+ .orion-app-navigation-mobile nav div{display:grid;gap:4px}
+ .orion-app-navigation-mobile strong{color:var(--orion-subtle);font-size:11px}
+ .orion-app-navigation-mobile a{padding:8px;border-radius:5px;color:#223e2d;font-size:13px;text-decoration:none}
+ .orion-app-navigation-mobile a[aria-current="page"]{background:var(--orion-green-soft);color:#075f43;font-weight:700}
+}
+@media(max-width:500px){.orion-app-navigation-mobile nav{grid-template-columns:1fr 1fr;width:min(95vw,350px)}.orion-app-navigation-signin{padding:7px}}
+@media(max-width:700px){.orion-calculator>div.grid{display:flex;flex-direction:column-reverse}}
