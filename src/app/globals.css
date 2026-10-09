@@ -288,4 +288,7 @@ main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space
 .orion-app-navigation--workspace .orion-app-navigation-mobile a{color:#e2efe5}
 .orion-app-navigation--workspace .orion-app-navigation-mobile a[aria-current="page"]{background:#164b32;color:#69f3b2}
 .orion-results-workspace{background:#102821!important}
+.orion-panel-workspace{background:#14231b!important}
+.orion-panel-intro{background-image:linear-gradient(#7fe8a909 1px,transparent 1px),linear-gradient(90deg,#7fe8a909 1px,transparent 1px);background-size:42px 42px}
+.orion-panel-refresh p{color:#bdd1c1}
 @media(min-width:1051px){.orion-app-navigation--workspace .orion-app-navigation-brand{border-color:#385043}.orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#164b32;color:#69f3b2}}

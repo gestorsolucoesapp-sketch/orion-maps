@@ -71,46 +71,20 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
   const activeResultsHref=active&&!activeDeleting?`/processamento/resultados?levantamento=${active.id}`:"/processamento";
   const activeProductsHref=active&&!activeDeleting?`/processamento?levantamento=${active.id}`:"/processamento";
 
-  return <main className="orion-workspace min-h-screen bg-[#eaf1e7] text-slate-900">
+  return <main className="orion-workspace orion-panel-workspace min-h-screen bg-[#14231b] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
-      <header className="print:hidden">
-        <div className="mt-3 overflow-hidden rounded-[30px] border border-white/10 bg-[#071a1c] text-white shadow-[0_18px_44px_rgba(6,32,24,.22)]">
-          <div className="relative min-h-[170px] overflow-hidden px-5 py-5 sm:px-8">
-            <div className="absolute inset-0 opacity-55" style={{backgroundImage:"radial-gradient(circle at 78% 20%,rgba(42,129,117,.28),transparent 28%),repeating-radial-gradient(ellipse at 88% 85%,transparent 0 18px,rgba(54,148,157,.16) 19px 20px)"}}/>
-            <div className="relative flex items-start justify-between gap-4">
-              <Link href="/painel" className="min-w-0">
-                <span className="orion-workspace-brand"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b><small>LEVANTAMENTO AÉREO</small></span></span>
-              </Link>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <ForceUpdateButton/>
-                <span className="hidden max-w-56 truncate text-xs text-white/60 sm:inline">{user.email}</span>
-                <form action={signOutAction} className="hidden sm:block"><button className="rounded-xl border border-white/20 bg-white/5 px-4 py-2 text-sm text-white">Sair</button></form>
-              </div>
-            </div>
-            <p className="relative mt-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-emerald-100/65">Levantar · Processar · Transformar</p>
-          </div>
-        </div>
-
-        <div className="sticky top-2 z-30 -mt-5 mx-3 rounded-[20px] border border-white/70 bg-white/95 p-1.5 shadow-[0_8px_24px_rgba(32,76,54,.14)] backdrop-blur sm:mx-6">
-          <nav className="grid grid-cols-3 gap-1 text-center text-xs font-semibold sm:text-sm">
-            <Link href="/painel" className="rounded-2xl bg-emerald-900 px-2 py-3 text-white"><span aria-hidden className="mr-1">▤</span> Levantamentos</Link>
-            {activeDeleting?<span aria-disabled="true" className="rounded-2xl px-2 py-3 text-slate-400"><span aria-hidden className="mr-1">◇</span> Produtos</span>:<Link href={activeProductsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">◇</span> Produtos</Link>}
-            {activeDeleting?<span aria-disabled="true" className="rounded-2xl px-2 py-3 text-slate-400"><span aria-hidden className="mr-1">▥</span> Resultados</span>:<Link href={activeResultsHref} className="rounded-2xl px-2 py-3 text-slate-600 hover:bg-slate-50"><span aria-hidden className="mr-1">▥</span> Resultados</Link>}
-          </nav>
-        </div>
-      </header>
-
-      <section className="flex flex-wrap items-center justify-between gap-4 py-6 print:hidden">
+      <section className="orion-panel-intro mt-3 flex flex-wrap items-center justify-between gap-4 border border-[#41614c] bg-[#1c2a21] px-5 py-6 text-white print:hidden sm:px-7">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-800">Orion Maps · Campo</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#36e8a2]">Orion Maps · Campo</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>
-          <p className="mt-1 text-sm text-slate-600">Fotos, processamento e resultados organizados por projeto.</p>
+          <p className="mt-1 text-sm text-[#bdd1c1]">Fotos, processamento e resultados organizados por projeto.</p>
         </div>
-        <div className="flex flex-wrap gap-2"><Link href={active?`/waypoints?levantamento=${active.id}`:"/waypoints"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Planejar voo · Grid ↗</Link>{!activeDeleting?<Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 shadow-sm">Plantio e faixas</Link>:null}<Link href="/painel/novo" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
+        <div className="flex flex-wrap gap-2"><Link href={active?`/waypoints?levantamento=${active.id}`:"/waypoints"} className="rounded-2xl border border-[#6ebd86] bg-[#213d2b] px-5 py-3 text-sm font-semibold text-white shadow-sm">Planejar voo · Grid ↗</Link>{!activeDeleting?<Link href={active?`/agro?levantamento=${active.id}`:"/agro"} className="rounded-2xl border border-[#6ebd86] bg-[#213d2b] px-5 py-3 text-sm font-semibold text-white shadow-sm">Plantio e faixas</Link>:null}<Link href="/painel/novo" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white shadow-sm">+ Novo levantamento</Link></div>
+        <div className="orion-panel-account flex w-full flex-wrap items-center gap-2 border-t border-[#41614c] pt-3 text-xs"><ForceUpdateButton/><span className="max-w-56 truncate text-[#9eb5a4]">{user.email}</span><form action={signOutAction}><button className="rounded-xl border border-[#6a8872] px-3 py-2 font-semibold text-white">Sair</button></form></div>
       </section>
 
       {query.apagado==="1"?<p role="status" className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Levantamento apagado.</p>:null}
-      <LiveProcessingRefresh active={liveJobs.length>0}/>
+      <div className="orion-panel-refresh"><LiveProcessingRefresh active={liveJobs.length>0}/></div>
       {error?<p role="alert" className="rounded-2xl bg-red-50 p-5 text-red-800">{error}</p>:<div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <aside className="min-w-0 print:hidden">
           <EnginePanel devices={devices} error={devicesError}/>
@@ -120,7 +94,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
           </div>)}
 
           <div className="mb-3 flex items-center justify-between px-1">
-            <h2 className="text-sm font-semibold text-slate-700">Seus projetos</h2>
+            <h2 className="text-sm font-semibold text-white">Seus projetos</h2>
             <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">{surveys.length}</span>
           </div>
           <SurveySearch surveys={surveys} activeId={active?.id} statuses={statuses}/>
@@ -177,8 +151,8 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
 
       {recentResults.length>0&&<section className="mt-7 print:hidden">
         <div className="mb-3 flex items-end justify-between gap-3">
-          <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">Acesso rápido</p><h2 className="mt-1 text-2xl font-semibold">Resultados recentes</h2></div>
-          {active&&!activeDeleting?<Link href={activeResultsHref} className="text-sm font-semibold text-emerald-900">Ver resultados →</Link>:null}
+          <div><p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#36e8a2]">Acesso rápido</p><h2 className="mt-1 text-2xl font-semibold text-white">Resultados recentes</h2></div>
+          {active&&!activeDeleting?<Link href={activeResultsHref} className="text-sm font-semibold text-[#36e8a2]">Ver resultados →</Link>:null}
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3 [scrollbar-width:none]">
           {recentResults.map(({survey,result})=>{
@@ -196,7 +170,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
         </div>
       </section>}
 
-      <footer className="py-8 text-center text-xs text-slate-400">Orion Maps · Mapeamento de precisão</footer>
+      <footer className="py-8 text-center text-xs text-[#9eb5a4]">Orion Maps · Mapeamento de precisão</footer>
     </div>
   </main>;
 }
