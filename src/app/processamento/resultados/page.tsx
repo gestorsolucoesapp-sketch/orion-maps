@@ -40,7 +40,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const projectHref=`/painel?levantamento=${active.id}`;
   const productsHref=`/processamento?levantamento=${active.id}`;
 
-  return <main className="orion-workspace min-h-screen bg-[#102821] text-slate-900">
+  return <main className="orion-workspace orion-results-workspace min-h-screen bg-[#102821] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <header className="print:hidden">
         <div className="mt-3 overflow-hidden rounded-[30px] border border-white/10 bg-[#071a1c] text-white shadow-[0_18px_44px_rgba(6,32,24,.22)]">

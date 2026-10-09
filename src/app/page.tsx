@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import "./home.css";
 
 const steps = [
@@ -18,20 +19,23 @@ const tools = [
 export default function Home() {
   return <main className="orion-home">
     <section className="orion-home-hero" aria-labelledby="home-title">
-      <div className="orion-home-hero-image" aria-hidden="true" />
       <div className="orion-home-hero-inner">
         <div className="orion-home-hero-copy">
-          <p className="orion-home-eyebrow"><span aria-hidden="true" /> ORION MAPS / LEVANTAMENTO AÉREO</p>
+          <p className="orion-home-eyebrow"><span aria-hidden="true" /> FOTOGRAMETRIA E MAPEAMENTO COM DRONE</p>
           <h1 id="home-title">Do planejamento<br />ao <em>mapa pronto.</em></h1>
-          <p className="orion-home-lead">Um espaço para planejar voos, organizar levantamentos e acompanhar os resultados do mapeamento com drone.</p>
+          <p className="orion-home-lead">Planeje o voo, organize as fotos e acompanhe cada produto do levantamento em uma área de trabalho feita para mapeamento aéreo.</p>
           <div className="orion-home-actions">
             <Link className="orion-home-button orion-home-button-primary" href="/painel">Abrir área de trabalho <span aria-hidden="true">↗</span></Link>
             <Link className="orion-home-button orion-home-button-outline" href="/waypoints">Planejar um voo <span aria-hidden="true">→</span></Link>
           </div>
+          <div className="orion-home-hero-signals"><span>01 <b>PLANEJAR</b></span><span>02 <b>PROCESSAR</b></span><span>03 <b>ENTREGAR</b></span></div>
         </div>
+        <div className="orion-home-hero-visual"><Image src="/orion-home-flight.jpg" alt="Drone em voo sobre uma área rural" fill priority sizes="(max-width: 760px) 100vw, 52vw" className="orion-home-flight-photo"/><div className="orion-home-visual-grid" aria-hidden="true"/><span className="orion-home-visual-tag">VISÃO AÉREA <i/> CAPTURA DE CAMPO</span><span className="orion-home-visual-corner" aria-hidden="true">ORION / 01</span></div>
         <div className="orion-home-hero-caption"><span className="orion-home-caption-line" /><span>PLANEJAMENTO DE VOO<br />LEVANTAMENTO · PROCESSAMENTO · RESULTADOS</span><span className="orion-home-caption-index">01 / 04</span></div>
       </div>
     </section>
+
+    <section className="orion-home-products" aria-labelledby="products-title"><div className="orion-home-container"><div className="orion-home-section-top"><p className="orion-home-kicker">DO VOO AO PRODUTO</p><span>DADOS PARA CONSULTAR E ENTREGAR</span></div><div className="orion-home-products-grid"><div className="orion-home-products-intro"><h2 id="products-title">Mais que imagens.<br/><em>Uma visão do terreno.</em></h2><p>O Orion reúne o plano, as fotos e os resultados do processamento. Consulte no mapa os produtos visuais disponíveis e baixe os arquivos do projeto.</p><Link href="/processamento/resultados">Explorar mapas e entregas <span aria-hidden="true">↗</span></Link></div><div className="orion-home-products-list"><div><span>01</span><strong>Ortofoto</strong><p>Uma vista aérea contínua para inspecionar a área processada.</p></div><div><span>02</span><strong>Terreno e superfície</strong><p>Modelos de elevação, relevo e curvas quando gerados pelo processamento.</p></div><div><span>03</span><strong>Relatório técnico</strong><p>Parâmetros e métricas registradas para revisar o resultado disponível.</p></div></div></div></div></section>
 
     <section className="orion-home-process" aria-labelledby="process-title">
       <div className="orion-home-container">

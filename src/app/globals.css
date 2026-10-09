@@ -273,3 +273,19 @@ main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space
  .orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#e5f5eb;box-shadow:none;color:#087852}
 }
 @media print{body:has(>.orion-app-navigation--workspace){padding-left:0}}
+
+/* Dark navigation links the application to the new aerial mapping home. */
+.orion-app-navigation--workspace{background:#1b211d;border-color:#385043;color:#eff8f0}
+.orion-app-navigation--workspace .orion-app-navigation-brand{color:#f4faf5}
+.orion-app-navigation--workspace .orion-app-navigation-brand b,.orion-app-navigation--workspace .orion-app-navigation-symbol{color:#16e99a}
+.orion-app-navigation--workspace .orion-app-navigation-symbol{border-color:#16e99a}
+.orion-app-navigation--workspace .orion-app-navigation-group>span{color:#8fa699}
+.orion-app-navigation--workspace .orion-app-navigation-group a{color:#d9e8dd}
+.orion-app-navigation--workspace .orion-app-navigation-group a:hover,.orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#164b32;color:#69f3b2;box-shadow:inset 0 -2px #16e99a}
+.orion-app-navigation--workspace .orion-app-navigation-mobile summary{border-color:#5c7464;color:#ccf6dd}
+.orion-app-navigation--workspace .orion-app-navigation-mobile nav{border-color:#4c6352;background:#202a23}
+.orion-app-navigation--workspace .orion-app-navigation-mobile strong{color:#8fa699}
+.orion-app-navigation--workspace .orion-app-navigation-mobile a{color:#e2efe5}
+.orion-app-navigation--workspace .orion-app-navigation-mobile a[aria-current="page"]{background:#164b32;color:#69f3b2}
+.orion-results-workspace{background:#102821!important}
+@media(min-width:1051px){.orion-app-navigation--workspace .orion-app-navigation-brand{border-color:#385043}.orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#164b32;color:#69f3b2}}

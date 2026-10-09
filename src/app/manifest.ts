@@ -7,8 +7,8 @@ export default function manifest():MetadataRoute.Manifest{
     description:"Mapeamento de precisão, planejamento de voo e resultados fotogramétricos.",
     start_url:"/painel",
     display:"standalone",
-    background_color:"#eaf1e7",
-    theme_color:"#071a1c",
+    background_color:"#171b19",
+    theme_color:"#171b19",
     orientation:"portrait",
     icons:[
       {src:"/orion-maps-logo.jpg",sizes:"any",type:"image/jpeg",purpose:"any"},
