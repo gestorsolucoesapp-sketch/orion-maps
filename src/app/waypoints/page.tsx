@@ -37,6 +37,7 @@ export default function WaypointsPage(){
  const [name,setName]=useState("Meu primeiro voo"),[mode,setMode]=useState<Mode>("manual"),[points,setPoints]=useState<Coordinate[]>([]),[settings,setSettings]=useState(defaults),[drone,setDrone]=useState("DJI Mini 5 Pro");
  const [history,setHistory]=useState<Coordinate[][]>([]),[drawing,setDrawing]=useState(true),[center,setCenter]=useState<Coordinate|null>(null),[fit,setFit]=useState(0),[coordinate,setCoordinate]=useState(""),[message,setMessage]=useState(""),[saved,setSaved]=useState<Plan[]|null>(null);
  const [cloudBusy,setCloudBusy]=useState(false);
+ const [saveFeedback,setSaveFeedback]=useState<{text:string;fingerprint:string;level:"success"|"warning"|"error"}|null>(null);
  const [importedLocation,setImportedLocation]=useState<ImportedMapLocation|null>(null);
  const [registeredDrones,setRegisteredDrones]=useState<DroneProfile[]>([]);
  const availableDrones=useMemo(()=>[...droneProfiles,...registeredDrones],[registeredDrones]);
@@ -109,7 +110,7 @@ export default function WaypointsPage(){
  const plan:Plan={version:1,name,mode,points,settings,drone,cameraId,batteryMinutes,batteryFullMinutes,photoInterval,corridorWidth,orbitSamples,captureMode,captureDistance};
  const safetyWarnings=flightWarnings({drone,mode,points:points.length,waypoints:metrics.waypoints,speed:settings.speed,height:settings.height,minutes:metrics.seconds/60,batteryMinutes,photoInterval,minInterval:selectedCamera?.minInterval??null,requiredInterval:calculation.gsd&&settings.gimbal===-90?calculation.gsd.interval:null,terrainConfirmed:false});
  function setField(key:keyof Settings,value:string){setSafetyChecked(false);if(["sensorWidth","sensorHeight","focal","imageWidth","imageHeight","diagonalFov"].includes(key))setCameraId("");setSettings(s=>({...s,[key]:value===""?NaN:Number(value)}));}
- function load(p:Plan){changePoints(p.points);setName(p.name);setMode(p.mode);setSettings(p.settings);setDrone(p.drone);setCameraId(p.cameraId||"");setBatteryFullMinutes(p.batteryFullMinutes??(p.batteryMinutes??27)/.85);setPhotoInterval(p.photoInterval??3);setCaptureMode(p.captureMode??"manual");setCaptureDistance(p.captureDistance??12);setCorridorWidth(p.corridorWidth??30);setOrbitSamples(p.orbitSamples??36);setSafetyChecked(false);setFit(n=>n+1);setDrawing(false);setSaved(null);setMessage("Plano carregado. Confira os parâmetros antes de exportar.");}
+ function load(p:Plan){changePoints(p.points);setName(p.name);setMode(p.mode);setSettings(p.settings);setDrone(p.drone);setCameraId(p.cameraId||"");setBatteryFullMinutes(p.batteryFullMinutes??(p.batteryMinutes??27)/.85);setPhotoInterval(p.photoInterval??3);setCaptureMode(p.captureMode??"manual");setCaptureDistance(p.captureDistance??12);setCorridorWidth(p.corridorWidth??30);setOrbitSamples(p.orbitSamples??36);setSafetyChecked(false);setFit(n=>n+1);setDrawing(false);setSaved(null);setSaveFeedback(null);setMessage("Plano carregado. Confira os parâmetros antes de exportar.");}
  async function exportWithHistory(){
   setCloudBusy(true);
   try {
@@ -128,20 +129,42 @@ export default function WaypointsPage(){
    else{const bytes=Uint8Array.from(atob(v.kmz_base64),c=>c.charCodeAt(0));download(bytes.buffer,"application/vnd.google-earth.kmz",`${v.target_id||id}.kmz`);setMessage("Cópia do histórico baixada. Nenhuma transferência para o controle foi realizada.");}
   }catch(e){setMessage(e instanceof Error?e.message:"Falha ao recuperar versão.");}finally{setCloudBusy(false);}
  }
- function save(){
-  try{validatePlan(plan);}catch(e){setMessage(e instanceof Error?e.message:"Confira os parâmetros do plano.");return;}
+ async function save(){
+  const fingerprint=JSON.stringify(plan);
+  try{validatePlan(plan);}catch(e){setSaveFeedback({text:e instanceof Error?e.message:"Confira os parâmetros do plano.",fingerprint,level:"error"});return;}
+  if(!points.length){setSaveFeedback({text:"Adicione pontos ao mapa antes de salvar o plano.",fingerprint,level:"error"});return;}
+  setCloudBusy(true);
+  setSaveFeedback({text:"Salvando o plano…",fingerprint,level:"warning"});
+  let localSaved=false;
   try{
    const stored:unknown=JSON.parse(localStorage.getItem(storageKey)||"[]");
-   if(!Array.isArray(stored))throw new Error();
-   const plans=stored.map(validatePlan);
-   localStorage.setItem(storageKey,JSON.stringify([plan,...plans.filter(p=>p.name!==name)].slice(0,30)));
-   setMessage(calculation.error?`Rascunho salvo neste navegador. Antes de gerar a rota: ${calculation.error}`:"Plano salvo neste navegador. Exporte o JSON para guardar uma cópia.");
-  }catch{setMessage("Não foi possível gravar no armazenamento deste navegador. Exporte o JSON para preservar seu plano; os planos anteriores não foram apagados.");}
+   if(!Array.isArray(stored))throw new Error("Lista local inválida.");
+   localStorage.setItem(storageKey,JSON.stringify([plan,...stored].slice(0,30)));
+   localSaved=true;
+  }catch{/* A falha local não impede a tentativa de salvar na nuvem. */}
+  const time=new Date().toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+  if(calculation.error||!calculation.legs.length){
+   setSaveFeedback({text:localSaved?`Rascunho salvo neste navegador às ${time}. A rota ainda não está pronta para salvar na nuvem: ${calculation.error||"complete os pontos."}`:"Não foi possível salvar o rascunho neste navegador. Exporte o JSON antes de sair.",fingerprint,level:localSaved?"warning":"error"});
+   setCloudBusy(false);
+   return;
+  }
+  try{
+   const bytes=previewKmz(name,calculation.legs,settings.height,{boundary:mode==="grid"||mode==="double"||mode==="oblique"?points:undefined});
+   let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);
+   const result=await saveMissionVersion(name,plan,btoa(binary));
+   if(result.error||!result.id)throw new Error(result.error||"A nuvem não confirmou o salvamento.");
+   const verified=await readMissionVersion(result.id);
+   if(verified.error||!verified.version)throw new Error(verified.error||"A versão salva não pôde ser conferida.");
+   const storedPlan=validatePlan(verified.version.plan);
+   if(verified.version.name!==name.trim()||JSON.stringify(storedPlan.points)!==JSON.stringify(points))throw new Error("A versão conferida não corresponde ao plano atual.");
+   setSaveFeedback({text:`Plano salvo e conferido na nuvem às ${time}${localSaved?"; cópia também neste navegador":"; cópia local indisponível"}. Não foi enviado ao RC 2.`,fingerprint,level:localSaved?"success":"warning"});
+  }catch(e){const reason=e instanceof Error?e.message:"Falha ao salvar na nuvem.";setSaveFeedback({text:localSaved?`Plano salvo somente neste navegador às ${time}. Nuvem não confirmada: ${reason}`:`Não foi possível salvar: ${reason} Exporte o JSON antes de sair.`,fingerprint,level:localSaved?"warning":"error"});}
+  finally{setCloudBusy(false);}
  }
  function exportPlan(){try{validatePlan(plan);download(JSON.stringify(plan,null,2),"application/json",`${filename}.json`);}catch(e){setMessage(e instanceof Error?e.message:"Confira os parâmetros antes de exportar.");}}
  function exportPhotoMission(){try{if(drone!=="DJI Mini 5 Pro")throw Error("Selecione o DJI Mini 5 Pro.");if(calculation.error||!calculation.legs.length)throw Error("Gere a rota antes de exportar.");if(!safetyChecked)throw Error("Confirme a validação pré-voo.");if(captureMode==='manual')throw Error("Selecione um modo de captura automática.");if(selectedCamera?.minInterval!==null&&selectedCamera?.minInterval!==undefined&&captureMode==='time'&&photoInterval<selectedCamera.minInterval)throw Error("Intervalo menor que o mínimo informado para a câmera.");const bytes=photoMissionKmz({name,route:calculation.legs.flat(),height:settings.height,speed:settings.speed,gimbal:settings.gimbal,captureMode,interval:captureMode==='time'?photoInterval:captureDistance});download(bytes,"application/vnd.google-earth.kmz",`${filename}-captura-experimental.kmz`);setMessage("KMZ experimental com takePhoto gerado. Valide no DJI Fly antes de transferir ou executar; o Orion não enviou ao controle.");}catch(e){setMessage(e instanceof Error?e.message:"Não foi possível exportar a captura.");}}
 
- function openSaved(){try{const value:unknown=JSON.parse(localStorage.getItem(storageKey)||"[]");if(!Array.isArray(value))throw new Error();setSaved(value.map(validatePlan));}catch{setMessage("Não foi possível ler os planos deste navegador.");}}
+ function openSaved(){try{const value:unknown=JSON.parse(localStorage.getItem(storageKey)||"[]");if(!Array.isArray(value))throw new Error();const readable:Plan[]=[];for(const entry of value){try{readable.push(validatePlan(entry));}catch{/* Preserve old entries in storage, but do not block readable plans. */}}setSaved(readable);if(readable.length<value.length)setMessage("Alguns planos antigos não puderam ser abertos. As cópias locais foram mantidas.");}catch{setMessage("Não foi possível ler os planos deste navegador.");}}
  function locate(){const p=coordinate.trim().split(/[;,\s]+/).map(Number);if(p.length!==2||!validPoint([p[1],p[0]])){setMessage("Informe latitude e longitude. Ex.: -23.55, -46.63");return;}setCenter([p[1],p[0]]);setMessage("");}
  async function importFile(file:File){try{
   if(file.size>2*1024*1024)throw new Error("Importe um arquivo de até 2 MB.");let text:string;
@@ -170,8 +193,9 @@ export default function WaypointsPage(){
  sliderFields.push(["front","Sobreposição frontal","%",0,99]);
  if(["grid","double","oblique"].includes(mode))sliderFields.push(["side","Sobreposição lateral","%",0,99],["bearing","Rumo da grade","°",0,359]);
  function renderModeSelector(){return <div className="mode-selector" role="group" aria-label="Modo de planejamento"><div className="mode-selector-heading"><strong>Modo de voo</strong><Link href="/painel">Abrir levantamentos ↗</Link></div>{([['manual','Waypoints'],['grid','Grid'],['double','Grid duplo'],['corridor','Corredor'],['oblique','Oblíquo'],['orbit','Órbita 360°']] as [Mode,string][]).map(([value,label])=><button key={value} type="button" aria-pressed={mode===value} className={mode===value?"selected":""} onClick={()=>{setMode(value);setSafetyChecked(false);if(value==='oblique')setSettings(s=>({...s,gimbal:-45}));else if(value==='grid'||value==='double')setSettings(s=>({...s,gimbal:-90}));}}>{label}</button>)}</div>;}
- return <div className="flight-app"><aside className="flight-sidebar"><Link className="flight-brand" href="/painel"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION<small>MAPS / PLANEJAMENTO</small></span></Link><div className="sidebar-label">ÁREA DE TRABALHO</div><nav><Link href="/waypoints" aria-current="page"><span>01</span>Voo e Grid</Link><Link href="/gsd"><span>02</span>Calculadora GSD</Link><Link href="/painel"><span>03</span>Levantamentos</Link><Link href="/processamento"><span>04</span>Processamento</Link></nav><div className="sidebar-bottom"><span className="status-dot"/>PLANEJAMENTO LOCAL<small>Os planos ficam neste navegador até você exportar.</small></div></aside>
- <main className="flight-main"><header className="flight-topbar"><span>MISSÕES / WAYPOINT KMZ</span><Link href="/painel">Voltar ao painel ↗</Link></header><section className="mission-title"><div><div className="eyebrow">DO TERRENO AO TRAJETO</div><h1>Planeje cada passagem.</h1><InfoPopover title="Planejamento de voo"><p>Waypoints e grades de levantamento. Um plano claro, ponto a ponto.</p></InfoPopover></div><div className="title-actions"><button onClick={openCloud} disabled={cloudBusy} className="flight-button">Histórico na nuvem</button><button onClick={openSaved} className="flight-button">Meus planos</button><button onClick={save} className="flight-button primary">Salvar plano ↗</button></div></section>
+ return <div className="flight-app"><aside className="flight-sidebar"><Link className="flight-brand" href="/painel"><span className="orion-symbol" aria-hidden="true">O</span><span>ORION<small>MAPS / PLANEJAMENTO</small></span></Link><div className="sidebar-label">ÁREA DE TRABALHO</div><nav><Link href="/waypoints" aria-current="page"><span>01</span>Voo e Grid</Link><Link href="/gsd"><span>02</span>Calculadora GSD</Link><Link href="/painel"><span>03</span>Levantamentos</Link><Link href="/processamento"><span>04</span>Processamento</Link></nav><div className="sidebar-bottom"><span className="status-dot"/>PLANEJAMENTO<small>Salvar plano guarda uma cópia no navegador e, com sessão ativa, uma versão na nuvem.</small></div></aside>
+ <main className="flight-main"><header className="flight-topbar"><span>MISSÕES / WAYPOINT KMZ</span><Link href="/painel">Voltar ao painel ↗</Link></header><section className="mission-title"><div><div className="eyebrow">DO TERRENO AO TRAJETO</div><h1>Planeje cada passagem.</h1><InfoPopover title="Planejamento de voo"><p>Waypoints e grades de levantamento. Um plano claro, ponto a ponto.</p></InfoPopover></div><div className="title-actions"><button onClick={openCloud} disabled={cloudBusy} className="flight-button">Histórico na nuvem</button><button onClick={openSaved} className="flight-button">Planos neste navegador</button><button onClick={()=>void save()} disabled={cloudBusy} className="flight-button primary">{cloudBusy?"Salvando…":"Salvar plano ↗"}</button></div></section>
+ {saveFeedback&&<div className={`flight-save-feedback flight-save-feedback--${saveFeedback.fingerprint===JSON.stringify(plan)?saveFeedback.level:"warning"}`} role="status" aria-live="polite">{saveFeedback.fingerprint===JSON.stringify(plan)?saveFeedback.text:"Há alterações depois do último salvamento. Clique em Salvar plano novamente."}</div>}
  <nav className="flight-workspace-tabs" role="tablist" aria-label="Área de trabalho do voo"><button type="button" role="tab" id="planning-tab" aria-controls="planning-panel" aria-selected={workspaceTab==="planning"} onClick={()=>{setWorkspaceTab("planning");requestAnimationFrame(()=>window.dispatchEvent(new Event("resize")));}}>Planejamento</button><button type="button" role="tab" id="simulation-tab" aria-controls="simulation-panel" aria-selected={workspaceTab==="simulation"} disabled={!calculation.legs.length||!!calculation.error} title={!calculation.legs.length?"Desenhe ou importe uma rota para simular":"Visualizar o percurso sem enviar comandos ao drone"} onClick={()=>setWorkspaceTab("simulation")}>Simular voo</button></nav>
  {workspaceTab==="simulation"&&<div id="simulation-panel" role="tabpanel" aria-labelledby="simulation-tab"><FlightSimulator name={name} drone={drone} legs={calculation.legs} boundary={["grid","double","oblique"].includes(mode)?points:[]} height={settings.height} speed={settings.speed} gimbal={settings.gimbal} captureMode={captureMode} photoInterval={photoInterval} captureDistance={captureDistance} batteryMinutes={batteryMinutes} batteryFullMinutes={batteryFullMinutes} userPosition={userPosition?.point||null}/></div>}
  {workspaceTab==="planning"&&!calculation.legs.length&&<InfoPopover title="Planejamento de voo"><p className="mission-note">Desenhe ou importe uma rota no planejamento para habilitar a aba Simular voo. Não é necessário ter fotos processadas.</p></InfoPopover>}

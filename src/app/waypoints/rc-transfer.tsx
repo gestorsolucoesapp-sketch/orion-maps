@@ -22,7 +22,7 @@ export default function RcTransfer({plan,route,disabled}:{plan:{name:string;dron
  }
  return <section className="control-section"><div className="section-heading"><span>04</span><h2>Enviar missão ao RC 2</h2></div>
   <p>Controle conectado por USB? Abra <b>Conectar Orion RC2</b> na área de trabalho e envie o plano.</p>
-  {route.length>0?<p><b>{route.length} pontos</b> · {plan.settings.height} m acima da decolagem · {plan.settings.speed} m/s</p>:<p><b>Abra um plano em “Meus planos” ou desenhe a área no mapa para habilitar o envio.</b></p>}
+  {route.length>0?<p><b>{route.length} pontos</b> · {plan.settings.height} m acima da decolagem · {plan.settings.speed} m/s</p>:<p><b>Abra um plano em “Planos neste navegador” ou desenhe a área no mapa para habilitar o envio.</b></p>}
   {route.length>0&&plan.drone!=="DJI Mini 5 Pro"&&<p>Selecione DJI Mini 5 Pro para usar este controle.</p>}
   <button className="flight-button primary" disabled={busy||disabled||plan.drone!=="DJI Mini 5 Pro"} onClick={send}>{busy?"Enviando…":"Enviar plano ao controle"}</button>
   <p>Substitui a missão no RC 2 e guarda a anterior no histórico. Não inicia o voo.</p>
@@ -31,4 +31,3 @@ export default function RcTransfer({plan,route,disabled}:{plan:{name:string;dron
   {status&&<p role="status">{status}</p>}
  </section>;
 }
-
