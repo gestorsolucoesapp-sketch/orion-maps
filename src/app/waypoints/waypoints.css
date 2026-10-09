@@ -171,3 +171,10 @@
 .map-workspace>.map-search{order:-2}
 .map-workspace>.mission-map-wrap{order:-1}
 .map-workspace>.map-toolbar{margin-top:8px}
+.flight-mode-tabs{margin:2px 0 13px}
+.flight-mode-tabs .mode-selector{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;padding:7px;background:#fff;border:1px solid var(--orion-border);border-radius:9px}
+.flight-mode-tabs .mode-selector-heading{grid-column:1/-1;padding:6px 8px 10px;border-bottom:1px solid var(--orion-border);font-size:13px}
+.flight-mode-tabs .mode-selector button{min-height:43px;padding:8px 5px;border:1px solid #dce7df;border-radius:6px;background:#f7faf7;color:#254235;font-size:12px;font-weight:700}
+.flight-mode-tabs .mode-selector button:hover{border-color:#6db392;background:#edf8f0}
+.flight-mode-tabs .mode-selector button.selected{border-color:#087852;background:#087852;color:#fff}
+@media(max-width:700px){.flight-mode-tabs .mode-selector{grid-template-columns:repeat(3,minmax(0,1fr))}.flight-mode-tabs .mode-selector button{font-size:11px;min-height:45px}}

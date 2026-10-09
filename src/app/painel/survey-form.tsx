@@ -15,15 +15,24 @@ export default function SurveyForm({survey}:{survey?:Survey}){
  const [state,action,pending]=useActionState(saveSurvey,{}),formId=useId();
  const [name,setName]=useState(survey?.name||""),[city,setCity]=useState(survey?.location||""),[date,setDate]=useState(survey?.flight_date||""),[notes,setNotes]=useState(survey?.notes||"");
  const [drone,setDrone]=useState(()=>initialDrone(survey)),[planning,setPlanning]=useState(()=>{try{return survey?.planning_context?validateSurveyPlanning(survey.planning_context):EMPTY_SURVEY_PLANNING;}catch{return EMPTY_SURVEY_PLANNING;}});
+ const planningMode=planning.drawing.kind==="polygon"?"grid":"manual";
  // External form association keeps map/help/profile buttons completely outside the survey form.
  return <div className="min-w-0 space-y-5" data-testid="survey-form">
-  <form id={formId} action={action}><input type="hidden" name="id" value={survey?.id||""}/><input type="hidden" name="planning_context" value={JSON.stringify(planning)}/></form>
+  <form id={formId} action={action}><input type="hidden" name="id" value={survey?.id||""}/><input type="hidden" name="planning_context" value={JSON.stringify(planning)}/><input type="hidden" name="planning_mode" value={planningMode}/></form>
+  <section aria-labelledby="survey-mode-heading" className="rounded-xl border border-emerald-800/20 bg-emerald-50/70 p-4">
+   <h2 id="survey-mode-heading" className="text-base font-semibold text-emerald-950">Como você quer planejar o voo?</h2>
+   <p className="mt-1 text-sm text-emerald-900/80">Escolha o modo inicial. Você poderá trocar de aba no planejador sem perder o desenho.</p>
+   <div className="mt-3 grid gap-2 sm:grid-cols-2" role="group" aria-label="Modo inicial do voo">
+    <button type="button" aria-pressed={planningMode==="grid"} onClick={()=>setPlanning(p=>({...p,drawing:{...p.drawing,kind:"polygon"}}))} className={`min-h-20 rounded-lg border p-3 text-left ${planningMode==="grid"?"border-emerald-700 bg-emerald-800 text-white":"border-emerald-800/20 bg-white text-emerald-950"}`}><strong className="block text-sm">Grid de mapeamento</strong><span className="mt-1 block text-xs opacity-85">Contorne a área; o planejador calcula as faixas de voo.</span></button>
+    <button type="button" aria-pressed={planningMode==="manual"} onClick={()=>setPlanning(p=>({...p,drawing:{...p.drawing,kind:"path"}}))} className={`min-h-20 rounded-lg border p-3 text-left ${planningMode==="manual"?"border-emerald-700 bg-emerald-800 text-white":"border-emerald-800/20 bg-white text-emerald-950"}`}><strong className="block text-sm">Waypoints manuais</strong><span className="mt-1 block text-xs opacity-85">Defina cada ponto e a sequência do percurso.</span></button>
+   </div>
+  </section>
   <label className="block text-sm font-semibold">Nome do levantamento<input form={formId} className={input} name="name" required minLength={2} maxLength={120} value={name} onChange={e=>setName(e.target.value)}/></label>
   <div className="grid min-w-0 gap-5 sm:grid-cols-2"><label className="block min-w-0 text-sm font-semibold">Local<input form={formId} className={input} name="location" maxLength={200} value={city} onChange={e=>setCity(e.target.value)} placeholder="Município - UF"/></label><label className="block min-w-0 text-sm font-semibold">Data do voo<input form={formId} className={input} name="flight_date" type="date" value={date} onChange={e=>setDate(e.target.value)}/></label></div>
   <CityMapPreview city={city} value={planning} onChange={setPlanning}/>
   <DroneSelector value={drone} onChange={setDrone} formId={formId}/>
   <label className="block text-sm font-semibold">Anotações<textarea form={formId} className={input} name="notes" rows={3} maxLength={3000} value={notes} onChange={e=>setNotes(e.target.value)}/></label>
   {state.error&&<p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p>}
-  <div className="flex flex-wrap gap-2"><button type="submit" form={formId} disabled={pending} aria-busy={pending} className="min-h-11 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">{pending?"Salvando…":survey?"Salvar alterações":"Criar levantamento"}</button><button type="submit" form={formId} name="destination" value="waypoints" disabled={pending} className="min-h-11 rounded-xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 disabled:opacity-50">Salvar e planejar voo →</button></div>
+  <div className="flex flex-wrap gap-2"><button type="submit" form={formId} disabled={pending} aria-busy={pending} className="min-h-11 rounded-xl border border-emerald-800 bg-white px-5 py-3 text-sm font-semibold text-emerald-900 disabled:opacity-50">{pending?"Salvando…":survey?"Salvar alterações":"Criar levantamento"}</button><button type="submit" form={formId} name="destination" value="waypoints" disabled={pending} className="min-h-11 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Salvar e abrir {planningMode==="grid"?"Grid":"Waypoints"} →</button></div>
  </div>;
 }

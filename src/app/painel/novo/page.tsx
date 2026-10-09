@@ -19,7 +19,7 @@ export default async function NewSurveyPage() {
       <section aria-labelledby="new-survey-heading" className="rounded-[28px] border border-white/80 bg-white p-5 shadow-[0_12px_34px_rgba(35,72,48,.10)] sm:p-8">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">Orion Maps · Campo</p>
         <h1 id="new-survey-heading" className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Novo levantamento</h1>
-        <div className="mb-4 flex justify-end"><InfoPopover title="Novo levantamento"><p>Identifique o projeto, posicione e meça a área no mapa e escolha o drone. Criar levantamento salva os dados; Salvar e planejar voo abre o planejador com o desenho e a câmera selecionados. As imagens do voo podem ser adicionadas depois.</p></InfoPopover></div>
+        <div className="mb-4 flex justify-end"><InfoPopover title="Novo levantamento"><p>Escolha Grid ou Waypoints, identifique o projeto, marque a área ou o percurso no mapa e selecione o drone. Criar levantamento salva os dados; Salvar e abrir o modo escolhido leva ao planejador com o desenho e a câmera selecionados. As imagens do voo podem ser adicionadas depois.</p></InfoPopover></div>
         <SurveyForm />
       </section>
     </div>

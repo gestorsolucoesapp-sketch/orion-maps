@@ -39,7 +39,10 @@ export async function saveSurvey(_state: Result, form: FormData): Promise<Result
     }
   } catch (error) { return { error: errorText(error) }; }
   revalidatePath("/painel");
-  if(form.get("destination")==="waypoints")redirect(`/waypoints?levantamento=${id}`);
+  if(form.get("destination")==="waypoints"){
+    const mode=form.get("planning_mode")==="manual"?"manual":"grid";
+    redirect(`/waypoints?levantamento=${id}&modo=${mode}`);
+  }
   redirect(`/painel?levantamento=${id}`);
 }
 

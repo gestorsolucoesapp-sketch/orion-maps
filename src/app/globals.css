@@ -261,3 +261,15 @@ main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space
 }
 @media(max-width:500px){.orion-app-navigation-mobile nav{grid-template-columns:1fr 1fr;width:min(95vw,350px)}.orion-app-navigation-signin{padding:7px}}
 @media(max-width:700px){.orion-calculator>div.grid{display:flex;flex-direction:column-reverse}}
+/* Workspace navigation follows the same grouped structure throughout the app. */
+@media(min-width:1051px){
+ body:has(>.orion-app-navigation--workspace){padding-left:236px}
+ .orion-app-navigation--workspace{position:fixed;inset:0 auto 0 0;z-index:50;display:flex;flex-direction:column;align-items:stretch;gap:26px;width:236px;min-height:0;padding:25px 13px 18px;border-right:1px solid var(--orion-border);border-bottom:0;overflow-y:auto;box-shadow:2px 0 12px #13251b0a}
+ .orion-app-navigation--workspace .orion-app-navigation-brand{padding:0 7px 17px;border-bottom:1px solid var(--orion-border)}
+ .orion-app-navigation--workspace>nav{display:grid;align-content:start;justify-content:stretch;gap:24px;width:100%}
+ .orion-app-navigation--workspace .orion-app-navigation-group{display:grid;gap:3px}
+ .orion-app-navigation--workspace .orion-app-navigation-group>span{padding:0 10px 5px;color:#718179;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+ .orion-app-navigation--workspace .orion-app-navigation-group a{display:flex;min-height:38px;padding:9px 10px;border-radius:6px;font-size:12px}
+ .orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#e5f5eb;box-shadow:none;color:#087852}
+}
+@media print{body:has(>.orion-app-navigation--workspace){padding-left:0}}
