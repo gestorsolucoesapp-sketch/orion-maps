@@ -116,7 +116,12 @@
 .orion-home-products-intro p{max-width:500px;margin:26px 0;color:#aebeb2;font-size:16px;line-height:1.7}
 .orion-home-products-intro a{display:inline-flex;gap:20px;margin-top:16px;padding-bottom:8px;border-bottom:1px solid #16e99a;color:#e9f8ec;font-size:13px;font-weight:700;text-decoration:none}
 .orion-home-products-intro a span{color:#16e99a}
-.orion-home-products-list{display:grid;gap:10px}
+.orion-home-terrain{position:relative;min-height:350px;margin:0;overflow:hidden;border:1px solid #395344;background:radial-gradient(circle at 50% 45%,#23432c,#141b16 68%)}
+.orion-home-terrain-image{object-fit:contain;padding:9px 12px 30px}
+.orion-home-terrain:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,transparent 72%,#121b17c9)}
+.orion-home-terrain figcaption{position:absolute;z-index:1;bottom:14px;left:18px;color:#a5d7b2;font:700 10px var(--font-work-sans),sans-serif;letter-spacing:.16em}
+.orion-home-terrain figcaption span{color:#16e99a}
+.orion-home-products-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:24px}
 .orion-home-products-list>div{display:grid;grid-template-columns:42px 1fr;gap:5px 15px;padding:21px 24px;border:1px solid #3a5142;background:linear-gradient(#20e39308,#20e39308),repeating-linear-gradient(0deg,transparent 0 39px,#a0edbd09 40px),#202623}
 .orion-home-products-list span{grid-row:1/3;color:#16e99a;font:700 13px var(--font-space-grotesk),sans-serif}
 .orion-home-products-list strong{font:650 20px var(--font-space-grotesk),sans-serif}
@@ -133,5 +138,5 @@
 .orion-home-tool-content>span,.orion-home-tool-featured .orion-home-tool-content>span{color:#b4c3b8}
 .orion-home-close{background:#173124}
 .orion-home-footer{background:#141916}
-@media(max-width:980px){.orion-home-hero-inner{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:20px 0 25px}.orion-home-hero-visual{order:-1;min-height:360px;margin-bottom:40px}.orion-home-hero h1{font-size:clamp(46px,9vw,68px)}.orion-home-hero-signals{margin-top:32px}.orion-home-hero-caption{margin-top:38px}.orion-home-products-grid{grid-template-columns:1fr}.orion-home-products{padding:65px 0}}
-@media(max-width:600px){.orion-home-hero-visual{min-height:260px;margin-bottom:32px}.orion-home-flight-photo{object-position:60% center}.orion-home-hero h1{font-size:clamp(44px,11vw,63px)}.orion-home-hero-signals{gap:5px}.orion-home-hero-signals span{padding:7px 8px;font-size:9px}.orion-home-products-list>div{padding:18px}.orion-home-products-intro h2{font-size:clamp(36px,10vw,50px)}}
+@media(max-width:980px){.orion-home-hero-inner{display:flex;flex-direction:column;align-items:stretch;gap:0;padding:20px 0 25px}.orion-home-hero-visual{order:-1;min-height:360px;margin-bottom:40px}.orion-home-hero h1{font-size:clamp(46px,9vw,68px)}.orion-home-hero-signals{margin-top:32px}.orion-home-hero-caption{margin-top:38px}.orion-home-products-grid{grid-template-columns:1fr}.orion-home-products-list{grid-template-columns:1fr}.orion-home-products{padding:65px 0}}
+@media(max-width:600px){.orion-home-hero-visual{min-height:260px;margin-bottom:32px}.orion-home-flight-photo{object-position:60% center}.orion-home-hero h1{font-size:clamp(44px,11vw,63px)}.orion-home-hero-signals{gap:5px}.orion-home-hero-signals span{padding:7px 8px;font-size:9px}.orion-home-terrain{min-height:255px}.orion-home-products-list>div{padding:18px}.orion-home-products-intro h2{font-size:clamp(36px,10vw,50px)}}

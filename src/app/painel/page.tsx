@@ -50,6 +50,8 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
     }catch{return [survey.id,{status:"none",progress:0,resultCount:0} satisfies SurveyStatus] as const;}
   }));
   const statuses=Object.fromEntries(statusEntries) as Record<string,SurveyStatus>;
+  const visibleSurveys=surveys.filter(survey=>!survey.deletion_requested_at);
+  const completedCount=visibleSurveys.filter(survey=>statuses[survey.id]?.status==="completed").length;
 
   let devices:ProcessingDevice[]=[],devicesError="";
   try{devices=await listProcessingDevices(token);}
@@ -76,6 +78,11 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <section className="orion-panel-intro mt-3 flex flex-wrap items-center justify-between gap-4 border border-[#41614c] bg-[#1c2a21] px-5 py-6 text-white print:hidden sm:px-7">
         <div className="orion-panel-visual"><Image src="/orion-home-flight.jpg" alt="Drone em voo sobre uma área rural" fill priority sizes="(max-width: 640px) 100vw, 90vw" className="orion-panel-flight-photo"/><span className="orion-panel-visual-label">CAPTURA AÉREA <i/> LEVANTAMENTOS</span><span className="orion-panel-visual-credit">Foto: Andreas Psaltis / Unsplash</span></div>
+        <div className="orion-panel-stats" aria-label="Resumo dos levantamentos">
+          <div><strong>{visibleSurveys.length}</strong><span>Projetos</span></div>
+          <div><strong>{completedCount}</strong><span>Concluídos</span></div>
+          <div><strong>{liveJobs.length}</strong><span>Em andamento</span></div>
+        </div>
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#36e8a2]">Orion Maps · Campo</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight sm:text-4xl">Levantamentos</h1>

@@ -35,7 +35,27 @@ export default function Home() {
       </div>
     </section>
 
-    <section className="orion-home-products" aria-labelledby="products-title"><div className="orion-home-container"><div className="orion-home-section-top"><p className="orion-home-kicker">DO VOO AO PRODUTO</p><span>DADOS PARA CONSULTAR E ENTREGAR</span></div><div className="orion-home-products-grid"><div className="orion-home-products-intro"><h2 id="products-title">Mais que imagens.<br/><em>Uma visão do terreno.</em></h2><p>O Orion reúne o plano, as fotos e os resultados do processamento. Consulte no mapa os produtos visuais disponíveis e baixe os arquivos do projeto.</p><Link href="/processamento/resultados">Explorar mapas e entregas <span aria-hidden="true">↗</span></Link></div><div className="orion-home-products-list"><div><span>01</span><strong>Ortofoto</strong><p>Uma vista aérea contínua para inspecionar a área processada.</p></div><div><span>02</span><strong>Terreno e superfície</strong><p>Modelos de elevação, relevo e curvas quando gerados pelo processamento.</p></div><div><span>03</span><strong>Relatório técnico</strong><p>Parâmetros e métricas registradas para revisar o resultado disponível.</p></div></div></div></div></section>
+    <section className="orion-home-products" aria-labelledby="products-title">
+      <div className="orion-home-container">
+        <div className="orion-home-section-top"><p className="orion-home-kicker">DO VOO AO PRODUTO</p><span>DADOS PARA CONSULTAR E ENTREGAR</span></div>
+        <div className="orion-home-products-grid">
+          <div className="orion-home-products-intro">
+            <h2 id="products-title">Mais que imagens.<br/><em>Uma visão do terreno.</em></h2>
+            <p>O Orion reúne o plano, as fotos e os resultados do processamento. Consulte no mapa os produtos visuais disponíveis e baixe os arquivos do projeto.</p>
+            <Link href="/processamento/resultados">Explorar mapas e entregas <span aria-hidden="true">↗</span></Link>
+          </div>
+          <figure className="orion-home-terrain">
+            <Image src="/orion-terrain-concept.png" alt="Ilustração conceitual de um terreno rural em três dimensões" fill sizes="(max-width: 980px) 100vw, 50vw" className="orion-home-terrain-image" />
+            <figcaption>VISUAL CONCEITUAL <span aria-hidden="true">·</span> TERRENO 3D</figcaption>
+          </figure>
+        </div>
+        <div className="orion-home-products-list">
+          <div><span>01</span><strong>Ortofoto</strong><p>Uma vista aérea contínua para inspecionar a área processada.</p></div>
+          <div><span>02</span><strong>Terreno e superfície</strong><p>Modelos de elevação, relevo e curvas quando gerados pelo processamento.</p></div>
+          <div><span>03</span><strong>Relatório técnico</strong><p>Parâmetros e métricas registradas para revisar o resultado disponível.</p></div>
+        </div>
+      </div>
+    </section>
 
     <section className="orion-home-process" aria-labelledby="process-title">
       <div className="orion-home-container">
