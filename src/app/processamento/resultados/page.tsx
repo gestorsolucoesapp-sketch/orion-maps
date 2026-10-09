@@ -40,7 +40,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const projectHref=`/painel?levantamento=${active.id}`;
   const productsHref=`/processamento?levantamento=${active.id}`;
 
-  return <main className="orion-workspace min-h-screen bg-[#eaf1e7] text-slate-900">
+  return <main className="orion-workspace min-h-screen bg-[#102821] text-slate-900">
     <div className="mx-auto max-w-[1460px] px-3 pb-24 sm:px-7 lg:px-9">
       <header className="print:hidden">
         <div className="mt-3 overflow-hidden rounded-[30px] border border-white/10 bg-[#071a1c] text-white shadow-[0_18px_44px_rgba(6,32,24,.22)]">
@@ -65,7 +65,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
       </header>
 
       <section className="pt-6">
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-[24px] border border-white/80 bg-white px-5 py-5 shadow-[0_10px_30px_rgba(22,63,45,.08)]">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-[24px] border border-white/80 bg-white px-5 py-5 shadow-[0_18px_44px_rgba(0,10,8,.28)]">
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-700">Resultado do levantamento</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">{active.name}</h1>
@@ -75,7 +75,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
           <Link href={`/processamento/relatorio?levantamento=${active.id}`} target="_blank" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Exportar PDF ↗</Link>
         </div>
 
-        {results.length?<><ProcessingQuality job={latestCompleted||null} results={results}/><div className="mt-5"><ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
+        {results.length?<>{latestCompleted&&<div className="rounded-[24px] border border-[#9bbba7] bg-[#e7efe7] p-4 shadow-[0_16px_36px_rgba(0,10,8,.2)] sm:p-6"><ProcessingQuality job={latestCompleted} results={results}/></div>}<div className="mt-5"><ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold">Nenhum resultado concluído ainda</h2>
           <p className="mt-2 text-sm text-slate-500">Quando o processamento terminar, ortofoto, elevação, curvas e downloads aparecerão aqui.</p>
           <Link href={productsHref} className="mt-5 inline-block rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Ir para produtos</Link>

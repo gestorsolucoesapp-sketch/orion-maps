@@ -106,7 +106,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const [terrainCommand,setTerrainCommand]=useState<TerrainToolCommand|null>(null);
   const onTerrainAction=useCallback((action:TerrainToolAction)=>setTerrainCommand(v=>({sequence:(v?.sequence||0)+1,action})),[]);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
-  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null);
+  const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null),[comparePercent,setComparePercent]=useState(100);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
   const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
@@ -167,11 +167,14 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     if(!focusKind)return;
     const next={orthophoto:false,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false};
     if(focusKind==="contours"){next.orthophoto=true;next.contours=true;}
-    else if(focusKind==="orthophoto")next.orthophoto=true;
+    else if(focusKind==="orthophoto"){
+      next.orthophoto=true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- A product-card selection resets the comparison to the complete orthophoto.
+      setComparePercent(100);
+    }
     else if(focusKind==="dtm"){
       next.dtm=true;
       if(!dtmPreview&&dtm){
-        // eslint-disable-next-line react-hooks/set-state-in-effect -- The parent product-card command starts an asynchronous file preview.
         setElevationBusy("dtm");setElevationError("");
         freshProcessingUrl(dtm,"download").then(url=>renderGeoTiffToDataUrl(url,"dtm")).then(v=>{setDtmPreview(v.url);setDtmRange({min:v.min,max:v.max});setDtmCorners(v.corners);}).catch(e=>setElevationError(e instanceof Error?e.message:"Não foi possível abrir o DTM no navegador.")).finally(()=>setElevationBusy(v=>v==="dtm"?null:v));
       }
@@ -242,7 +245,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     else{
       m.addSource("result-orthophoto",{type:"image",url:transparentOrtho,coordinates});
       const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow"].find(id=>!!m.getLayer(id));
-      m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":visibleRef.current.contours&&contoursState==="ready"?.58:1,"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
+      m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":Math.min(comparePercent/100,visibleRef.current.contours&&contoursState==="ready"?.58:1),"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[ready,transparentOrtho,bounds]);
@@ -317,8 +320,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
-    if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",visible.contours&&contoursState==="ready"?0.58:1);
-  },[visible,ready,contoursState]);
+    if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",Math.min(comparePercent/100,visible.contours&&contoursState==="ready"?0.58:1));
+  },[visible,ready,contoursState,comparePercent]);
 
   function toggleLayer(key:string){
     setElevationError("");
@@ -336,12 +339,22 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       .finally(()=>setElevationBusy(v=>v===key?null:v));
   }
 
+  function compare(value:number){
+    setBasemap("satellite");setComparePercent(value);
+    setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false}));
+  }
+
   if(!bounds)return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Os resultados existem, mas ainda não há limites geográficos suficientes para abrir o mapa.</div>;
 
   const controls=[["orthophoto","Ortofoto"],["project","Plano de voo"],["contours","Curvas 0,50 m"],["hillshade","Relevo sombreado"],["hypsometry","Hipsometria"],["slope","Declividade"],["dtm","DTM"],["dsm","DSM"]] as const;
   const projectArea=coverage?.areaM2??null,projectPerimeter=coverage?.perimeterM??null;
 
   return <div>
+    {orthophoto&&<section aria-label="Comparar mapa e ortofoto" className="mb-4 rounded-2xl border border-emerald-200 bg-[#edf5e9] p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-800">Comparação visual</p><h3 className="mt-1 text-base font-semibold text-slate-950">Antes e depois no mesmo lugar</h3></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-emerald-950">{comparePercent===0?"Mapa de referência":comparePercent===100?"Ortofoto processada":`${comparePercent}% de ortofoto`}</span></div>
+      <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={()=>compare(0)} aria-pressed={visible.orthophoto&&comparePercent===0} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===0?"border-emerald-900 bg-emerald-900 text-white":"border-emerald-300 bg-white text-emerald-950"}`}>Antes · mapa satélite</button><button type="button" onClick={()=>compare(100)} aria-pressed={visible.orthophoto&&comparePercent===100} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===100?"border-emerald-900 bg-emerald-900 text-white":"border-emerald-300 bg-white text-emerald-950"}`}>Depois · ortofoto</button></div>
+      <label className="mt-4 flex items-center gap-3 text-xs font-semibold text-emerald-950"><span>Antes</span><input type="range" min="0" max="100" step="1" value={comparePercent} onChange={e=>compare(Number(e.target.value))} aria-label="Comparar mapa satélite e ortofoto" className="min-w-0 flex-1 accent-emerald-800"/><span>Depois</span></label><p className="mt-2 text-xs leading-5 text-slate-600">O “antes” é o mapa satélite de referência, cuja data pode ser diferente. O “depois” é a ortofoto deste processamento. Arraste para comparar no mesmo enquadramento.</p>
+    </section>}
     <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
       {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
     </div>
