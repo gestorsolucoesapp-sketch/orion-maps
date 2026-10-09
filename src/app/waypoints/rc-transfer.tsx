@@ -1,33 +1,46 @@
 "use client";
 import {useState} from "react";
-import {controllerStatus,queueControllerTransfer,latestControllerTransfer} from "./transfer-actions";
 
-export default function RcTransfer({plan,route,disabled}:{plan:{name:string;drone:string;settings:{height:number;speed:number;gimbal:number}};route:number[][];disabled:boolean}){
+const HELPER="http://127.0.0.1:48765";
+type Plan={name:string;drone:string;takeoff?:number[];captureMode?:"manual"|"time"|"distance";photoInterval?:number;settings:{height:number;speed:number;gimbal:number}};
+type Receipt={status:"done";name:string;waypoints:number;distance_m:number;sha256:string;backup:string;captureMode:string;photoInterval:number|null;previous_removed:boolean};
+
+async function localRequest<T>(path:string,body?:unknown):Promise<T>{
+ try{
+  const response=await fetch(`${HELPER}${path}`,{method:body?"POST":"GET",headers:body?{"Content-Type":"application/json"}:undefined,body:body?JSON.stringify(body):undefined,cache:"no-store",signal:body?undefined:AbortSignal.timeout(7000)});
+  const result=await response.json() as T&{error?:string};
+  if(!response.ok)throw new Error(result.error||"O assistente não confirmou a operação.");
+  return result;
+ }catch(error){
+  if(error instanceof TypeError)throw new Error("Abra “Conectar Orion RC2” neste computador e tente novamente.");
+  throw error;
+ }
+}
+
+export default function RcTransfer({plan,route,disabled}:{plan:Plan;route:number[][];disabled:boolean}){
  const [busy,setBusy]=useState(false),[status,setStatus]=useState("");
- async function connect(){setBusy(true);try{const r=await controllerStatus();if(r.error)throw new Error(r.error);setStatus(r.device?.last_seen&&Date.now()-Date.parse(r.device.last_seen)<60000?"Assistente do computador conectado. Conecte também o RC 2 por USB.":"Abra Conectar Orion RC2 na área de trabalho deste computador.");}catch(e){setStatus((e as Error).message);}finally{setBusy(false);}}
- async function inspect(){setBusy(true);try{const r=await latestControllerTransfer();if(r.error)throw new Error(r.error);setStatus(r.transfer?new Date(r.transfer.created_at).toLocaleString("pt-BR")+" — "+(r.transfer.message||"Aguardando o assistente"):"Nenhum envio solicitado.");}catch(e){setStatus((e as Error).message);}finally{setBusy(false);}}
+ const unsupported=plan.captureMode==="distance";
+ async function connect(){setBusy(true);try{const result=await localRequest<{connected:boolean}>("/health");setStatus(result.connected?"Assistente e missão do RC 2 encontrados. Feche completamente o DJI Fly antes de enviar.":"Assistente aberto, mas o RC 2 ou a missão de referência não foram encontrados.");}catch(e){setStatus((e as Error).message);}finally{setBusy(false);}}
  async function send(){
-  if(!window.confirm("ATENÇÃO: este envio pode substituir uma missão existente no DJI RC 2. O controle deve estar conectado por USB e o drone em solo. Confirma a substituição após revisar a rota e o backup?"))return;
   setBusy(true);
   try{
-   const queued=await queueControllerTransfer({plan,route,ready:true});if(queued.error)throw new Error(queued.error);
-   setStatus("Pedido enviado. O assistente vai gerar o KMZ, guardar o histórico e substituir a missão no RC 2…");
-   for(let i=0;i<24;i++){
-    await new Promise(resolve=>setTimeout(resolve,5000));
-    const r=await latestControllerTransfer();if(r.error)throw new Error(r.error);
-    if(r.transfer?.id===queued.id){setStatus(r.transfer.message||"Aguardando o assistente…");if(["done","error"].includes(r.transfer.status))return;}
-   }
-   setStatus("O envio ainda não foi confirmado. Use Consultar último envio antes de tentar novamente.");
+   const health=await localRequest<{connected:boolean}>("/health");
+   if(!health.connected)throw new Error("Conecte o RC 2 por USB e confira se ele aparece no Explorador de Arquivos.");
+   const photo=plan.captureMode==="time"?`fotos automáticas a cada ${plan.photoInterval} s (experimental)`:"fotos iniciadas no DJI Fly";
+   if(!window.confirm(`Substituir a missão no RC 2?\n\n${plan.name} · ${route.length} pontos · ${plan.settings.height} m · ${photo}.\n\nConfirme que o DJI Fly está completamente fechado, o drone está em solo e a rota foi revisada. O assistente guardará a missão anterior e verificará o arquivo transferido.`))return;
+   setStatus("Copiando a missão anterior, transferindo o novo KMZ e lendo de volta do RC 2…");
+   const result=await localRequest<Receipt>("/transfer",{plan:{...plan,captureMode:plan.captureMode||"manual"},route});
+   setStatus(`Transferido e verificado no RC 2: ${result.waypoints} pontos. Backup salvo em ${result.backup}. ${result.captureMode==="time"?"O disparo automático continua experimental e precisa ser testado em voo.":"Confira a captura no DJI Fly."}${result.previous_removed?"":" A cópia antiga ainda aparece na pasta do controle; verifique antes de voar."}`);
   }catch(e){setStatus((e as Error).message);}finally{setBusy(false);}
  }
  return <section className="control-section"><div className="section-heading"><span>04</span><h2>Enviar missão ao RC 2</h2></div>
-  <p>Controle conectado por USB? Abra <b>Conectar Orion RC2</b> na área de trabalho e envie o plano.</p>
-  {route.length>0?<p><b>{route.length} pontos</b> · {plan.settings.height} m acima da decolagem · {plan.settings.speed} m/s</p>:<p><b>Abra um plano em “Planos neste navegador” ou desenhe a área no mapa para habilitar o envio.</b></p>}
-  {route.length>0&&plan.drone!=="DJI Mini 5 Pro"&&<p>Selecione DJI Mini 5 Pro para usar este controle.</p>}
-  <button className="flight-button primary" disabled={busy||disabled||plan.drone!=="DJI Mini 5 Pro"} onClick={send}>{busy?"Enviando…":"Enviar plano ao controle"}</button>
-  <p>Substitui a missão no RC 2 e guarda a anterior no histórico. Não inicia o voo.</p>
-  <p>Esta conexão transfere arquivos de missão. Ela não acessa o código do drone ou do controle, não lê a bateria em voo e não comanda retorno ou retomada automática.</p>
-  <details><summary>Conexão e detalhes do envio</summary><button className="flight-button" disabled={busy} onClick={connect}>Conferir conexão</button><button className="flight-button" disabled={busy} onClick={inspect}>Consultar último envio</button><p>Não edite a missão no DJI Fly durante a cópia. Confira a nova rota no controle antes do voo. Fotos temporizadas são iniciadas no controle; esta missão não acompanha o relevo.</p></details>
+  <p>Conecte o controle por USB e mantenha <b>Conectar Orion RC2</b> aberto neste computador. Feche completamente o DJI Fly e deixe o drone em solo antes do envio.</p>
+  {route.length>0?<p><b>{route.length} pontos</b> · {plan.settings.height} m acima da decolagem · {plan.settings.speed} m/s · {plan.captureMode==="time"?`fotos a cada ${plan.photoInterval} s (experimental)`:"fotos manuais"}</p>:<p>Desenhe a área ou abra um plano salvo para habilitar o envio.</p>}
+  {unsupported&&<p className="camera-warning">O envio por distância ainda não foi verificado no RC 2. Escolha fotos por tempo ou manual.</p>}
+  <button className="flight-button primary" disabled={busy||disabled||unsupported||plan.drone!=="DJI Mini 5 Pro"} onClick={send}>{busy?"Aguarde…":"Enviar plano ao controle"}</button>
+  <p>O assistente guarda a missão anterior no computador e compara o arquivo lido de volta do RC 2. A transferência não inicia o voo.</p>
+  <p>Fotos automáticas por tempo são experimentais: confira a missão no DJI Fly antes do voo e teste a captura em condições seguras.</p>
+  <details><summary>Conexão e detalhes do envio</summary><button className="flight-button" disabled={busy} onClick={connect}>Conferir conexão</button><p>Se o assistente não estiver aberto, use o atalho <b>Conectar Orion RC2</b> na área de trabalho. O ponto H calcula ida e volta, mas o Home real é definido pelo DJI Fly. A missão não acompanha o relevo.</p></details>
   {status&&<p role="status">{status}</p>}
  </section>;
 }
