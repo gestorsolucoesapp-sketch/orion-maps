@@ -16,7 +16,7 @@ const basemaps={
  satellite:esriImagery,streets:streetBasemap,topo:topoBasemap,relief:reliefBasemap
 };
 type Basemap=keyof typeof basemaps;
-type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
+type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
@@ -43,7 +43,7 @@ export default function PlanningCanvas(props:Props){
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
     m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setMeasurementMap(m);setReady(true);
    });
-   m.on("click",e=>{if(isMeasuringMap(m))return;if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
+   m.on("click",e=>{if(isMeasuringMap(m))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
   }catch{
    // A failed external WebGL initialization must surface in the UI once.
    // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -63,9 +63,15 @@ export default function PlanningCanvas(props:Props){
   const m=map.current;if(!m||!ready)return;
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
   (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:props.legs}});
-  const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
-  m.getCanvas().style.cursor=(props.drawing||props.adjustingPosition)?"crosshair":"grab";return()=>markers.forEach(m=>m.remove());
- },[ready,props.points,props.legs,props.polygon,props.drawing,props.adjustingPosition]);
+  const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition&&!props.markingTakeoff}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
+  m.getCanvas().style.cursor=(props.drawing||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>markers.forEach(m=>m.remove());
+ },[ready,props.points,props.legs,props.polygon,props.drawing,props.adjustingPosition,props.markingTakeoff]);
+ useEffect(()=>{
+  const m=map.current,p=props.takeoffPoint;if(!m||!ready||!p)return;
+  const element=document.createElement("div");element.className="takeoff-marker";element.textContent="H";element.title="Ponto de decolagem escolhido";element.setAttribute("role","img");element.setAttribute("aria-label","Ponto de decolagem");
+  const marker=new maplibregl.Marker({element}).setLngLat(p).addTo(m);
+  return()=>{marker.remove();};
+ },[ready,props.takeoffPoint]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready||!props.userPosition)return;
   const {point,accuracy,source}=props.userPosition,manual=source==="manual",ring=manual?[]:accuracyRing(point,accuracy);
@@ -84,5 +90,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
+ return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
 }

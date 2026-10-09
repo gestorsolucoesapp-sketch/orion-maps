@@ -182,3 +182,7 @@
 .flight-save-feedback{margin:0 0 12px;padding:12px 15px;border:1px solid #bdcfc1;border-radius:8px;background:#e9f5eb;color:#17533a;font-size:13px;font-weight:650;line-height:1.5}
 .flight-save-feedback--warning{border-color:#e2bb75;background:#fff5df;color:#704a10}
 .flight-save-feedback--error{border-color:#e2a9a9;background:#fff0ee;color:#922d2d}
+.takeoff-marker{width:31px;height:31px;display:grid;place-items:center;border:3px solid #fff;border-radius:50%;background:#1476b8;color:#fff;font:700 15px Arial;box-shadow:0 0 0 2px #1476b8,0 2px 8px #0006;pointer-events:none}
+.map-toolbar .takeoff-action{background:#e8f4fb;color:#095c92;border-color:#8bbbd8;font-weight:700}.map-toolbar .takeoff-action.selected{background:#d5edfb;color:#06466f;border-color:#1476b8}
+.takeoff-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid #9fc5dc;border-radius:8px;background:#eef8fd;color:#244a62;font-size:12px}.takeoff-summary b{color:#075b8a}.takeoff-summary button{margin-left:auto;border:1px solid #9fc5dc;border-radius:5px;background:#fff;color:#075b8a;padding:5px 9px}
+.takeoff-hint{margin:0 0 10px;color:#516950;font-size:11px;line-height:1.5}
