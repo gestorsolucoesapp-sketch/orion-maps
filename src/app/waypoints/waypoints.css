@@ -186,3 +186,10 @@
 .map-toolbar .takeoff-action{background:#e8f4fb;color:#095c92;border-color:#8bbbd8;font-weight:700}.map-toolbar .takeoff-action.selected{background:#d5edfb;color:#06466f;border-color:#1476b8}
 .takeoff-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid #9fc5dc;border-radius:8px;background:#eef8fd;color:#244a62;font-size:12px}.takeoff-summary b{color:#075b8a}.takeoff-summary button{margin-left:auto;border:1px solid #9fc5dc;border-radius:5px;background:#fff;color:#075b8a;padding:5px 9px}
 .takeoff-hint{margin:0 0 10px;color:#516950;font-size:11px;line-height:1.5}
+
+/* Keep flight controls white against a light gray planning surface. */
+.flight-app,.flight-main{background:var(--orion-bg)}
+.map-workspace,.control-section,.control-section:last-child,.saved-plans{background:#edf1f1;border-color:var(--orion-border)}
+.map-toolbar button,.flight-button,.control-section input:not([type=range]):not([type=file]),.mission-controls select{background:#fff}
+.map-toolbar button,.flight-button,.control-section input:not([type=range]):not([type=file]),.mission-controls select{border-color:#afbebd}
+.map-toolbar .location-button,.flight-button.primary{background:#098e68;border-color:#098e68}

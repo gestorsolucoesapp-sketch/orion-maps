@@ -309,3 +309,6 @@ main h1,main h2,main h3,.orion-app-navigation-brand{font-family:var(--font-space
 .orion-panel-stats span{color:#b9d2c1;font:700 10px var(--font-work-sans),sans-serif;letter-spacing:.1em;text-transform:uppercase}
 @media(min-width:1051px){.orion-app-navigation--workspace .orion-app-navigation-brand{border-color:#385043}.orion-app-navigation--workspace .orion-app-navigation-group a.active{background:#164b32;color:#69f3b2}}
 @media(max-width:640px){.orion-panel-visual{height:205px}.orion-panel-flight-photo{object-position:72% center}.orion-panel-visual-label{font-size:8px}.orion-panel-stats>div{display:block;padding:11px 9px;text-align:center}.orion-panel-stats strong,.orion-panel-stats span{display:block}.orion-panel-stats strong{font-size:23px}.orion-panel-stats span{font-size:8px;letter-spacing:.04em}}
+
+/* A neutral workspace makes white buttons, inputs, and cards easier to distinguish. */
+:root{--orion-paper:#e5e9e9;--orion-bg:#e1e6e7;--orion-border:#bbc8c8;--orion-line:#bbc8c8}
