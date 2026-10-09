@@ -84,7 +84,7 @@
 .orion-home-hero:after{display:none}
 .orion-home-hero-inner{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);align-items:center;gap:clamp(32px,4vw,64px);min-height:0;padding:clamp(48px,7vw,92px) 0 30px}
 .orion-home-hero-copy{max-width:630px;padding:12px 0}
-.orion-home-hero h1{font-size:clamp(55px,6vw,88px)}
+.orion-home-hero h1{font-size:clamp(51px,5vw,74px)}
 .orion-home-hero h1 em{color:#16e99a}
 .orion-home-lead{max-width:520px;color:#bfcfc5}
 .orion-home-hero-visual{position:relative;min-height:clamp(420px,40vw,590px);overflow:hidden;border:1px solid #496354;background:#26362a;box-shadow:20px 22px 0 #0c181340,0 20px 60px #01090760}
