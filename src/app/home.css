@@ -1,53 +1,76 @@
-.orion-home{--home-ink:#171c1b;--home-green:#00dc91;--home-muted:#aeb8b4;min-height:100vh;background:#f6f8f7;color:var(--home-ink);font-family:var(--font-work-sans),Arial,sans-serif}
-.orion-home-frame{max-width:none;margin:0;padding:0}
-.orion-home-header{height:74px;padding:0 clamp(22px,4vw,68px);background:#171b1b;color:#f8fbf9;border-bottom:1px solid #ffffff1d}
-.orion-wordmark{font-size:16px;letter-spacing:-.025em;gap:11px}
-.orion-wordmark b{color:var(--home-green);font-weight:800}
-.orion-wordmark small{margin-top:4px;color:#91a29b;font:500 9px/1.2 var(--font-work-sans),monospace;letter-spacing:.11em}
-.orion-wordmark .orion-symbol{width:36px;height:36px;border:1px solid var(--home-green);border-radius:8px;color:var(--home-green);font:700 22px/1 var(--font-work-sans),sans-serif;letter-spacing:-.05em;padding:0}
-.orion-home-header nav{display:flex;align-items:center;gap:clamp(14px,2.4vw,38px)}
-.orion-home-header nav a{color:#bac4c0;text-decoration:none;font-size:12px;font-weight:650}
-.orion-home-header nav a:hover{color:#fff}
-.orion-home-signin{display:inline-flex;align-items:center;gap:12px;min-height:38px;padding:9px 15px;border:1px solid #58625f;border-radius:3px;color:#fff;font-size:12px;font-weight:700}
-.orion-home-signin span{color:var(--home-green);padding:0}
-.orion-home-intro{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,.8fr);align-items:center;gap:clamp(30px,5vw,90px);max-width:none;min-height:610px;padding:clamp(72px,8vw,125px) clamp(22px,7vw,110px);background:#171b1b;color:#fff;overflow:hidden}
-.orion-home-intro::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 81% 50%,#0a5e4652,transparent 32%);pointer-events:none}
-.orion-home-intro-copy{position:relative;z-index:1;max-width:740px}
-.orion-overline{display:inline-flex;align-items:center;gap:10px;margin:0;color:#87eabb;font:600 10px/1.5 var(--font-work-sans),monospace;letter-spacing:.08em}
-.orion-overline span{width:7px;height:7px;border-radius:50%;background:var(--home-green);box-shadow:0 0 0 5px #00dc9124}
-.orion-home-intro h1{margin:25px 0 27px;font:750 clamp(48px,5.9vw,86px)/1.06 var(--font-work-sans),sans-serif;letter-spacing:-.065em;text-wrap:balance}
-.orion-home-intro h1 span{color:var(--home-green)}
-.orion-home-intro>div>p:not(.orion-overline){max-width:590px;color:#afb8b4;font-size:clamp(16px,1.5vw,19px);line-height:1.65}
-.orion-home-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:30px}
-.orion-home-primary,.orion-home-secondary{display:inline-flex;align-items:center;justify-content:center;gap:20px;min-height:49px;margin:0;padding:14px 22px;border-radius:3px;font-size:13px;font-weight:750;text-decoration:none}
-.orion-home-primary{background:var(--home-green);color:#09271c}
-.orion-home-primary span{color:#09271c;font-size:17px}
-.orion-home-secondary{border:1px solid #65706b;color:#edf4f0}
-.orion-home-primary:hover{background:#40edaa}.orion-home-secondary:hover{border-color:#aabbb2;background:#ffffff0c}
-.orion-home-visual{position:relative;height:min(37vw,450px);min-height:330px;border:1px solid #6d8c7e6b;background:#24352d url('/orion-home-flight.jpg') 88% center/cover no-repeat;overflow:hidden;box-shadow:0 24px 70px #0006}
-.orion-home-visual::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0c1b15a3,transparent 36%,#0c1b1559)}
-.orion-visual-label{position:absolute;z-index:1;top:20px;left:22px;color:#f2fff8;font:600 10px/1.7 var(--font-work-sans),monospace;letter-spacing:.06em}
-.orion-home-areas{max-width:1370px;margin:auto;padding:70px clamp(22px,5vw,70px) 82px;border:0}
-.orion-home-section-heading>span{color:#087d56;font:700 11px var(--font-work-sans),monospace;letter-spacing:.13em}
-.orion-home-section-heading h2{max-width:600px;margin:13px 0 30px;font:700 clamp(27px,3vw,42px)/1.18 var(--font-work-sans),sans-serif;letter-spacing:-.045em}
-.orion-home-area-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-.orion-home-area{display:flex;flex-direction:column;align-items:flex-start;min-height:235px;gap:0;padding:25px;border:1px solid #dbe4df;border-radius:8px;background:#fff;box-shadow:0 2px 4px #12251b0a;text-decoration:none}
-.orion-home-area:hover{background:#fff;border-color:#16a574;box-shadow:0 8px 28px #12251b12;transform:translateY(-2px)}
-.orion-area-number{margin-bottom:26px;color:#078660;font:700 12px var(--font-work-sans),monospace}
-.orion-home-area strong{font-size:21px;font-weight:700;letter-spacing:-.035em}
-.orion-home-area small{margin-top:8px;color:#52615b;font-size:13px;line-height:1.5}
-.orion-area-action{margin-top:auto;padding-top:23px;color:#087d56;font-size:12px;font-weight:750}
-.orion-home-footer{max-width:1370px;margin:auto;padding:24px clamp(22px,5vw,70px) 36px;border-top:1px solid #dbe4df;color:#62716a;font:500 10px var(--font-work-sans),monospace;letter-spacing:.03em}
-.orion-home-footer a{color:#526f5e;text-decoration:underline;text-underline-offset:2px}
-@media(max-width:900px){.orion-home-header nav{display:none}.orion-home-intro{grid-template-columns:1fr;min-height:0;padding:70px 28px}.orion-home-visual{height:290px;min-height:0}.orion-home-area-grid{grid-template-columns:1fr}.orion-home-area{min-height:170px}.orion-area-number{margin-bottom:16px}}
-@media(max-width:600px){.orion-home-header{height:68px;padding:0 19px}.orion-wordmark{font-size:14px}.orion-home-intro{padding:62px 20px 42px;gap:36px}.orion-home-intro h1{font-size:clamp(41px,10.5vw,60px)}.orion-home-intro>div>p:not(.orion-overline){font-size:15px}.orion-home-actions{align-items:stretch}.orion-home-primary,.orion-home-secondary{flex:1 1 100%}.orion-home-visual{height:225px}.orion-home-areas{padding:48px 20px 55px}.orion-home-footer{display:flex;flex-direction:column;gap:6px;padding:20px}.orion-home-footer span{margin:0}}
-
-.orion-home,.orion-home :is(button,input,select,textarea){font-family:var(--font-work-sans),sans-serif}
-.orion-home h1,.orion-home h2,.orion-home-area strong{font-family:var(--font-space-grotesk),sans-serif}
-.orion-home-intro{min-height:570px}
-.orion-home-intro h1{font-size:clamp(48px,6vw,82px);line-height:1.04;letter-spacing:-.055em}
-.orion-home-flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:#dce4de;border-bottom:1px solid #dce4de}
-.orion-home-flow a{display:flex;align-items:center;gap:13px;min-height:70px;padding:15px clamp(16px,3vw,42px);background:#fff;color:#182c20;text-decoration:none;font-size:15px;font-weight:650}
-.orion-home-flow a:hover{background:#e7f5ed}
-.orion-home-flow b{color:#087852;font:700 12px var(--font-space-grotesk),sans-serif}
-@media(max-width:600px){.orion-home-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.orion-home-flow a{min-height:55px;padding:11px 18px}.orion-home-intro h1{font-size:clamp(40px,10vw,53px)}}
+.orion-home{--home-deep:#0b1715;--home-dark:#10221e;--home-green:#79e2ab;--home-white:#f5f8f4;min-height:100vh;background:var(--home-dark);color:var(--home-white);font-family:var(--font-work-sans),Arial,sans-serif}
+.orion-home *{box-sizing:border-box}
+.orion-home-container{width:min(100% - 80px,1280px);margin-inline:auto}
+.orion-app-navigation--home{border-color:#ffffff22;background:#0b1715;color:#f3f8f4}
+.orion-app-navigation--home .orion-app-navigation-brand{color:#f3f8f4}
+.orion-app-navigation--home .orion-app-navigation-brand b{color:#79e2ab}
+.orion-app-navigation--home .orion-app-navigation-symbol{border-color:#79e2ab;color:#79e2ab}
+.orion-app-navigation--home .orion-app-navigation-group>span{color:#97aaa0}
+.orion-app-navigation--home .orion-app-navigation-group a,.orion-app-navigation--home .orion-app-navigation-signin{color:#d5e2d9}
+.orion-app-navigation--home .orion-app-navigation-group a:hover,.orion-app-navigation--home .orion-app-navigation-group a.active{background:#ffffff16;color:white}
+.orion-app-navigation--home .orion-app-navigation-signin,.orion-app-navigation--home .orion-app-navigation-mobile summary{border-color:#ffffff44;color:#e9f4eb}
+.orion-home-hero{position:relative;min-height:660px;overflow:hidden;background:#0b1715}
+.orion-home-hero-image{position:absolute;inset:0 0 0 34%;background:url('/orion-home-flight.jpg') 54% 49%/cover no-repeat;filter:saturate(.82) contrast(1.04)}
+.orion-home-hero:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0b1715 0%,#0b1715 26%,#0b1715e8 42%,#0b171553 70%,#0b171521 100%),linear-gradient(0deg,#07110fe8 0%,transparent 30%,#07110f47 100%);pointer-events:none}
+.orion-home-hero-inner{position:relative;z-index:1;display:flex;flex-direction:column;justify-content:space-between;width:min(100% - 80px,1280px);min-height:660px;margin:auto;padding:91px 0 31px}
+.orion-home-hero-copy{max-width:730px}
+.orion-home-eyebrow,.orion-home-kicker{margin:0;color:var(--home-green);font-size:11px;font-weight:800;letter-spacing:.16em}
+.orion-home-eyebrow{display:flex;align-items:center;gap:12px}
+.orion-home-eyebrow span{width:8px;height:8px;background:var(--home-green);border-radius:50%;box-shadow:0 0 0 5px #79e2ab27}
+.orion-home-hero h1{margin:26px 0 24px;color:#fff;font:700 clamp(58px,6.2vw,92px)/1.03 var(--font-space-grotesk),sans-serif;letter-spacing:-.066em}
+.orion-home-hero h1 em{color:var(--home-green);font-style:normal}
+.orion-home-lead{max-width:560px;margin:0;color:#c7d7cd;font-size:clamp(17px,1.5vw,20px);line-height:1.62}
+.orion-home-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:36px}
+.orion-home-button{display:inline-flex;align-items:center;justify-content:space-between;gap:27px;min-height:54px;padding:14px 20px;border:1px solid transparent;border-radius:4px;font-size:13px;font-weight:750;text-decoration:none;transition:background .2s,border-color .2s,transform .2s}
+.orion-home-button:hover{transform:translateY(-2px)}
+.orion-home-button span{font-size:18px;font-weight:400}
+.orion-home-button-primary{background:#83e9b2;color:#0b2019}
+.orion-home-button-primary:hover{background:#a4f4c7}
+.orion-home-button-outline{border-color:#bed3c573;color:#f1faf4;background:#0a171476}
+.orion-home-button-outline:hover{border-color:#d7eee0;background:#172922d9}
+.orion-home-hero-caption{display:flex;align-items:center;gap:14px;width:100%;padding-top:25px;border-top:1px solid #ffffff65;color:#d9e7dc;font-size:10px;font-weight:650;line-height:1.55;letter-spacing:.12em}
+.orion-home-caption-line{width:29px;height:2px;background:var(--home-green)}
+.orion-home-caption-index{margin-left:auto;color:#b9d4c4}
+.orion-home-process{padding:75px 0 91px;background:#10221e}
+.orion-home-section-top{display:flex;justify-content:space-between;gap:20px;padding-bottom:18px;border-bottom:1px solid #ffffff27}
+.orion-home-section-top>span{color:#829d8d;font-size:10px;font-weight:700;letter-spacing:.14em}
+.orion-home-process-heading,.orion-home-tools-heading{display:flex;align-items:end;justify-content:space-between;gap:40px;padding:31px 0 42px}
+.orion-home-process-heading h2,.orion-home-tools-heading h2,.orion-home-close h2{max-width:760px;margin:0;font:650 clamp(35px,3.7vw,55px)/1.12 var(--font-space-grotesk),sans-serif;letter-spacing:-.055em}
+.orion-home-process-heading p,.orion-home-tools-heading p{max-width:390px;margin:0;color:#a9c0b1;font-size:15px;line-height:1.6}
+.orion-home-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid #ffffff2c}
+.orion-home-step{display:grid;grid-template-columns:1fr auto;align-content:start;min-height:247px;padding:25px;border-right:1px solid #ffffff2c;color:#f6fbf7;text-decoration:none;transition:background .2s}
+.orion-home-step:last-child{border-right:0}
+.orion-home-step:hover{background:#1b3a2e}
+.orion-home-step-number{color:#83e9b2;font:700 12px var(--font-space-grotesk),sans-serif}
+.orion-home-step-arrow{font-size:20px;color:#8aab98}
+.orion-home-step strong{grid-column:1/-1;margin:40px 0 8px;font:650 24px var(--font-space-grotesk),sans-serif;letter-spacing:-.04em}
+.orion-home-step-detail{grid-column:1/-1;color:#aabeb0;font-size:13px;line-height:1.6}
+.orion-home-tools{padding:79px 0 105px;background:#eef2ee;color:#12221c}
+.orion-home-tools .orion-home-section-top{border-color:#cbd8ce}
+.orion-home-tools .orion-home-kicker{color:#087c53}
+.orion-home-tools .orion-home-section-top>span{color:#718579}
+.orion-home-tools-heading p{color:#52665a}
+.orion-home-tool-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.orion-home-tool{display:flex;flex-direction:column;align-items:flex-start;min-height:252px;padding:28px 31px;border:1px solid #cfdbd1;border-radius:4px;background:#fbfdf9;color:#162c20;text-decoration:none;transition:transform .2s,box-shadow .2s,border-color .2s}
+.orion-home-tool:hover{transform:translateY(-3px);border-color:#6ab78c;box-shadow:0 16px 35px #172d1b16}
+.orion-home-tool-featured{position:relative;overflow:hidden;background:#123427;color:#fff;border-color:#123427}
+.orion-home-tool-featured:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 30%,#3e9a6342,transparent 43%),repeating-radial-gradient(circle at 105% 100%,transparent 0 28px,#9edaab25 29px 30px);pointer-events:none}
+.orion-home-tool>*{position:relative}
+.orion-home-tool-label{color:#0b8055;font-size:11px;font-weight:800;letter-spacing:.13em}
+.orion-home-tool-featured .orion-home-tool-label{color:#8deab7}
+.orion-home-tool-content{display:flex;flex-direction:column;gap:9px;margin-top:31px}
+.orion-home-tool-content strong{font:650 30px var(--font-space-grotesk),sans-serif;letter-spacing:-.05em}
+.orion-home-tool-content>span{max-width:460px;color:#53665b;font-size:14px;line-height:1.55}
+.orion-home-tool-featured .orion-home-tool-content>span{color:#c3ddcd}
+.orion-home-tool-link{display:flex;align-items:center;gap:15px;margin-top:auto;padding-top:27px;color:#087c53;font-size:12px;font-weight:800}
+.orion-home-tool-link span{font-size:18px;font-weight:400}
+.orion-home-tool-featured .orion-home-tool-link{color:#9bf0bf}
+.orion-home-close{padding:70px 0;background:#173a2c}
+.orion-home-close .orion-home-container{display:flex;align-items:end;justify-content:space-between;gap:30px}
+.orion-home-close h2{margin-top:14px;font-size:clamp(34px,3.4vw,49px)}
+.orion-home-footer{padding:27px 0;background:#0b1715;color:#9ab1a2;font-size:11px;letter-spacing:.04em}
+.orion-home-footer .orion-home-container{display:flex;justify-content:space-between;gap:20px}
+.orion-home-footer b{color:#e6f3e9}
+.orion-home-footer a{color:#bed2c2;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:900px){.orion-home-container,.orion-home-hero-inner{width:min(100% - 48px,1280px)}.orion-home-hero,.orion-home-hero-inner{min-height:630px}.orion-home-hero-image{left:20%}.orion-home-hero:after{background:linear-gradient(90deg,#0b1715 0%,#0b1715e8 43%,#0b171565 100%),linear-gradient(0deg,#07110fea,transparent 42%)}.orion-home-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.orion-home-step:nth-child(2){border-right:0}.orion-home-step:nth-child(-n+2){border-bottom:1px solid #ffffff2c}.orion-home-process-heading,.orion-home-tools-heading{align-items:start;flex-direction:column;gap:17px}}
+@media(max-width:600px){.orion-home-container,.orion-home-hero-inner{width:calc(100% - 40px)}.orion-home-hero,.orion-home-hero-inner{min-height:690px}.orion-home-hero-inner{padding:70px 0 24px}.orion-home-hero-image{inset:0;background-position:76% center;opacity:.9}.orion-home-hero:after{background:linear-gradient(180deg,#0b1715f2 0%,#0b1715d9 34%,#0b17158a 67%,#07110fe9 100%)}.orion-home-hero h1{font-size:clamp(48px,11vw,67px)}.orion-home-lead{font-size:16px}.orion-home-actions{flex-direction:column;align-items:stretch}.orion-home-button{width:100%}.orion-home-hero-caption{font-size:8px}.orion-home-process{padding:58px 0 68px}.orion-home-section-top>span{display:none}.orion-home-process-heading,.orion-home-tools-heading{padding:25px 0 30px}.orion-home-steps{grid-template-columns:1fr}.orion-home-step{min-height:155px;padding:19px;border-right:0;border-bottom:1px solid #ffffff2c}.orion-home-step:last-child{border-bottom:0}.orion-home-step strong{margin:17px 0 5px}.orion-home-tools{padding:61px 0 75px}.orion-home-tool-grid{grid-template-columns:1fr}.orion-home-tool{min-height:225px;padding:23px}.orion-home-close{padding:57px 0}.orion-home-close .orion-home-container{align-items:stretch;flex-direction:column}.orion-home-footer .orion-home-container{flex-direction:column;gap:9px}}

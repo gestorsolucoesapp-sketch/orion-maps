@@ -14,7 +14,7 @@ const groups=[
 export default function AppNavigation(){
   const pathname=usePathname();
   if(pathname==="/entrar"||pathname.startsWith("/processamento/relatorio"))return null;
-  return <header className="orion-app-navigation print:hidden">
+  return <header className={`orion-app-navigation print:hidden${pathname === "/" ? " orion-app-navigation--home" : ""}`}>
     <Link className="orion-app-navigation-brand" href="/" aria-label="Orion Maps, início"><span className="orion-app-navigation-symbol" aria-hidden="true">O</span><span>ORION <b>MAPS</b></span></Link>
     <nav aria-label="Navegação do Orion Maps">{groups.map(group=><div className="orion-app-navigation-group" key={group.name}><span>{group.name}</span>{group.items.map(item=>{const active=pathname===item.href;return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":undefined}>{item.label}</Link>;})}</div>)}</nav>
     {pathname==="/"&&<Link className="orion-app-navigation-signin" href="/entrar">Entrar</Link>}
