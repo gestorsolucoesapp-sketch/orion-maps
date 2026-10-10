@@ -25,11 +25,12 @@ export default function PlanningCanvas(props:Props){
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
   if(!el.current)return;
-  let m:maplibregl.Map;
+  let m:maplibregl.Map,observer:ResizeObserver|undefined;
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
    // Only visible map tiles are requested; browser caching follows the provider headers.
    m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
+   observer=new ResizeObserver(()=>m.resize());observer.observe(el.current);
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
    m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("O mapa de fundo não carregou. Confira sua conexão e recarregue. Seus pontos continuam no editor.");});
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
@@ -49,7 +50,7 @@ export default function PlanningCanvas(props:Props){
    // eslint-disable-next-line react-hooks/set-state-in-effect
    setError("O editor exige aceleração gráfica. Ative-a no navegador e recarregue.");
   }
-  return()=>{m?.remove();map.current=null;};
+  return()=>{observer?.disconnect();m?.remove();map.current=null;};
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;

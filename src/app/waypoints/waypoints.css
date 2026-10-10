@@ -193,3 +193,33 @@
 .map-toolbar button,.flight-button,.control-section input:not([type=range]):not([type=file]),.mission-controls select{background:#fff}
 .map-toolbar button,.flight-button,.control-section input:not([type=range]):not([type=file]),.mission-controls select{border-color:#afbebd}
 .map-toolbar .location-button,.flight-button.primary{background:#098e68;border-color:#098e68}
+
+/* Give the map the full planning width; place mission settings underneath. */
+.mission-layout{grid-template-columns:minmax(0,1fr);gap:18px}
+.mission-map{height:clamp(520px,70dvh,920px);min-height:520px}
+.mission-controls{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));align-items:start;gap:12px}
+.flight-settings-heading{grid-column:1/-1}
+.mission-controls>.control-section{min-width:0}
+.map-view-actions{order:-4;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.map-view-actions>div{display:grid;gap:3px}
+.map-view-actions strong{font:700 15px var(--font-space-grotesk),sans-serif;color:#1c342c}
+.map-view-actions span{font-size:11px;color:#4f675d}
+.map-view-actions .flight-button{min-height:42px}
+.map-workspace>.map-search{order:-3}
+.map-workspace>.map-drawing-toolbar{order:-2;margin:0 0 8px}
+.map-workspace>.mission-map-wrap{order:-1}
+@media(max-width:700px){.mission-map{height:62dvh;min-height:410px}.map-view-actions span{display:none}}
+
+/* Full-viewport editing keeps the same map instance, markers and measurement tool. */
+.map-workspace--fullscreen{position:fixed;inset:0;z-index:1000;box-sizing:border-box;width:100vw;height:100dvh;max-width:none;margin:0;padding:12px;overflow:hidden;display:flex;flex-direction:column;gap:8px;border:0;border-radius:0;background:#e1e6e7;box-shadow:none}
+.map-workspace--fullscreen>:not(.map-view-actions):not(.map-search):not(.map-drawing-toolbar):not(.mission-map-wrap):not(.orion-measurement){display:none}
+.map-workspace--fullscreen>.map-view-actions{order:-4;flex:0 0 auto;margin:0}
+.map-workspace--fullscreen>.map-search{order:-3;flex:0 0 auto;margin:0}
+.map-workspace--fullscreen>.map-drawing-toolbar{order:-2;flex:0 0 auto;display:flex;flex-wrap:nowrap;overflow-x:auto;margin:0;padding:0 0 4px;scrollbar-width:thin}
+.map-workspace--fullscreen>.map-drawing-toolbar button{flex:0 0 auto;min-height:42px;white-space:nowrap}
+.map-workspace--fullscreen>.mission-map-wrap{order:-1;flex:1 1 auto;min-height:0;width:100%}
+.map-workspace--fullscreen .mission-map{height:100%;min-height:0}
+.map-workspace--fullscreen>.orion-measurement{position:absolute;z-index:10;left:18px;bottom:18px;width:min(390px,calc(100vw - 36px));max-height:58dvh;overflow:auto;margin:0}
+.map-workspace--fullscreen .measure-sheet{max-height:45dvh;overflow:auto}
+.map-workspace--fullscreen .map-key{left:auto;right:10px;bottom:28px}
+@media(max-width:600px){.map-workspace--fullscreen{padding:8px;gap:6px}.map-workspace--fullscreen>.orion-measurement{left:12px;bottom:12px;width:min(320px,calc(100vw - 24px))}.map-workspace--fullscreen .map-key{display:none}}
