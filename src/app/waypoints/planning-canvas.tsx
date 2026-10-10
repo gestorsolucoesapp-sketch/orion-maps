@@ -17,7 +17,7 @@ const basemaps={
 export type Basemap=keyof typeof basemaps;
 type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];exclusions?:Coordinate[][];exclusionDraft?:Coordinate[];drawingExclusion?:boolean;onExclusionAdd?:(p:Coordinate)=>void;legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void;basemap:Basemap;tools?:ReactNode;measureAreaRevision?:number;measurePathRevision?:number;onMeasurementActiveChange?:(active:boolean)=>void};
 export default function PlanningCanvas(props:Props){
- const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
+ const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props),activeBasemap=useRef<Basemap>("satellite");
  const [ready,setReady]=useState(false),[error,setError]=useState("");
  const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
  useEffect(()=>{latest.current=props;});
@@ -29,7 +29,7 @@ export default function PlanningCanvas(props:Props){
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
    // Only visible map tiles are requested; browser caching follows the provider headers.
-   m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
+   m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;activeBasemap.current="satellite";
    // Middle-button drag pans the map, including while point or area tools are active.
    const canvas=m.getCanvas(),container=m.getCanvasContainer();
    let lastX=0,lastY=0,dragging=false,previousCursor="";
@@ -95,11 +95,20 @@ export default function PlanningCanvas(props:Props){
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
+  if(activeBasemap.current===props.basemap)return;
   const selected=basemaps[props.basemap]??esriImagery;
-  // Replace only the background: mission geometry, location and camera stay intact.
-  m.removeLayer("basemap");m.removeSource("basemap");
-  m.addSource("basemap",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});
-  m.addLayer({id:"basemap",type:"raster",source:"basemap"},"location-accuracy-fill");
+  let cancelled=false;
+  const replace=()=>{
+   if(cancelled||map.current!==m)return;
+   if(!m.isStyleLoaded()){m.once("idle",replace);return;}
+   // Replace only the background: mission geometry, location and camera stay intact.
+   m.removeLayer("basemap");m.removeSource("basemap");
+   m.addSource("basemap",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});
+   m.addLayer({id:"basemap",type:"raster",source:"basemap"},"location-accuracy-fill");
+   activeBasemap.current=props.basemap;
+  };
+  replace();
+  return()=>{cancelled=true;m.off("idle",replace);};
  },[ready,props.basemap]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
