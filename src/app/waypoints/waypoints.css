@@ -272,6 +272,12 @@
 .exclusion-list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #e7b1b7;border-radius:6px;background:#fff3f4;font-size:11px}
 .map-rail-area .exclusion-list-item button{min-height:30px;border-color:#b42635;background:#fff;color:#a41e30}
 .map-rail-area>button:disabled{opacity:.5;cursor:not-allowed}
+.flight-direction-marker{width:24px;height:24px;display:grid;place-items:center;border:1px solid #0b5b5d;border-radius:50%;background:#eafff3ed;color:#096447;box-shadow:0 1px 5px #102b2580;font:800 19px sans-serif;pointer-events:none}
+.flight-direction-marker span{display:block;line-height:1}
+.map-route-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.map-route-summary span{display:grid;gap:3px;padding:9px;border:1px solid #c8ddce;border-radius:6px;background:#f1f8f3;color:#476653;font-size:11px}
+.map-route-summary b{color:#154a32;font-size:15px}
+.map-key{max-width:calc(100% - 20px);box-sizing:border-box;flex-wrap:wrap}
 .map-rail-panel .map-search{margin:0 0 10px}
 .map-rail-actions{display:grid;gap:7px}
 .map-rail-actions button{min-height:39px;padding:7px 10px;text-align:left;border:1px solid #b8cec0;border-radius:5px;background:#fff;color:#214d36;cursor:pointer}

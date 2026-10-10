@@ -64,12 +64,13 @@ export default function PlanningCanvas(props:Props){
     m.addSource("location-accuracy",{type:"geojson",data:empty});
     m.addLayer({id:"location-accuracy-fill",type:"fill",source:"location-accuracy",paint:{"fill-color":"#1387bd","fill-opacity":0.14}});
     m.addLayer({id:"location-accuracy-line",type:"line",source:"location-accuracy",paint:{"line-color":"#1387bd","line-width":2}});
-    m.addSource("boundary",{type:"geojson",data:empty});m.addSource("exclusions",{type:"geojson",data:empty});m.addSource("exclusion-draft",{type:"geojson",data:empty});m.addSource("legs",{type:"geojson",data:empty});
+    m.addSource("boundary",{type:"geojson",data:empty});m.addSource("exclusions",{type:"geojson",data:empty});m.addSource("exclusion-draft",{type:"geojson",data:empty});m.addSource("legs",{type:"geojson",data:empty});m.addSource("connections",{type:"geojson",data:empty});
     m.addLayer({id:"area",type:"fill",source:"boundary",paint:{"fill-color":"#dd784b","fill-opacity":0.15}});
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
     m.addLayer({id:"excluded-fill",type:"fill",source:"exclusions",paint:{"fill-color":"#b42635","fill-opacity":0.4}});
     m.addLayer({id:"excluded-line",type:"line",source:"exclusions",paint:{"line-color":"#ad142b","line-width":3}});
     m.addLayer({id:"exclusion-draft-line",type:"line",source:"exclusion-draft",paint:{"line-color":"#ad142b","line-width":3,"line-dasharray":[2,2]}});
+    m.addLayer({id:"connections-line",type:"line",source:"connections",paint:{"line-color":"#117f9a","line-width":3,"line-dasharray":[2,2]}});
     m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setMeasurementMap(m);setReady(true);
    });
    m.on("click",e=>{if(e.originalEvent.button!==0||isMeasuringMap(m)||(e.originalEvent.target as Element)?.closest(".flight-marker,.exclusion-marker,.takeoff-marker,.user-location-marker"))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawingExclusion){latest.current.onExclusionAdd?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
@@ -93,10 +94,23 @@ export default function PlanningCanvas(props:Props){
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
   (m.getSource("exclusions") as GeoJSONSource).setData({type:"FeatureCollection",features:(props.exclusions??[]).map((ring,i)=>({type:"Feature",properties:{index:i+1},geometry:{type:"Polygon",coordinates:[[...ring,ring[0]]]}}))});
   (m.getSource("exclusion-draft") as GeoJSONSource).setData({type:"FeatureCollection",features:props.exclusionDraft&&props.exclusionDraft.length>=2?[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:props.exclusionDraft}}]:[]});
-  (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:props.legs}});
+  const surveyLegs=props.polygon?props.legs.filter(leg=>leg.length===2):props.legs;
+  const connections=props.polygon?[
+   ...props.legs.filter(leg=>leg.length>2),
+   ...props.legs.slice(1).map((leg,i):Coordinate[]=>[props.legs[i].at(-1)!,leg[0]]).filter(([a,b])=>Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])>1e-10)
+  ]:[];
+  (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:surveyLegs}});
+  (m.getSource("connections") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:connections}});
   const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition&&!props.markingTakeoff}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
   const draftMarkers=(props.exclusionDraft??[]).map((p,i)=>{const element=document.createElement("div");element.className="exclusion-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1} da área isolada`;return new maplibregl.Marker({element}).setLngLat(p).addTo(m);});
-  m.getCanvas().style.cursor=(props.drawing||props.drawingExclusion||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>[...markers,...draftMarkers].forEach(m=>m.remove());
+  const arrowStep=Math.max(1,Math.ceil(surveyLegs.length/80));
+  const directionMarkers=props.polygon?surveyLegs.flatMap((leg,i)=>{
+   if(i%arrowStep)return [];
+   const [a,b]=leg,midpoint:Coordinate=[(a[0]+b[0])/2,(a[1]+b[1])/2],angle=Math.atan2((b[0]-a[0])*Math.cos(midpoint[1]*Math.PI/180),b[1]-a[1])*180/Math.PI;
+   const element=document.createElement("div"),arrow=document.createElement("span");element.className="flight-direction-marker";element.title=`Faixa ${i+1}: sentido do voo`;element.setAttribute("role","img");element.setAttribute("aria-label",element.title);arrow.textContent="↑";arrow.style.transform=`rotate(${angle}deg)`;element.append(arrow);
+   return [new maplibregl.Marker({element,anchor:"center"}).setLngLat(midpoint).addTo(m)];
+  }):[];
+  m.getCanvas().style.cursor=(props.drawing||props.drawingExclusion||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>[...markers,...draftMarkers,...directionMarkers].forEach(m=>m.remove());
  },[ready,props.points,props.exclusions,props.exclusionDraft,props.legs,props.polygon,props.drawing,props.drawingExclusion,props.adjustingPosition,props.markingTakeoff]);
  useEffect(()=>{
   const m=map.current,p=props.takeoffPoint;if(!m||!ready||!p)return;
@@ -122,5 +136,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}{props.tools}<div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span><span>Rodinha pressionada: mover mapa</span></div><MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
+ return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}{props.tools}<div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas</span><span>↑ Sentido do voo</span><span>┄ Ligação</span><span>Rodinha pressionada: mover mapa</span></div><MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
 }
