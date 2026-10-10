@@ -268,6 +268,10 @@
 .map-area-badge span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
 .map-area-badge strong{font-size:20px;line-height:1.15}
 .map-area-badge small{font-size:11px;color:#4e6a58}
+.exclusion-marker{width:24px;height:24px;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;background:#b42635;color:#fff;box-shadow:0 1px 6px #0008;font:700 11px sans-serif;pointer-events:none}
+.exclusion-list-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border:1px solid #e7b1b7;border-radius:6px;background:#fff3f4;font-size:11px}
+.map-rail-area .exclusion-list-item button{min-height:30px;border-color:#b42635;background:#fff;color:#a41e30}
+.map-rail-area>button:disabled{opacity:.5;cursor:not-allowed}
 .map-rail-panel .map-search{margin:0 0 10px}
 .map-rail-actions{display:grid;gap:7px}
 .map-rail-actions button{min-height:39px;padding:7px 10px;text-align:left;border:1px solid #b8cec0;border-radius:5px;background:#fff;color:#214d36;cursor:pointer}

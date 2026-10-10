@@ -1,3 +1,4 @@
+import {routeAroundHoles,validateExclusions} from "./flight-exclusions.ts";
 export type Coordinate = [number, number]; // longitude, latitude
 export type GridOptions = { spacing: number; photoSpacing: number; bearing: number; speed: number; doubleGrid: boolean };
 export type Grid = { legs: Coordinate[][]; photos: Coordinate[]; area: number; length: number; seconds: number; spacing: number };
@@ -32,8 +33,11 @@ export function validateBoundary(input: Coordinate[]) {
   return {points,toGeo,area};
 }
 
-export function generateGrid(boundary: Coordinate[], options: GridOptions): Grid {
-  const {points,toGeo,area}=validateBoundary(boundary);
+export function generateGrid(boundary: Coordinate[], options: GridOptions, exclusions: Coordinate[][]=[]): Grid {
+  const {points,toGeo,area:outerArea}=validateBoundary(boundary);
+  const excluded=exclusions.length?validateExclusions(boundary,exclusions):null;
+  const area=excluded?.area??outerArea;
+  const holes=excluded?.holes??[];
   if([options.spacing,options.photoSpacing,options.speed].some(n=>!Number.isFinite(n)||n<=0)||!Number.isFinite(options.bearing)) throw new Error("Informe espaçamentos e velocidade maiores que zero e um rumo válido.");
   const legs: Coordinate[][]=[], photos: Coordinate[]=[];
   let length=0, tightest=options.spacing;
@@ -47,22 +51,22 @@ export function generateGrid(boundary: Coordinate[], options: GridOptions): Grid
     if(count>2000) throw new Error("A grade excedeu 2.000 faixas. Aumente o espaçamento ou divida a área.");
     const step=(max-min)/count; tightest=Math.min(tightest,step);
     for(let row=0;row<count;row++) {
-      const u=min+(row+0.5)*step, crossings:number[]=[];
-      for(let i=0;i<rotated.length;i++) {
-        const p=rotated[i],q=rotated[(i+1)%rotated.length];
-        if((p[0]<=u&&q[0]>u)||(q[0]<=u&&p[0]>u)) crossings.push(p[1]+(u-p[0])*(q[1]-p[1])/(q[0]-p[0]));
-      }
-      crossings.sort((x,y)=>x-y);
+      const u=min+(row+0.5)*step;
+      const intervals=(ring:Coordinate[])=>{const crossings:number[]=[];
+       for(let i=0;i<ring.length;i++){const p=ring[i],q=ring[(i+1)%ring.length];if((p[0]<=u&&q[0]>u)||(q[0]<=u&&p[0]>u))crossings.push(p[1]+(u-p[0])*(q[1]-p[1])/(q[0]-p[0]));}
+       crossings.sort((x,y)=>x-y);const result:[number,number][]=[];for(let i=0;i+1<crossings.length;i+=2)if(crossings[i+1]-crossings[i]>=.001)result.push([crossings[i],crossings[i+1]]);return result;
+      };
+      let spans=intervals(rotated);
+      for(const hole of holes){const cut=intervals(hole.map(([x,y]):Coordinate=>[x*cos-y*sin,x*sin+y*cos]));for(const [low,high] of cut)spans=spans.flatMap(([start,end]):[number,number][]=>high<=start||low>=end?[[start,end]]:[[start,Math.min(low,end)],[Math.max(high,start),end]].filter(([a,b])=>b-a>=.001) as [number,number][]);}
       const parts: Coordinate[][]=[];
-      for(let i=0;i+1<crossings.length;i+=2) {
-        if(crossings[i+1]-crossings[i]<0.001) continue;
-        parts.push([[u,crossings[i]],[u,crossings[i+1]]]);
-      }
+      for(const [start,end] of spans)parts.push([[u,start],[u,end]]);
       if(row%2) {parts.reverse();parts.forEach(part=>part.reverse());}
       for(const segment of parts) {
         const [p,q]=segment, len=distance(p,q), intervals=Math.max(1,Math.ceil(len/options.photoSpacing));
         if(photos.length+intervals+1>30000) throw new Error("O plano excedeu 30.000 fotos. Divida a área ou revise os parâmetros.");
-        length+=len; legs.push(segment.map(p=>toGeo(unrotate(p))));
+        const geoSegment=segment.map(p=>toGeo(unrotate(p)));
+        if(holes.length&&legs.length){const previous=legs.at(-1)!.at(-1)!,connector=routeAroundHoles(excluded!.projection.toLocal(previous),unrotate(p),holes);if(connector.length>2)legs.push(connector.map(excluded!.projection.toGeo));}
+        length+=len; legs.push(geoSegment);
         for(let i=0;i<=intervals;i++) photos.push(toGeo(unrotate([p[0]+(q[0]-p[0])*i/intervals,p[1]+(q[1]-p[1])*i/intervals])));
       }
     }
