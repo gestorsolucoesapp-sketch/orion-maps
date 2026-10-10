@@ -13,7 +13,7 @@ type TiffImage = {
   geoKeys?:Record<string,number>;
   readRasters:(options:{samples:number[]})=>Promise<ArrayLike<ArrayLike<number>>>;
 };
-type GeoTiffModule = {fromUrl:(url:string)=>Promise<{getImage:()=>Promise<TiffImage>}>};
+type GeoTiffModule = {fromUrl:(url:string)=>Promise<{getImage:()=>Promise<TiffImage>}>;fromBlob:(blob:Blob)=>Promise<{getImage:()=>Promise<TiffImage>}>};
 type SourceRaster = TerrainGrid & {corners:RasterCorners;min:number;max:number;analysisCompatible:boolean};
 const sources = new Map<string,Promise<SourceRaster>>();
 
@@ -25,12 +25,8 @@ function projection(code:number):string {
   if (known) return `EPSG:${code}`;
   throw new Error(`Projeção EPSG:${code} não suportada nesta prévia. O GeoTIFF original permanece disponível.`);
 }
-async function readSource(url:string):Promise<SourceRaster> {
-  const existing=sources.get(url);if(existing)return existing;
-  const task=(async()=>{
-    const importer=new Function("u","return import(u)") as (url:string)=>Promise<GeoTiffModule>;
-    const {fromUrl}=await importer("https://cdn.jsdelivr.net/npm/geotiff@2.1.3/+esm");
-    const image=await (await fromUrl(url)).getImage();
+const importer=new Function("u","return import(u)") as (url:string)=>Promise<GeoTiffModule>;
+async function sourceFromImage(image:TiffImage):Promise<SourceRaster> {
     const width=image.getWidth(),height=image.getHeight();
     if(width*height>16000000)throw new Error("GeoTIFF excede o limite desta prévia no navegador. Use o arquivo técnico original.");
     const keys=image.getGeoKeys?.()||image.geoKeys||{};
@@ -46,6 +42,13 @@ async function readSource(url:string):Promise<SourceRaster> {
     const band=rasters[0],raw=image.getGDALNoData(),noData=raw==null?null:Number(raw);
     const {min,max}=validRange(band,noData);
     return {band,width,height,noData,corners,west:origin[0],north:origin[1],crs,sourceCrs:`EPSG:${code}`,analysisCompatible,dx:Math.abs(east-west)/width,dy:Math.abs(north-south)/height,metric:code!==4326&&(keys.ProjLinearUnitsGeoKey===9001||(code>=32601&&code<=32760)),min,max};
+}
+async function readSource(url:string):Promise<SourceRaster> {
+  const existing=sources.get(url);if(existing)return existing;
+  const task=(async()=>{
+    const {fromUrl}=await importer("https://cdn.jsdelivr.net/npm/geotiff@2.1.3/+esm");
+    const image=await (await fromUrl(url)).getImage();
+    return sourceFromImage(image);
   })();
   sources.set(url,task);
   while(sources.size>2)sources.delete(sources.keys().next().value!);
@@ -86,5 +89,13 @@ export async function renderGeoTiffToDataUrl(url:string,palette:TerrainPalette) 
 export async function loadTerrainModel(url:string):Promise<TerrainGrid>{
   const source=await readSource(url);
   if(!source.analysisCompatible)throw new Error("A leitura pontual requer DTM com grade norte-acima e unidades métricas, sem rotação ou distorção Web Mercator.");
+  assertTerrainGrid(source);return source;
+}
+
+/** Local DTM stays in the browser; no upload or temporary public URL is required. */
+export async function loadTerrainModelFromBlob(blob:Blob):Promise<TerrainGrid>{
+  const {fromBlob}=await importer("https://cdn.jsdelivr.net/npm/geotiff@2.1.3/+esm");
+  const source=await sourceFromImage(await (await fromBlob(blob)).getImage());
+  if(!source.analysisCompatible)throw new Error("A análise da rota exige DTM com grade norte-acima e unidades métricas, sem rotação ou distorção Web Mercator.");
   assertTerrainGrid(source);return source;
 }
