@@ -165,7 +165,7 @@ export default async function PainelPage({searchParams}:{searchParams:Promise<{l
         </div>
         <div className="flex gap-3 overflow-x-auto pb-3 [scrollbar-width:none]">
           {recentResults.map(({survey,result})=>{
-            const visual=!!result.preview_url&&(result.mime_type==="image/jpeg"||result.mime_type==="image/png");
+            const visual=!!result.preview_url&&(["image/jpeg","image/png","image/webp"].includes(result.mime_type||""));
             return <Link key={result.id} href={`/processamento/resultados?levantamento=${survey.id}`} className="min-w-[210px] max-w-[250px] flex-1 overflow-hidden rounded-[20px] border border-white bg-white shadow-sm">
               <div className="h-28 overflow-hidden bg-gradient-to-br from-emerald-950 to-slate-900">
                 {visual?<img src={result.kind==="orthophoto"?orthophotoPreviewUrl(result)!:result.preview_url!} loading="lazy" decoding="async" alt="" className="h-full w-full object-cover"/>:<div className="grid h-full place-items-center text-sm font-bold tracking-widest text-white/85">{result.kind.toUpperCase()}</div>}

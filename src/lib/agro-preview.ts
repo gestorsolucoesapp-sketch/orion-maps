@@ -11,7 +11,7 @@ export function selectAgroPreview(surveyId:string,jobs:Pick<ProcessingJob,"id"|"
   const job=jobs.find(j=>j.survey_id===surveyId&&j.status==="completed"&&(!requestedJobId||j.id===requestedJobId));
   if(!job)return null;
   for(const r of results){
-    if(r.survey_id!==surveyId||r.job_id!==job.id||r.kind!=="orthophoto"||!uuid.test(r.id)||!["image/png","image/jpeg"].includes(r.mime_type||""))continue;
+    if(r.survey_id!==surveyId||r.job_id!==job.id||r.kind!=="orthophoto"||!uuid.test(r.id)||!["image/png","image/jpeg","image/webp"].includes(r.mime_type||""))continue;
     if(!r.preview_url&&!r.original_preview_url)continue;
     const b=r.metadata?.bounds_wgs84 as AgroPreview["bounds"]|undefined;
     if(!b||![b.west,b.south,b.east,b.north].every(v=>typeof v==="number"&&Number.isFinite(v))||b.west>=b.east||b.south>=b.north||Math.abs(b.west)>180||Math.abs(b.east)>180||Math.abs(b.south)>85||Math.abs(b.north)>85)continue;

@@ -14,6 +14,7 @@ import time
 import threading
 
 from orion_progress import NodeODMProgress, choose_concurrency
+from orion_upload_opt import prepare_cloud_upload
 from orion_runtime import heartbeat_loop, worker_lock, recover_task_id
 import zipfile
 from datetime import datetime, timezone
@@ -31,7 +32,7 @@ from PIL import Image, UnidentifiedImageError
 SUPABASE_URL = "https://zxmhpkcxwlpvkelqapbf.supabase.co"
 SUPABASE_KEY = "sb_publishable_Tcg2rXYt-HlQuvIP9jkdog_5CaSBVs-"
 SERVICE = "OrionMapsAgent"
-AGENT_VERSION = "0.3.19"
+AGENT_VERSION = "0.3.20"
 NODEODM = os.environ.get("ORION_NODEODM_URL", "http://127.0.0.1:3000").rstrip("/")
 ROOT = Path(os.environ.get("ORION_ROOT", r"D:\OrionMaps"))
 JOBS = ROOT / "jobs"
@@ -547,9 +548,9 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
             {"type": "filters.voxelcenternearestneighbor", "cell": cell},
             {"type": "writers.las", "filename": "/data/ground_web.laz", "compression": "laszip"},
         ], "cloud_web.json")
-        if cloud_web.stat().st_size < 48 * 1024 * 1024:
+        if cloud_web.stat().st_size < 45 * 1024 * 1024:
             break
-    if cloud_web.stat().st_size >= 48 * 1024 * 1024:
+    if cloud_web.stat().st_size >= 45 * 1024 * 1024:
         raise RuntimeError("A nuvem de pontos web permaneceu acima de 48 MB.")
 
     product_crs["orthophoto"] = raster_crs("orthophoto.tif")
@@ -687,8 +688,13 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
         logging.info("Limite do bucket indisponível (%s); o servidor validará o tamanho.", type(exc).__name__)
     kinds = [k for k in specs if k in paths]
     for i, kind in enumerate(kinds, 1):
-        local = paths[kind]
+        original = paths[kind]
+        local, cloud_mime, cloud_meta = prepare_cloud_upload(kind, original)
         label, mime, preview = specs[kind]
+        if cloud_mime:
+            mime = cloud_mime
+        if kind == "other" and cloud_meta:
+            label += " (compactado WebP)"
         size = local.stat().st_size
         remote = f"{user_id}/{job_id}/{kind}/{local.name}"
         update_job(sb, job_id, status="uploading", stage="uploading",
@@ -696,6 +702,7 @@ def upload_results(sb, user_id: str, survey_id: str, job_id: str, paths: dict[st
                    message=f"Enviando {i}/{len(kinds)}: {label} · {local.name} ({size / (1024 * 1024):.2f} MiB).")
         upload_file(sb, local, remote, mime, bucket_limit_bytes=bucket_limit_bytes)
         row_meta = dict(base_meta)
+        row_meta.update(cloud_meta)
         if kind == "contours":
             row_meta["contour_interval_m"] = 0.5
         if kind == "point_cloud":

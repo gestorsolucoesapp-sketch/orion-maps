@@ -105,7 +105,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         <p className="mb-3 text-sm font-semibold text-slate-800">Produtos disponíveis</p>
         <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none]">
           {sorted.map(item=>{
-            const visual=!!item.preview_url&&(item.mime_type==="image/jpeg"||item.mime_type==="image/png");
+            const visual=!!item.preview_url&&(["image/jpeg","image/png","image/webp"].includes(item.mime_type||""));
             return <button key={item.id} type="button" onClick={()=>openResult(item)} disabled={downloading!==null} className="group min-w-[168px] max-w-[190px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm disabled:opacity-60">
               <div className="relative h-24 overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-800 to-slate-900">
                 {visual?<img src={item.kind==="orthophoto"?orthophotoPreviewUrl(item)!:item.preview_url!} loading={item.kind==="orthophoto"?"eager":"lazy"} decoding="async" fetchPriority={item.kind==="orthophoto"?"high":"low"} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}

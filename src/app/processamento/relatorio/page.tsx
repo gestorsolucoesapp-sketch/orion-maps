@@ -66,7 +66,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const projectArea=measuredPlan?.area??null;
   const projectPerimeter=measuredPlan?.perimeter??null;
 
-  const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
+  const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/webp":"WebP","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
     <div className="print-hide mb-6 flex justify-end"><PrintProjectButton/></div>
