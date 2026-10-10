@@ -24,6 +24,7 @@ export default function PlanningCanvas(props:Props){
  useEffect(()=>{
   if(!el.current)return;
   let m:maplibregl.Map,observer:ResizeObserver|undefined;
+  let clearBasemapError:ReturnType<typeof setTimeout>|undefined;
   let removeMiddlePan=()=>{};
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
@@ -56,8 +57,18 @@ export default function PlanningCanvas(props:Props){
    removeMiddlePan=()=>{container.removeEventListener("mousedown",startMiddlePan,true);container.removeEventListener("auxclick",preventMiddleClick);window.removeEventListener("mousemove",moveMiddlePan);window.removeEventListener("mouseup",endMiddlePan);window.removeEventListener("blur",stopMiddlePan);};
    observer=new ResizeObserver(()=>m.resize());observer.observe(el.current);
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
-   m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("Uma imagem do mapa de fundo falhou. Se houver áreas vazias, tente outra camada; seus pontos continuam no editor.");});
-   m.on("sourcedata",e=>{if(e.sourceId==="basemap"&&e.sourceDataType==="content")setError("");});
+   m.on("error",e=>{
+    if("sourceId" in e&&e.sourceId==="basemap"){
+     setError("Uma imagem do mapa de fundo falhou. Se houver áreas vazias, tente outra camada; seus pontos continuam no editor.");
+     if(clearBasemapError)clearTimeout(clearBasemapError);
+     // A single failed tile must not leave a permanent warning over a usable map.
+     clearBasemapError=setTimeout(()=>{setError("");clearBasemapError=undefined;},8000);
+    }
+   });
+   m.on("sourcedata",e=>{if(e.sourceId==="basemap"&&e.sourceDataType==="content"){
+    if(clearBasemapError)clearTimeout(clearBasemapError);
+    clearBasemapError=undefined;setError("");
+   }});
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
    m.on("load",()=>{
     const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
@@ -80,7 +91,7 @@ export default function PlanningCanvas(props:Props){
    // eslint-disable-next-line react-hooks/set-state-in-effect
    setError("O editor exige aceleração gráfica. Ative-a no navegador e recarregue.");
   }
-  return()=>{removeMiddlePan();observer?.disconnect();m?.remove();map.current=null;};
+  return()=>{if(clearBasemapError)clearTimeout(clearBasemapError);removeMiddlePan();observer?.disconnect();m?.remove();map.current=null;};
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
