@@ -26,10 +26,36 @@ export default function PlanningCanvas(props:Props){
  useEffect(()=>{
   if(!el.current)return;
   let m:maplibregl.Map,observer:ResizeObserver|undefined;
+  let removeMiddlePan=()=>{};
   try{
    maplibregl.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
    // Only visible map tiles are requested; browser caching follows the provider headers.
    m=new maplibregl.Map({container:el.current,center:[-52,-14],zoom:4,dragRotate:false,pitchWithRotate:false,renderWorldCopies:false,attributionControl:false,style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});map.current=m;
+   // Middle-button drag pans the map, including while point or area tools are active.
+   const canvas=m.getCanvas(),container=m.getCanvasContainer();
+   let lastX=0,lastY=0,dragging=false,previousCursor="";
+   const stopMiddlePan=()=>{if(!dragging)return;dragging=false;canvas.style.cursor=previousCursor;};
+   const startMiddlePan=(event:MouseEvent)=>{
+    if(event.button!==1||(event.target as Element).closest("button,a,select,input,.maplibregl-control-container"))return;
+    event.preventDefault();event.stopPropagation();
+    dragging=true;lastX=event.clientX;lastY=event.clientY;previousCursor=canvas.style.cursor;canvas.style.cursor="grabbing";
+   };
+   const moveMiddlePan=(event:MouseEvent)=>{
+    if(!dragging)return;
+    if(!(event.buttons&4)){stopMiddlePan();return;}
+    event.preventDefault();
+    const dx=event.clientX-lastX,dy=event.clientY-lastY;
+    lastX=event.clientX;lastY=event.clientY;
+    if(dx||dy)m.jumpTo({center:m.unproject([canvas.clientWidth/2-dx,canvas.clientHeight/2-dy])});
+   };
+   const endMiddlePan=(event:MouseEvent)=>{if(event.button===1)stopMiddlePan();};
+   const preventMiddleClick=(event:MouseEvent)=>{if(event.button===1&&event.target===canvas)event.preventDefault();};
+   container.addEventListener("mousedown",startMiddlePan,true);
+   container.addEventListener("auxclick",preventMiddleClick);
+   window.addEventListener("mousemove",moveMiddlePan);
+   window.addEventListener("mouseup",endMiddlePan);
+   window.addEventListener("blur",stopMiddlePan);
+   removeMiddlePan=()=>{container.removeEventListener("mousedown",startMiddlePan,true);container.removeEventListener("auxclick",preventMiddleClick);window.removeEventListener("mousemove",moveMiddlePan);window.removeEventListener("mouseup",endMiddlePan);window.removeEventListener("blur",stopMiddlePan);};
    observer=new ResizeObserver(()=>m.resize());observer.observe(el.current);
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
    m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("O mapa de fundo não carregou. Confira sua conexão e recarregue. Seus pontos continuam no editor.");});
@@ -44,13 +70,13 @@ export default function PlanningCanvas(props:Props){
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
     m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setMeasurementMap(m);setReady(true);
    });
-   m.on("click",e=>{if(isMeasuringMap(m))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
+   m.on("click",e=>{if(e.originalEvent.button!==0||isMeasuringMap(m))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
   }catch{
    // A failed external WebGL initialization must surface in the UI once.
    // eslint-disable-next-line react-hooks/set-state-in-effect
    setError("O editor exige aceleração gráfica. Ative-a no navegador e recarregue.");
   }
-  return()=>{observer?.disconnect();m?.remove();map.current=null;};
+  return()=>{removeMiddlePan();observer?.disconnect();m?.remove();map.current=null;};
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
@@ -91,5 +117,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
+ return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span><span>Rodinha pressionada: mover mapa</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
 }
