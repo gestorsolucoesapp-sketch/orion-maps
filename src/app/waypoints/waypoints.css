@@ -315,3 +315,4 @@
 .mission-map-wrap>.orion-measurement[data-open=false]{display:none}
 .mission-map-wrap>.orion-measurement .measure-sheet{margin:0}
 @media(max-width:700px){.map-tool-rail:hover,.map-tool-rail:focus-within{width:51px}.map-tool-rail:hover .map-rail-label,.map-tool-rail:focus-within .map-rail-label{opacity:0}.map-rail-panel,.mission-map-wrap>.orion-measurement{left:66px;width:calc(100% - 76px)}.map-rail-panel{padding:10px}.map-rail-panel .mode-selector{grid-template-columns:1fr 1fr}}
+.map-tile-status{position:absolute;right:12px;bottom:32px;z-index:3;display:grid;place-items:center;width:24px;height:24px;border:1px solid #ca934d;border-radius:50%;background:#fff6e8;color:#84490d;font:bold 15px Arial,sans-serif;box-shadow:0 1px 5px #0002;cursor:help}
