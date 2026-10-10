@@ -208,16 +208,32 @@
 .map-view-actions .flight-button{min-height:42px}
 .map-workspace>.map-search{order:-3}
 .map-workspace>.map-drawing-toolbar{order:-2;margin:0 0 8px}
+.map-workspace>.map-quick-settings{order:-1;margin:0 0 8px;padding:10px 12px;background:#fff;border:1px solid var(--orion-border);border-radius:8px}
+.map-quick-heading{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;color:#1d3f31}
+.map-quick-heading strong{font:700 13px var(--font-space-grotesk),sans-serif}
+.map-quick-heading span{font-size:11px;color:#587064}
+.map-quick-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.map-quick-grid label{display:grid;gap:4px;min-width:0;font-size:11px;font-weight:600;color:#40594d}
+.map-quick-grid label>span{display:flex;align-items:center;gap:5px}
+.map-quick-grid input{width:100%;min-width:0;height:36px;padding:6px 8px;border:1px solid #b5c9bd;border-radius:5px;background:#f8faf8;color:#173a2a;font-size:13px}
+.map-quick-grid input:focus{outline:2px solid #098e68;outline-offset:1px}
+.map-quick-grid small{font-size:11px;color:#587064;white-space:nowrap}
 .map-workspace>.mission-map-wrap{order:-1}
+@media(max-width:900px){.map-quick-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.map-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.map-quick-heading span{display:none}}
 @media(max-width:700px){.mission-map{height:62dvh;min-height:410px}.map-view-actions span{display:none}}
 
 /* Full-viewport editing keeps the same map instance, markers and measurement tool. */
 .map-workspace--fullscreen{position:fixed;inset:0;z-index:1000;box-sizing:border-box;width:100vw;height:100dvh;max-width:none;margin:0;padding:12px;overflow:hidden;display:flex;flex-direction:column;gap:8px;border:0;border-radius:0;background:#e1e6e7;box-shadow:none}
-.map-workspace--fullscreen>:not(.map-view-actions):not(.map-search):not(.map-drawing-toolbar):not(.mission-map-wrap):not(.orion-measurement){display:none}
+.map-workspace--fullscreen>:not(.map-view-actions):not(.map-search):not(.map-drawing-toolbar):not(.map-quick-settings):not(.mission-map-wrap):not(.orion-measurement){display:none}
 .map-workspace--fullscreen>.map-view-actions{order:-4;flex:0 0 auto;margin:0}
 .map-workspace--fullscreen>.map-search{order:-3;flex:0 0 auto;margin:0}
 .map-workspace--fullscreen>.map-drawing-toolbar{order:-2;flex:0 0 auto;display:flex;flex-wrap:nowrap;overflow-x:auto;margin:0;padding:0 0 4px;scrollbar-width:thin}
 .map-workspace--fullscreen>.map-drawing-toolbar button{flex:0 0 auto;min-height:42px;white-space:nowrap}
+.map-workspace--fullscreen>.map-quick-settings{order:-1;flex:0 0 auto;width:100%;box-sizing:border-box;margin:0;padding:7px 10px}
+.map-workspace--fullscreen .map-quick-heading{display:none}
+.map-workspace--fullscreen .map-quick-grid{display:flex;overflow-x:auto;padding-bottom:3px}
+.map-workspace--fullscreen .map-quick-grid label{flex:0 0 145px}
 .map-workspace--fullscreen>.mission-map-wrap{order:-1;flex:1 1 auto;min-height:0;width:100%}
 .map-workspace--fullscreen .mission-map{height:100%;min-height:0}
 .map-workspace--fullscreen>.orion-measurement{position:absolute;z-index:10;left:18px;bottom:18px;width:min(390px,calc(100vw - 36px));max-height:58dvh;overflow:auto;margin:0}
