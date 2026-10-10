@@ -7,17 +7,31 @@ import GoogleMapsImport from "@/components/google-maps-import";
 import type {ImportedMapLocation} from "@/lib/google-maps-location";
 import InfoPopover from "@/components/info-popover";
 import {measureDrawing,type MeasureDrawing} from "@/lib/map-measurement";
+import type {MeasurePoint} from "@/lib/map-measurement";
 import type {SurveyPlanning,SurveyBasemap} from "@/lib/survey-planning";
 import {streetBasemap,esriImagery,topoBasemap} from "@/lib/basemaps";
 import "./survey-map.css";
 const layers={satellite:esriImagery,streets:streetBasemap,topo:topoBasemap};
 const layerFor=(key:SurveyBasemap)=>layers[key];
+const myPlaceKey="orion-my-place-v1";
+function readMyPlace():MeasurePoint|null{
+ try{
+  const stored=localStorage.getItem(myPlaceKey);if(!stored)return null;
+  const point:unknown=JSON.parse(stored);
+  return Array.isArray(point)&&point.length===2&&point.every(v=>typeof v==="number"&&Number.isFinite(v))&&Math.abs(point[0])<=180&&Math.abs(point[1])<=75?point as MeasurePoint:null;
+ }catch{return null;}
+}
 export type CityPlace={lat:number;lon:number;label:string;query:string;zoom?:number;source?:"google-maps";restore?:boolean};
 type Props={onImport:(point:ImportedMapLocation)=>void;value:SurveyPlanning;onChange:(v:SurveyPlanning)=>void;place:CityPlace|null;city:string;status:string;error:string};
 export default function SurveyMapCanvas(props:Props){
  const element=useRef<HTMLDivElement>(null),map=useRef<maplibre.Map|null>(null),latest=useRef(props),wrapper=useRef<HTMLElement>(null);
  const [readyMap,setReadyMap]=useState<maplibre.Map|null>(null),[error,setError]=useState(""),[areaCommand,setAreaCommand]=useState(0),[expanded,setExpanded]=useState(false);
+ const [myPlace,setMyPlace]=useState<MeasurePoint|null>(null),[myPlaceMessage,setMyPlaceMessage]=useState("");
  useEffect(()=>{latest.current=props;});
+ useEffect(()=>{
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Browser-only saved preference is restored after hydration.
+  setMyPlace(readMyPlace());
+ },[]);
  const emit=useCallback((patch:Partial<SurveyPlanning>)=>{const next={...latest.current.value,...patch};latest.current={...latest.current,value:next};latest.current.onChange(next);},[]);
  const onDrawing=useCallback((drawing:MeasureDrawing)=>{if(JSON.stringify(drawing)!==JSON.stringify(latest.current.value.drawing))emit({drawing});},[emit]);
  const metrics=useMemo(()=>{try{return measureDrawing(props.value.drawing);}catch{return null;}},[props.value.drawing]);
@@ -25,7 +39,8 @@ export default function SurveyMapCanvas(props:Props){
   if(!element.current)return;let m:maplibre.Map|undefined,observer:ResizeObserver|undefined;
   try{
    const initial=latest.current.value,base=layerFor(initial.basemap);maplibre.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-   m=new maplibre.Map({container:element.current,center:initial.center||[-52,-14],zoom:initial.center?initial.zoom:4,renderWorldCopies:false,dragRotate:false,pitchWithRotate:false,attributionControl:false,style:{version:8,sources:{base:{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.maxzoom,attribution:base.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#e4ebe1"}},{id:"base",type:"raster",source:"base"}]}});
+   const savedPlace=readMyPlace();
+   m=new maplibre.Map({container:element.current,center:initial.center||savedPlace||[-52,-14],zoom:initial.center?initial.zoom:savedPlace?16:4,renderWorldCopies:false,dragRotate:false,pitchWithRotate:false,attributionControl:false,style:{version:8,sources:{base:{type:"raster",tiles:[base.url],tileSize:256,maxzoom:base.maxzoom,attribution:base.attribution}},layers:[{id:"background",type:"background",paint:{"background-color":"#e4ebe1"}},{id:"base",type:"raster",source:"base"}]}});
    const current=m;map.current=m;
    m.addControl(new maplibre.NavigationControl({showCompass:false}),"top-right");m.addControl(new maplibre.ScaleControl({unit:"metric"}),"bottom-left");m.addControl(new maplibre.AttributionControl({compact:true}),"bottom-right");
    m.on("load",()=>{if(map.current===current)setReadyMap(current);});
@@ -57,11 +72,14 @@ export default function SurveyMapCanvas(props:Props){
   return()=>{document.body.style.overflow=previous;window.removeEventListener("keydown",close);};
  },[expanded]);
  function fit(){const points=latest.current.value.drawing.points;if(points.length&&map.current){const b=new maplibre.LngLatBounds(points[0],points[0]);points.forEach(p=>b.extend(p));map.current.fitBounds(b,{padding:55,maxZoom:19,duration:0});}else if(props.place)map.current?.jumpTo({center:[props.place.lon,props.place.lat],zoom:props.place.zoom??12});}
+ function goToMyPlace(){if(!myPlace||!map.current)return;map.current.jumpTo({center:myPlace,zoom:Math.max(map.current.getZoom(),16)});setMyPlaceMessage("Mapa centralizado no seu local salvo. O desenho foi mantido.");}
+ function saveMyPlace(){if(!map.current)return;const center=map.current.getCenter(),point:MeasurePoint=[center.lng,center.lat];try{localStorage.setItem(myPlaceKey,JSON.stringify(point));setMyPlace(point);setMyPlaceMessage("Centro do mapa salvo como Meu local neste navegador. Esta posição não é uma medição GPS.");}catch{setMyPlaceMessage("Não foi possível salvar Meu local neste navegador.");}}
  const fmt=(v:number|null|undefined,suffix:string)=>v==null?"—":`${v.toLocaleString("pt-BR",{maximumFractionDigits:2})} ${suffix}`;
  return <section ref={wrapper} className={`survey-working-map${expanded?" survey-map-expanded":""}`} data-testid="survey-map-workspace">
   <header><div className="survey-map-title"><strong>Mapa do levantamento</strong><InfoPopover title="Mapa e medições do levantamento"><p>A cidade posiciona a vista, não delimita o terreno. Use Área ou Medir para desenhar sobre a imagem Esri, o mapa de ruas ou o topográfico. A imagem de satélite é uma referência, não uma ortofoto produzida pelo seu drone.</p><p>Medidas horizontais no elipsoide WGS84. Relevo, altura e precisão do levantamento não são inferidos do mapa-base. Inclinação e perfil de elevação exigem um modelo de terreno processado.</p><p>O desenho e a vista ficam vinculados ao levantamento quando você o salva. Planejar voo leva o contorno e o perfil de câmera ao planejador. Não altera as ortofotos, as fotos enviadas nem os resultados do processamento.</p></InfoPopover></div><button type="button" className="survey-map-button" onClick={()=>setExpanded(v=>!v)}>{expanded?"Fechar mapa ampliado":"Ampliar"}</button></header>
   <div className="survey-map-bar"><label>Camada<select aria-label="Camada do mapa do levantamento" value={props.value.basemap} onChange={e=>{setError("");emit({basemap:e.target.value as SurveyBasemap});}}>{Object.entries(layers).map(([key,layer])=><option key={key} value={key}>{layer.label}</option>)}</select></label><button type="button" className="survey-map-button" disabled={!readyMap} onClick={()=>setAreaCommand(v=>v+1)}>Delimitar área</button><button type="button" className="survey-map-button" disabled={!readyMap||(!props.value.drawing.points.length&&!props.place)} onClick={fit}>Enquadrar</button><span className="survey-city" title={props.place?.label||props.city}>{props.status||(props.place?.source==="google-maps"?props.place.label:props.city)}</span></div>
   <GoogleMapsImport onApply={props.onImport} disabled={!readyMap}/>
+  <div className="survey-my-place" aria-label="Meu local salvo"><button type="button" className="survey-map-button" disabled={!readyMap||!myPlace} onClick={goToMyPlace}>⌖ Ir ao meu local</button><button type="button" className="survey-map-button" disabled={!readyMap} onClick={saveMyPlace}>Salvar centro como meu local</button><span role="status">{myPlaceMessage||"Meu local fica neste navegador e não altera os pontos desenhados."}</span></div>
   <div className="survey-map-host"><div ref={element} className="survey-map-canvas" aria-label="Mapa de trabalho do levantamento" data-testid="survey-map" data-ready={!!readyMap} data-basemap={props.value.basemap}/></div>
   <MapMeasurement key="survey-drawing" map={readyMap} floating embedded initialDrawing={props.value.drawing} onDrawingChange={onDrawing} startAreaRevision={areaCommand}/>
   <div className="survey-map-metrics" data-testid="survey-map-metrics"><span>Área <b>{fmt(metrics?.area_m2!=null?metrics.area_m2/10000:null,"ha")}</b></span><span>{props.value.drawing.kind==="path"?"Distância":"Perímetro"} <b>{fmt(props.value.drawing.kind==="path"&&props.value.drawing.points.length>=2?metrics?.distance_m:metrics?.perimeter_m,"m")}</b></span><span>{props.value.drawing.points.length} pontos</span></div>
