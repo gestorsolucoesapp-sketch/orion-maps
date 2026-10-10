@@ -12,6 +12,15 @@ test('100 m square produces five clipped north-south strips and expected survey 
  for(const leg of g.legs)for(const [x,y] of leg){assert.ok(x>=0&&x<=100*degree+1e-10);assert.ok(y>=-1e-10&&y<=100*degree+1e-10);}
  assert.ok(g.photos.length>=25);
 });
+test('single grid flies out on one strip and back on its adjacent strip',()=>{
+ const g=generateGrid(square,config);
+ for(let i=1;i<g.legs.length;i++){
+  const previous=g.legs[i-1],current=g.legs[i];
+  assert.ok(current[0][0]>previous[0][0]);
+  assert.ok((previous[1][1]-previous[0][1])*(current[1][1]-current[0][1])<0);
+  assert.ok(Math.abs(previous[1][1]-current[0][1])<1e-8);
+ }
+});
 test('double grid adds perpendicular coverage and respects bearing rotation',()=>{
  const single=generateGrid(square,config),double=generateGrid(square,{...config,doubleGrid:true});
  assert.ok(Math.abs(double.length-single.length*2)<1e-7);

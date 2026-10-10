@@ -177,6 +177,7 @@
 .flight-mode-tabs .mode-selector button{min-height:43px;padding:8px 5px;border:1px solid #dce7df;border-radius:6px;background:#f7faf7;color:#254235;font-size:12px;font-weight:700}
 .flight-mode-tabs .mode-selector button:hover{border-color:#6db392;background:#edf8f0}
 .flight-mode-tabs .mode-selector button.selected{border-color:#087852;background:#087852;color:#fff}
+.flight-mode-tabs .mode-pattern-note{grid-column:1/-1;margin:5px 8px 7px;color:#355644;font-size:12px;line-height:1.5}
 @media(max-width:700px){.flight-mode-tabs .mode-selector{grid-template-columns:repeat(3,minmax(0,1fr))}.flight-mode-tabs .mode-selector button{font-size:11px;min-height:45px}}
 .battery-reserve-note{margin:8px 0 0;color:#315e44;font-size:12px;line-height:1.5}
 .flight-save-feedback{margin:0 0 12px;padding:12px 15px;border:1px solid #bdcfc1;border-radius:8px;background:#e9f5eb;color:#17533a;font-size:13px;font-weight:650;line-height:1.5}
