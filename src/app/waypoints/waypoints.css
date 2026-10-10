@@ -277,8 +277,21 @@
 .map-route-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .map-route-summary span{display:grid;gap:3px;padding:9px;border:1px solid #c8ddce;border-radius:6px;background:#f1f8f3;color:#476653;font-size:11px}
 .map-route-summary b{color:#154a32;font-size:15px}
+.map-pattern-density{display:grid;gap:8px;padding:10px;border:1px solid #c8ddce;border-radius:7px;background:#f6fbf5;color:#194431}
+.map-pattern-density b{font-size:12px}
+.map-pattern-density small{font-size:11px;line-height:1.4;color:#536c5b}
+.map-pattern-density>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.map-rail-area .map-pattern-density button{min-height:40px;padding:6px;border:1px solid #b7d3bf;background:#fff;color:#1d553d;font-size:11px}
+.map-rail-area .map-pattern-density button[aria-pressed="true"]{border-color:#087d59;background:#087d59;color:#fff}
 .map-key{max-width:calc(100% - 20px);box-sizing:border-box;flex-wrap:wrap}
 .map-rail-panel .map-search{margin:0 0 10px}
+.map-altitude-control{display:grid;gap:12px}
+.map-altitude-control label{font-size:12px;font-weight:700;color:#244d39}
+.map-altitude-control>div{display:flex;align-items:center;gap:8px}
+.map-altitude-control>div input{width:100px;padding:9px;border:1px solid #aac7b3;border-radius:6px;background:#fff;color:#183c2a;font-size:21px;font-weight:700}
+.map-altitude-control>div span{font-size:14px;font-weight:700}
+.map-altitude-control input[type="range"]{width:100%;accent-color:#087d59}
+.map-altitude-control p{margin:0;font-size:11px;line-height:1.5;color:#536c5b}
 .map-rail-actions{display:grid;gap:7px}
 .map-rail-actions button{min-height:39px;padding:7px 10px;text-align:left;border:1px solid #b8cec0;border-radius:5px;background:#fff;color:#214d36;cursor:pointer}
 .map-rail-actions button:disabled{opacity:.5}

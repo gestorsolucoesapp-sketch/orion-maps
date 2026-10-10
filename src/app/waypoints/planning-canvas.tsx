@@ -70,8 +70,9 @@ export default function PlanningCanvas(props:Props){
     m.addLayer({id:"excluded-fill",type:"fill",source:"exclusions",paint:{"fill-color":"#b42635","fill-opacity":0.4}});
     m.addLayer({id:"excluded-line",type:"line",source:"exclusions",paint:{"line-color":"#ad142b","line-width":3}});
     m.addLayer({id:"exclusion-draft-line",type:"line",source:"exclusion-draft",paint:{"line-color":"#ad142b","line-width":3,"line-dasharray":[2,2]}});
-    m.addLayer({id:"connections-line",type:"line",source:"connections",paint:{"line-color":"#117f9a","line-width":3,"line-dasharray":[2,2]}});
-    m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setMeasurementMap(m);setReady(true);
+    // Draw turns and survey passes with the same stroke so the flown path reads as one serpentine route.
+    m.addLayer({id:"connections-line",type:"line",source:"connections",paint:{"line-color":"#f6d547","line-width":4,"line-opacity":0.95}});
+    m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#f6d547","line-width":4,"line-opacity":0.95}});setMeasurementMap(m);setReady(true);
    });
    m.on("click",e=>{if(e.originalEvent.button!==0||isMeasuringMap(m)||(e.originalEvent.target as Element)?.closest(".flight-marker,.exclusion-marker,.takeoff-marker,.user-location-marker"))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawingExclusion){latest.current.onExclusionAdd?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
   }catch{
@@ -136,5 +137,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}{props.tools}<div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas</span><span>↑ Sentido do voo</span><span>┄ Ligação</span><span>Rodinha pressionada: mover mapa</span></div><MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
+ return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}{props.tools}<div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Rota vai e volta</span><span>↑ Sentido do voo</span><span>Rodinha pressionada: mover mapa</span></div><MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
 }
