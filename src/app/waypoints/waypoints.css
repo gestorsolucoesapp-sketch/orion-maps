@@ -240,3 +240,35 @@
 .map-workspace--fullscreen .measure-sheet{max-height:45dvh;overflow:auto}
 .map-workspace--fullscreen .map-key{left:auto;right:10px;bottom:28px}
 @media(max-width:600px){.map-workspace--fullscreen{padding:8px;gap:6px}.map-workspace--fullscreen>.orion-measurement{left:12px;bottom:12px;width:min(320px,calc(100vw - 24px))}.map-workspace--fullscreen .map-key{display:none}}
+
+/* Map actions stay beside the canvas and reveal their names on hover or focus. */
+.map-tool-rail{position:absolute;z-index:8;top:10px;bottom:44px;left:10px;box-sizing:border-box;width:51px;display:flex;flex-direction:column;gap:3px;padding:5px;overflow-y:auto;overflow-x:hidden;border:1px solid #c6d8cd;border-radius:9px;background:#fffffff2;box-shadow:0 8px 20px #092b1b28;transition:width .18s ease;scrollbar-width:thin}
+.map-tool-rail:hover,.map-tool-rail:focus-within{width:235px}
+.map-rail-button{flex:0 0 40px;width:100%;display:flex;align-items:center;gap:10px;padding:0 8px;white-space:nowrap;text-align:left;border:1px solid transparent;border-radius:6px;background:transparent;color:#174631;cursor:pointer}
+.map-rail-button:hover,.map-rail-button:focus-visible{background:#e8f3eb;border-color:#a9cab7}
+.map-rail-button[aria-pressed=true]{background:#087d59;color:#fff}
+.map-rail-button:disabled{opacity:.45;cursor:not-allowed}
+.map-rail-divider{margin-top:5px;border-top:1px solid #ccdcd1}
+.map-rail-icon{flex:0 0 25px;text-align:center;font-size:19px;font-weight:700;line-height:1}
+.map-rail-label{opacity:0;min-width:0;font-size:12px;font-weight:650;transition:opacity .12s ease}
+.map-tool-rail:hover .map-rail-label,.map-tool-rail:focus-within .map-rail-label{opacity:1}
+.map-rail-panel{position:absolute;z-index:9;top:10px;left:250px;box-sizing:border-box;width:min(400px,calc(100% - 260px));max-height:calc(100% - 20px);overflow:auto;padding:14px;border:1px solid #bfd3c5;border-radius:9px;background:#f9fbfa;box-shadow:0 10px 30px #092b1b35;color:#1f3b2f}
+.map-rail-panel>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.map-rail-panel>header strong{font:700 15px var(--font-space-grotesk),sans-serif}
+.map-rail-panel>header button{width:32px;height:32px;border:1px solid #c8d9ce;border-radius:5px;background:#fff;color:#1f3b2f;font-size:21px;cursor:pointer}
+.map-rail-panel .mode-selector{grid-template-columns:repeat(2,minmax(0,1fr));padding:4px}
+.map-rail-panel .mode-selector-heading,.map-rail-panel .mode-pattern-note{grid-column:1/-1}
+.map-rail-panel .mode-pattern-note{margin:7px;font-size:12px;line-height:1.5}
+.map-rail-panel .map-search{margin:0 0 10px}
+.map-rail-actions{display:grid;gap:7px}
+.map-rail-actions button{min-height:39px;padding:7px 10px;text-align:left;border:1px solid #b8cec0;border-radius:5px;background:#fff;color:#214d36;cursor:pointer}
+.map-rail-actions button:disabled{opacity:.5}
+.map-rail-actions p,.map-rail-settings p{font-size:11px;line-height:1.5;color:#587064}
+.map-rail-field{display:grid;gap:5px;margin:12px 0;font-size:12px;font-weight:650;color:#355747}
+.map-rail-field select,.map-rail-field input{width:100%;min-height:38px;box-sizing:border-box;padding:7px;border:1px solid #b5c9bd;border-radius:5px;background:#fff;color:#173a2a;font-size:13px}
+.map-rail-field small{font-size:11px;font-weight:400;color:#587064}
+.map-rail-settings .map-quick-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.mission-map-wrap>.orion-measurement{position:absolute;z-index:10;top:10px;left:250px;box-sizing:border-box;width:min(420px,calc(100% - 260px));max-height:calc(100% - 20px);overflow:auto;margin:0}
+.mission-map-wrap>.orion-measurement[data-open=false]{display:none}
+.mission-map-wrap>.orion-measurement .measure-sheet{margin:0}
+@media(max-width:700px){.map-tool-rail:hover,.map-tool-rail:focus-within{width:51px}.map-tool-rail:hover .map-rail-label,.map-tool-rail:focus-within .map-rail-label{opacity:0}.map-rail-panel,.mission-map-wrap>.orion-measurement{left:66px;width:calc(100% - 76px)}.map-rail-panel{padding:10px}.map-rail-panel .mode-selector{grid-template-columns:1fr 1fr}}

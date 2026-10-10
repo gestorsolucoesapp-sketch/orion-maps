@@ -1,7 +1,5 @@
 "use client";
 import type {ImportedMapLocation} from "@/lib/google-maps-location";
-import InfoPopover from "@/components/info-popover";
-
 import MapMeasurement from "@/components/measurement/map-measurement";
 import {isMeasuringMap} from "@/lib/measurement-map-state";
 
@@ -10,18 +8,18 @@ import * as maplibregl from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Coordinate } from "@/lib/flight-plan";
+import type {ReactNode} from "react";
 import { accuracyRing } from "@/lib/location-circle";
 import {streetBasemap,esriImagery,topoBasemap,reliefBasemap} from "@/lib/basemaps";
 const basemaps={
  satellite:esriImagery,streets:streetBasemap,topo:topoBasemap,relief:reliefBasemap
 };
-type Basemap=keyof typeof basemaps;
-type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void};
+export type Basemap=keyof typeof basemaps;
+type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void;basemap:Basemap;tools?:ReactNode;measureAreaRevision?:number;measurePathRevision?:number;onMeasurementActiveChange?:(active:boolean)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props);
  const [ready,setReady]=useState(false),[error,setError]=useState("");
  const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
- const [basemap,setBasemap]=useState<Basemap>("satellite");
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
   if(!el.current)return;
@@ -60,7 +58,7 @@ export default function PlanningCanvas(props:Props){
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
    m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("Uma imagem do mapa de fundo falhou. Se houver áreas vazias, tente outra camada; seus pontos continuam no editor.");});
    m.on("sourcedata",e=>{if(e.sourceId==="basemap"&&e.sourceDataType==="content")setError("");});
-   m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
+   m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
    m.on("load",()=>{
     const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
     m.addSource("location-accuracy",{type:"geojson",data:empty});
@@ -81,12 +79,12 @@ export default function PlanningCanvas(props:Props){
  },[]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
-  const selected=basemaps[basemap]??esriImagery;
+  const selected=basemaps[props.basemap]??esriImagery;
   // Replace only the background: mission geometry, location and camera stay intact.
   m.removeLayer("basemap");m.removeSource("basemap");
   m.addSource("basemap",{type:"raster",tiles:[selected.url],tileSize:256,maxzoom:selected.maxzoom,attribution:selected.attribution});
   m.addLayer({id:"basemap",type:"raster",source:"basemap"},"location-accuracy-fill");
- },[ready,basemap]);
+ },[ready,props.basemap]);
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
@@ -118,5 +116,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <><div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}<label className="basemap-selector">Camada do mapa<select aria-label="Camada do mapa" value={basemap} onChange={e=>{setError("");setBasemap(e.target.value as Basemap);}}>{Object.entries(basemaps).map(([id,layer])=><option key={id} value={id}>{layer.label}</option>)}</select>{basemap==="satellite"&&<InfoPopover title="Camadas do mapa"><small>O zoom amplia a imagem disponível; não aumenta o detalhe capturado.</small></InfoPopover>}{basemap==="relief"&&<InfoPopover title="Camadas do mapa"><small>Afaste o mapa para ver o relevo regional. Não ajusta a altura do voo.</small></InfoPopover>}</label><div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span><span>Rodinha pressionada: mover mapa</span></div></div><MapMeasurement map={ready?measurementMap:null}/></>;
+ return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&<p role="alert" className="map-error">{error}</p>}{props.tools}<div className="map-key"><span>● Pontos editáveis</span><span>H Decolagem</span><span>━ Faixas de levantamento</span><span>Rodinha pressionada: mover mapa</span></div><MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
 }
