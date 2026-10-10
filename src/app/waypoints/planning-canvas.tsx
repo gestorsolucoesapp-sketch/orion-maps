@@ -58,7 +58,8 @@ export default function PlanningCanvas(props:Props){
    removeMiddlePan=()=>{container.removeEventListener("mousedown",startMiddlePan,true);container.removeEventListener("auxclick",preventMiddleClick);window.removeEventListener("mousemove",moveMiddlePan);window.removeEventListener("mouseup",endMiddlePan);window.removeEventListener("blur",stopMiddlePan);};
    observer=new ResizeObserver(()=>m.resize());observer.observe(el.current);
    m.addControl(new maplibregl.AttributionControl({compact:false}),"bottom-right");
-   m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("O mapa de fundo não carregou. Confira sua conexão e recarregue. Seus pontos continuam no editor.");});
+   m.on("error",e=>{if("sourceId" in e&&e.sourceId==="basemap")setError("Uma imagem do mapa de fundo falhou. Se houver áreas vazias, tente outra camada; seus pontos continuam no editor.");});
+   m.on("sourcedata",e=>{if(e.sourceId==="basemap"&&e.sourceDataType==="content")setError("");});
    m.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-left");m.addControl(new maplibregl.ScaleControl({unit:"metric"}),"bottom-left");
    m.on("load",()=>{
     const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
@@ -70,7 +71,7 @@ export default function PlanningCanvas(props:Props){
     m.addLayer({id:"outline",type:"line",source:"boundary",paint:{"line-color":"#303c42","line-width":2,"line-dasharray":[3,2]}});
     m.addLayer({id:"route",type:"line",source:"legs",paint:{"line-color":"#ba5429","line-width":3}});setMeasurementMap(m);setReady(true);
    });
-   m.on("click",e=>{if(e.originalEvent.button!==0||isMeasuringMap(m))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
+   m.on("click",e=>{if(e.originalEvent.button!==0||isMeasuringMap(m)||(e.originalEvent.target as Element)?.closest(".flight-marker,.takeoff-marker,.user-location-marker"))return;if(latest.current.markingTakeoff){latest.current.onTakeoffPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.adjustingPosition){latest.current.onPositionPick?.([e.lngLat.lng,e.lngLat.lat]);return;}if(latest.current.drawing)latest.current.onAdd([e.lngLat.lng,e.lngLat.lat]);});
   }catch{
    // A failed external WebGL initialization must surface in the UI once.
    // eslint-disable-next-line react-hooks/set-state-in-effect
