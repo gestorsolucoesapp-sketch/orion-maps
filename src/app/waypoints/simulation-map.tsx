@@ -30,8 +30,8 @@ export default function SimulationMap(props:Props){
     const sim=latest.current.simulation;
     current.addSource("boundary",{type:"geojson",data:{type:"FeatureCollection",features:latest.current.boundary.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...latest.current.boundary,latest.current.boundary[0]]]}}]:[]}});
     current.addLayer({id:"boundary-fill",type:"fill",source:"boundary",paint:{"fill-color":"#16764b","fill-opacity":.07}});current.addLayer({id:"boundary-line",type:"line",source:"boundary",paint:{"line-color":"#256347","line-width":1.5,"line-dasharray":[3,2]}});
-    current.addSource("sim-route",{type:"geojson",data:{type:"FeatureCollection",features:sim.segments.filter(s=>s.distanceEnd>s.distanceStart).map(s=>({type:"Feature",properties:{phase:s.phase},geometry:{type:"LineString",coordinates:[s.from,s.to]}}))}});
-    current.addLayer({id:"sim-route-line",type:"line",source:"sim-route",paint:{"line-color":["match",["get","phase"],"survey","#087b54","connection","#64748b","#287acc"],"line-width":2.5,"line-opacity":.8}});
+    current.addSource("sim-route",{type:"geojson",data:{type:"FeatureCollection",features:sim.segments.filter(s=>s.distanceEnd>s.distanceStart).map(s=>({type:"Feature",properties:{phase:s.phase,acquiring:s.acquiring},geometry:{type:"LineString",coordinates:[s.from,s.to]}}))}});
+    current.addLayer({id:"sim-route-line",type:"line",source:"sim-route",paint:{"line-color":["case",["get","acquiring"],"#087b54",["match",["get","phase"],"connection","#64748b","#287acc"]],"line-width":2.5,"line-opacity":.8}});
     current.addSource("sim-trace",{type:"geojson",data:empty});current.addLayer({id:"sim-trace-line",type:"line",source:"sim-trace",paint:{"line-color":"#10b981","line-width":5,"line-opacity":.95}});
     const step=Math.max(1,Math.ceil(sim.photos.length/2000));
     current.addSource("sim-photos",{type:"geojson",data:{type:"FeatureCollection",features:sim.photos.filter((_,i)=>i%step===0).map(p=>({type:"Feature",properties:{number:p.number},geometry:{type:"Point",coordinates:p.position}}))}});

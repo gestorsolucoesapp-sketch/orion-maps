@@ -9,8 +9,8 @@ const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), {
   compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022},
 }).outputText;
 const mod = {exports: {}};
-new Function('module', 'exports', 'require', compiled)(mod, mod.exports, require);
-const {photoMissionKmz,photoMissionRoute} = mod.exports;
+new Function('module', 'exports', 'require', compiled)(mod, mod.exports, name=>name.startsWith('./flight-simulation')?require('../src/lib/flight-simulation.ts'):require(name));
+const {estimatePhotoCount,photoMissionKmz,photoMissionRoute} = mod.exports;
 const point = (x,y) => [x,y];
 const mission = (captureMode, route) => ({
   name: 'QA fotos & limites', ...route, height: 90, speed: 4, gimbal: -90,
@@ -26,6 +26,7 @@ const groups = (xml) => [...xml.matchAll(/<wpml:actionGroup>(.*?)<\/wpml:actionG
   end: Number(body.match(/<wpml:actionGroupEndIndex>(\d+)<\/wpml:actionGroupEndIndex>/)[1]),
   body,
 }));
+const photoGroups = (xml) => groups(xml).filter(({body})=>body.includes('<wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>'));
 
 for (const mode of ['time','distance']) {
   const route = photoMissionRoute([
@@ -33,22 +34,29 @@ for (const mode of ['time','distance']) {
     [point(-47.002,-21.002),point(-47.003,-21.003)],
     [point(-47.004,-21.004),point(-47.005,-21.005)],
   ], [true,false,true]);
-  assert.deepEqual(route.captureRanges, [{start:0,end:1},{start:4,end:5}]);
+  assert.deepEqual(route.captureRanges, [{start:0,end:5}]);
+  assert.ok(estimatePhotoCount([route.route.slice(0,2),route.route.slice(2,4),route.route.slice(4,6)],[true,false,true],4,mode,mode==='time'?3:12)>0);
   const xml = content(photoMissionKmz(mission(mode,route)));
-  assert.match(xml, /xmlns:wpml="http:\/\/www\.dji\.com\/wpmz\/1\.0\.2"/);
+  assert.match(xml, /xmlns:wpml="http:\/\/www\.uav\.com\/wpmz\/1\.0\.2"/);
   assert.match(xml, /QA fotos &amp; limites/);
-  const actual = groups(xml);
+  const actual = photoGroups(xml);
   assert.deepEqual(actual.map(({start,end})=>({start,end})),route.captureRanges);
   assert.ok(actual.every(({body})=>body.includes('<wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>')));
   assert.ok(actual.every(({body})=>body.includes(mode==='time'?'multipleTiming':'multipleDistance')));
-  assert.equal((xml.match(/<wpml:actionGroup>/g)||[]).length,2);
+  assert.equal(actual.length,1);
+  assert.match(xml, /<wpml:actionTriggerType>reachPoint<\/wpml:actionTriggerType>/);
+  assert.match(xml, /<wpml:gimbalPitchRotateEnable>1<\/wpml:gimbalPitchRotateEnable>/);
+  assert.match(xml, /<wpml:gimbalPitchRotateAngle>-90<\/wpml:gimbalPitchRotateAngle>/);
+  assert.doesNotMatch(xml, /<wpml:gimbalPitchAngle>/);
 }
 
 const manual = content(photoMissionKmz(mission('manual',{route:[point(-47,-21),point(-47.001,-21.001)]})));
-assert.equal(groups(manual).length,0);
+assert.equal(photoGroups(manual).length,0);
 assert.throws(()=>photoMissionKmz(mission('time',{route:[point(-47,-21),point(-47.001,-21.001)]})),/Intervalos de captura/);
 assert.throws(()=>photoMissionKmz(mission('time',{route:[point(-47,-21),point(-47.001,-21.001)],captureRanges:[{start:0,end:2}]})),/Intervalos de captura/);
+assert.throws(()=>photoMissionKmz(mission('time',{route:[point(-47,-21),point(-47.001,-21.001),point(-47.002,-21.002)],captureRanges:[{start:0,end:1},{start:1,end:2}]})),/Intervalos de captura/);
 assert.throws(()=>photoMissionRoute([[point(-47,-21),point(-47.001,-21.001)]],[false]),/não contém trecho/);
+assert.deepEqual(photoMissionRoute([[point(-47,-21),point(-47.001,-21.001)],[point(-47.002,-21.002),point(-47.003,-21.003)],[point(-47.004,-21.004),point(-47.005,-21.005)]],[false,true,false]).captureRanges,[{start:2,end:3}]);
 
 (async()=>{
   const {generateGrid} = await import('../src/lib/flight-plan.ts');
@@ -60,12 +68,11 @@ assert.throws(()=>photoMissionRoute([[point(-47,-21),point(-47.001,-21.001)]],[f
   assert.equal(grid.captureLegs.at(-1),true);
   const route=photoMissionRoute(grid.legs,grid.captureLegs);
   assert.equal(route.captureRanges.at(-1).end,route.route.length-1);
-  assert.equal(groups(content(photoMissionKmz(mission('time',route)))).length,grid.captureLegs.filter(Boolean).length);
+  assert.equal(photoGroups(content(photoMissionKmz(mission('time',route)))).length,1);
+  assert.deepEqual(route.captureRanges,[{start:0,end:route.route.length-1}]);
   let offset=0;
   for(let i=0;i<grid.legs.length;i++){
-    const range=route.captureRanges.find(item=>item.start===offset);
-    assert.equal(Boolean(range),grid.captureLegs[i],`leg ${i}`);
-    if(range)assert.equal(range.end,offset+grid.legs[i].length-1);
+    assert.equal(route.route[offset][0],grid.legs[i][0][0],`leg ${i}`);
     offset+=grid.legs[i].length;
   }
   console.log('PHOTO_MISSION_UNIT_PASS');

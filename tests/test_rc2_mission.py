@@ -57,9 +57,14 @@ def sample_native(path: Path, template_route: list[list[float]]) -> None:
     node(node(mark, WPML, "waypointHeadingParam"), WPML, "waypointHeadingAngleEnable", 0)
     node(node(mark, WPML, "waypointGimbalHeadingParam"), WPML, "waypointGimbalPitchAngle", -90)
     group = node(mark, WPML, "actionGroup")
+    node(group, WPML, "actionGroupId", 1)
+    node(group, WPML, "actionGroupStartIndex", 0)
+    node(group, WPML, "actionGroupEndIndex", 0)
     action = node(group, WPML, "action")
     node(action, WPML, "actionActuatorFunc", "gimbalRotate")
-    node(node(action, WPML, "actionActuatorFuncParam"), WPML, "gimbalPitchRotateAngle", -90)
+    params = node(action, WPML, "actionActuatorFuncParam")
+    node(params, WPML, "gimbalPitchRotateEnable", 1)
+    node(params, WPML, "gimbalPitchRotateAngle", -90)
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as output:
         output.writestr("wpmz/template.kml", ET.tostring(template))
@@ -144,12 +149,12 @@ class Rc2MissionTest(unittest.TestCase):
             self.assertEqual(parsed.attrib["synthetic"], "preserve")
             self.assertEqual(parsed.find(".//w:customMetadata", NS).text, "retain-me")
 
-    def test_photo_groups_cover_only_capture_legs(self) -> None:
+    def test_one_photo_group_covers_connections_between_capture_legs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             native, output = Path(directory) / "native.kmz", Path(directory) / "out.kmz"
             route = [[-47 + i * 0.0001, -21] for i in range(6)]
             sample_native(native, route)
-            capture_ranges = [{"start": 0, "end": 1}, {"start": 4, "end": 5}]
+            capture_ranges = [{"start": 0, "end": 5}]
             build(native, output, route, 100, 5, -90, "time", 3, capture_ranges)
             with zipfile.ZipFile(output) as result:
                 marks = ET.fromstring(result.read("wpmz/waylines.wpml")).findall(".//k:Folder/k:Placemark", NS)
@@ -157,9 +162,13 @@ class Rc2MissionTest(unittest.TestCase):
                       if group.find("w:action/w:actionActuatorFunc", NS).text == "takePhoto"]
             self.assertEqual([(int(group.find("w:actionGroupStartIndex", NS).text),
                                int(group.find("w:actionGroupEndIndex", NS).text)) for group in groups],
-                             [(0, 1), (4, 5)])
+                             [(0, 5)])
             self.assertTrue(all(group.find("w:actionTrigger/w:actionTriggerType", NS).text == "multipleTiming"
                                 for group in groups))
+            gimbal = marks[0].find("w:actionGroup", NS)
+            self.assertEqual(gimbal.find("w:action/w:actionActuatorFunc", NS).text, "gimbalRotate")
+            self.assertEqual(gimbal.find(".//w:gimbalPitchRotateEnable", NS).text, "1")
+            self.assertEqual(gimbal.find(".//w:gimbalPitchRotateAngle", NS).text, "-90")
 
     def test_manual_mode_keeps_flight_route_without_photo_actions(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -177,12 +186,29 @@ class Rc2MissionTest(unittest.TestCase):
                 for group in mark.findall("w:actionGroup", NS)
                 for action in group.findall("w:action", NS)))
 
+    def test_gimbal_and_photo_start_at_first_capture_waypoint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            native, output = Path(directory) / "native.kmz", Path(directory) / "out.kmz"
+            route = [[-47 + i * 0.0001, -21] for i in range(6)]
+            sample_native(native, route)
+            build(native, output, route, 100, 5, -90, "time", 3,
+                  [{"start": 2, "end": 3}])
+            with zipfile.ZipFile(output) as result:
+                marks = ET.fromstring(result.read("wpmz/waylines.wpml")).findall(
+                    ".//k:Folder/k:Placemark", NS)
+            self.assertFalse(marks[0].findall("w:actionGroup", NS))
+            groups = marks[2].findall("w:actionGroup", NS)
+            self.assertEqual([group.find("w:action/w:actionActuatorFunc", NS).text
+                              for group in groups], ["gimbalRotate", "takePhoto"])
+            self.assertTrue(all(group.find("w:actionGroupStartIndex", NS).text == "2"
+                                for group in groups))
+
     def test_automatic_photo_without_explicit_legs_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             native, output = Path(directory) / "native.kmz", Path(directory) / "out.kmz"
             route = [[-47, -21], [-47.0001, -21]]
             sample_native(native, route)
-            with self.assertRaisesRegex(ValueError, "intervalos explícitos"):
+            with self.assertRaisesRegex(ValueError, "intervalo contínuo"):
                 build(native, output, route, 100, 5, -90, "time", 3)
             self.assertFalse(output.exists())
 

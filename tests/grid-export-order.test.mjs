@@ -4,7 +4,9 @@ import {unzipSync,strFromU8} from 'fflate';
 import {generateGrid} from '../src/lib/flight-plan.ts';
 import {calculateGsd} from '../src/lib/gsd.ts';
 import {previewKmz,missionCsv} from '../src/lib/mission-export.ts';
-import {photoMissionKmz,photoMissionRoute} from '../src/lib/photo-mission.ts';
+import {estimatePhotoCount,photoMissionKmz,photoMissionRoute} from '../src/lib/photo-mission.ts';
+import {buildFlightSimulation} from '../src/lib/flight-simulation.ts';
+import {buildKmzSimulation} from '../src/lib/kmz-inspection.ts';
 
 const degree=180/(Math.PI*6371008.8);
 const boundary=[[0,0],[145,0],[145,100],[0,100]].map(([x,y])=>[-47+x*degree,-21+y*degree]);
@@ -53,6 +55,23 @@ test('grid duplo adds a second direction while perimeter remains independent',()
  assert.equal(withPerimeter.legs.length,simple.legs.length+1);
  assert.equal(withPerimeter.captureLegs.at(-1),true);
  assert.deepEqual(withPerimeter.legs.slice(0,-1),simple.legs);
+});
+
+for(const perimeterPass of [false,true])test(`plan, export and reopened preview agree on continuous photos; perimeter ${perimeterPass}`,()=>{
+ const grid=generateGrid(boundary,{...options,perimeterPass}),route=photoMissionRoute(grid.legs,grid.captureLegs);
+ const speed=5,interval=3,planCount=estimatePhotoCount(grid.legs,grid.captureLegs,speed,'time',interval);
+ const sim=buildFlightSimulation({legs:grid.legs,captureLegs:grid.captureLegs,height:100,speed,captureMode:'time',photoInterval:interval,captureDistance:12,includeTakeoff:false,turnSeconds:0,returnHome:false});
+ const xml=strFromU8(unzipSync(photoMissionKmz({name:'Mesmo plano',...route,height:100,speed,gimbal:-90,captureMode:'time',interval}))['wpmz/waylines.wpml']);
+ const photos=[...xml.matchAll(/<wpml:actionGroup>(.*?)<\/wpml:actionGroup>/gs)].map(([,body])=>body).filter(body=>body.includes('<wpml:actionActuatorFunc>takePhoto</wpml:actionActuatorFunc>'));
+ assert.equal(photos.length,1);
+ assert.match(photos[0],new RegExp(`<wpml:actionGroupStartIndex>${route.captureRanges[0].start}<\\/wpml:actionGroupStartIndex>`));
+ assert.match(photos[0],new RegExp(`<wpml:actionGroupEndIndex>${route.captureRanges[0].end}<\\/wpml:actionGroupEndIndex>`));
+ const file={kind:'mission',name:'Mesmo plano',waypoints:route.route.map((point,index)=>({index,point,height:100,speed})),photoActions:[{...route.captureRanges[0],trigger:'multipleTiming',interval}],finishAction:'goHome',droneEnum:'68',templateWaypoints:null,integrityIssues:[],notes:[]};
+ const reopened=buildKmzSimulation(file);
+ assert.equal(planCount,sim.photos.length);
+ assert.equal(planCount,reopened.photos.length);
+ assert.ok(Math.abs(sim.captureM-sim.routeM)<1e-8);
+ assert.ok(Math.abs(reopened.captureM-reopened.routeM)<1e-8);
 });
 
 test('85% side overlap survives plan JSON and produces denser saved and exported grid',()=>{

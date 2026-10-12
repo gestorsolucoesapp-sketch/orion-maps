@@ -84,8 +84,8 @@ def validate_capture_ranges(route: list[list[float]], capture_mode: str,
         if capture_ranges:
             raise ValueError("Captura manual não deve conter intervalos automáticos")
         return []
-    if capture_mode != "time" or not isinstance(capture_ranges, list) or not capture_ranges:
-        raise ValueError("Captura automática exige intervalos explícitos de cada faixa")
+    if capture_mode != "time" or not isinstance(capture_ranges, list) or len(capture_ranges) != 1:
+        raise ValueError("Captura automática exige um intervalo contínuo do primeiro ao último ponto de captura")
     result = []
     for item in capture_ranges:
         if not isinstance(item, dict) or set(item) != {"start", "end"}:
@@ -150,8 +150,12 @@ def build(native_path: Path, output_path: Path, route: list[list[float]],
             "1" if index in (0, len(route) - 1) else "0"
         )
         required(mark, "w:waypointGimbalHeadingParam/w:waypointGimbalPitchAngle").text = str(gimbal)
-        if index == 0:
+        gimbal_start = ranges[0][0] if ranges else 0
+        if index == gimbal_start:
             group = copy.deepcopy(gimbal_group)
+            required(group, "w:actionGroupStartIndex").text = str(gimbal_start)
+            required(group, "w:actionGroupEndIndex").text = str(gimbal_start)
+            required(group, ".//w:gimbalPitchRotateEnable").text = "1"
             required(group, ".//w:gimbalPitchRotateAngle").text = str(gimbal)
             mark.insert(list(mark).index(required(mark, "w:waypointGimbalHeadingParam")), group)
         for range_index, (start, end) in enumerate(ranges):

@@ -34,10 +34,14 @@ export function buildFlightSimulation(input:SimulationInput):FlightSimulation{
  const entries=input.legs.flatMap((leg,index)=>leg.map(point=>({point:[...point] as Coordinate,leg:index+1})));
  if(entries.length<2||entries.length>10000)throw Error("A simulação aceita rotas de 2 a 10.000 waypoints.");
  if(input.captureEdges&&(input.captureEdges.length!==entries.length-1||input.captureEdges.some(value=>typeof value!=="boolean")))throw Error("Revise os trechos de captura do arquivo.");
+ const firstCaptureLeg=captureLegs.indexOf(true),lastCaptureLeg=captureLegs.lastIndexOf(true);
+ const firstCaptureIndex=firstCaptureLeg<0?-1:input.legs.slice(0,firstCaptureLeg).reduce((sum,leg)=>sum+leg.length,0);
+ const lastCaptureIndex=lastCaptureLeg<0?-1:input.legs.slice(0,lastCaptureLeg+1).reduce((sum,leg)=>sum+leg.length,0)-1;
+ const activeEdges=input.captureEdges??entries.slice(1).map((_,i)=>i>=firstCaptureIndex&&i<lastCaptureIndex);
  const route=entries.map(p=>p.point),home=input.home??route[0];
  if(!simulationPoint(home))throw Error("Ponto de decolagem simulado inválido.");
  if(route.some(p=>flightDistance(route[0],p)>20000)||flightDistance(home,route[0])>20000)throw Error("Mantenha a rota e a base simulada em uma extensão de até 20 km.");
- const moving=entries.slice(1).map((entry,i)=>({from:entries[i].point,to:entry.point,leg:entry.leg,waypoint:i+2,phase:(input.captureEdges?input.captureEdges[i]:entry.leg===entries[i].leg&&captureLegs[entry.leg-1])?"survey" as FlightPhase:"connection" as FlightPhase,length:flightDistance(entries[i].point,entry.point)})).filter(s=>s.length>.001);
+ const moving=entries.slice(1).map((entry,i)=>({from:entries[i].point,to:entry.point,leg:entry.leg,waypoint:i+2,phase:(input.captureEdges?input.captureEdges[i]:entry.leg===entries[i].leg&&captureLegs[entry.leg-1])?"survey" as FlightPhase:"connection" as FlightPhase,acquiring:activeEdges[i],length:flightDistance(entries[i].point,entry.point)})).filter(s=>s.length>.001);
  if(!moving.length)throw Error("A rota precisa ter dois pontos distintos.");
  const segments:FlightSegment[]=[];let time=0,distance=0,heading=flightHeading(moving[0].from,moving[0].to);
  function append(from:Coordinate,to:Coordinate,fromHeight:number,toHeight:number,seconds:number,phase:FlightPhase,leg=0,waypoint=0,acquiring=false,nextHeading=heading){
@@ -50,7 +54,7 @@ export function buildFlightSimulation(input:SimulationInput):FlightSimulation{
  if(approach>.001)append(home,route[0],height,height,approach/speed,"approach");
  rotate(route[0],flightHeading(moving[0].from,moving[0].to),1,1,false);
  const routeStartDistance=distance;
- moving.forEach(s=>{const next=flightHeading(s.from,s.to);rotate(s.from,next,s.leg,s.waypoint-1,false);append(s.from,s.to,height,height,s.length/speed,s.phase,s.leg,s.waypoint,s.phase==="survey");});
+ moving.forEach(s=>{const next=flightHeading(s.from,s.to);rotate(s.from,next,s.leg,s.waypoint-1,false);append(s.from,s.to,height,height,s.length/speed,s.phase,s.leg,s.waypoint,s.acquiring);});
  const routeM=distance-routeStartDistance,routeSeconds=routeM/speed;
  const returnHome=input.returnHome!==false,last=route.at(-1)!;
  if(returnHome){const back=flightDistance(last,home);if(back>.001){rotate(last,flightHeading(last,home),0,route.length,false);append(last,home,height,height,back/speed,"return");}append(home,home,height,0,height/descentSpeed,"landing");}
