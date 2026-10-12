@@ -9,6 +9,16 @@ import GeoTiffReportImage from "./geotiff-report-image";
 type Coord=[number,number];
 type Props={results:ProcessingResult[];planBoundary?:{name:string;points:Coord[]}|null};
 
+function boundaryOverlay(points:Coord[]|undefined,raw:unknown):string|null{
+  if(!points||points.length<3||!raw||typeof raw!=="object")return null;
+  const bounds=raw as Record<string,unknown>;
+  const {west,south,east,north}=bounds;
+  if([west,south,east,north].some(value=>typeof value!=="number"||!Number.isFinite(value)))return null;
+  const w=west as number,s=south as number,e=east as number,n=north as number;
+  if(e<=w||n<=s||!points.every(([lon,lat])=>Number.isFinite(lon)&&Number.isFinite(lat)&&lon>=w&&lon<=e&&lat>=s&&lat<=n))return null;
+  return points.map(([lon,lat])=>`${(100*(lon-w)/(e-w)).toFixed(4)},${(100*(n-lat)/(n-s)).toFixed(4)}`).join(" ");
+}
+
 function Perspective({title,subtitle,children}:{title:string;subtitle?:string;children:ReactNode}){
   return <section className="report-perspective mt-8 break-before-page">
     <div className="mb-3">
@@ -34,6 +44,7 @@ export default function ReportPerspectives({results,planBoundary}:Props){
   const cloud=results.find(r=>r.kind==="point_cloud");
   const contours=results.find(r=>r.kind==="contours");
   const cloudSize=cloud?.size_bytes?((cloud.size_bytes/1024/1024).toFixed(1)+" MB"):"—";
+  const boundaryPoints=boundaryOverlay(planBoundary?.points,ortho?.metadata?.bounds_wgs84);
 
   return <>
     {ortho?.preview_url&&<Perspective title="Ortofoto" subtitle="Mosaico ortorretificado do levantamento.">
@@ -41,8 +52,14 @@ export default function ReportPerspectives({results,planBoundary}:Props){
     </Perspective>}
 
     {ortho?.preview_url&&<Perspective title="Plano de voo" subtitle={planBoundary?"Plano associado: "+planBoundary.name+". Área e perímetro são calculados pelo contorno salvo.":"Plano compatível não localizado."}>
-      <ProductImage src={orthophotoPreviewUrl(ortho)!} alt="Ortofoto de referência do plano"/>
-      <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">Contorno do plano disponível na visualização interativa do projeto.</p>
+      <div className="relative">
+        <ProductImage src={orthophotoPreviewUrl(ortho)!} alt="Ortofoto de referência do plano"/>
+        {boundaryPoints&&<svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" role="img" aria-label="Contorno do plano sobre a ortofoto">
+          <polygon points={boundaryPoints} fill="none" stroke="#0f172a" strokeWidth="5" vectorEffect="non-scaling-stroke"/>
+          <polygon points={boundaryPoints} fill="none" stroke="#facc15" strokeWidth="2.5" vectorEffect="non-scaling-stroke"/>
+        </svg>}
+      </div>
+      <p className="mt-3 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600">{boundaryPoints?"Contorno do plano desenhado sobre a ortofoto com os limites geográficos do produto.":"Contorno não desenhado: falta um plano compatível ou limites geográficos válidos da ortofoto."}</p>
     </Perspective>}
 
     {contours&&<Perspective title="Curvas de nível · 0,50 m" subtitle="Equidistância vertical de 0,50 m.">

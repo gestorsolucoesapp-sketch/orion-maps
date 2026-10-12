@@ -45,7 +45,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   let planBoundary:null|{name:string;points:[number,number][]}=null;
   try{
     const missions=await listMissionPlanCandidates(token);
-    const match=findMissionBoundaryForBounds(missions,bounds);
+    const match=findMissionBoundaryForBounds(missions,bounds,survey.id);
     if(match)planBoundary={name:match.name,points:match.points};
   }catch{}
 
