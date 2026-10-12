@@ -40,7 +40,7 @@ Start-Process -FilePath $pythonw -ArgumentList ('"' + (Join-Path $Destination 's
 Start-Sleep -Seconds 2
 try {
   $response = Invoke-RestMethod -Uri 'http://127.0.0.1:48765/health' -Headers @{Origin='https://orion-maps.vercel.app'} -TimeoutSec 10
-  if ($response.helper -ne 'ready') { throw 'O assistente não respondeu como esperado.' }
+  if ($response.helper -ne 'ready' -or $response.protocolVersion -ne 2) { throw 'O assistente não respondeu com a versão esperada.' }
   Write-Host "Conectar Orion RC2 instalado: $Destination"
   Write-Host "Controle conectado: $($response.connected)"
   Write-Host 'Atalhos criados na área de trabalho e na inicialização do Windows.'

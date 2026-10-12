@@ -12,7 +12,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from mission import build, length_m
+from mission import build, length_m, validate_capture_ranges
 
 HERE = Path(__file__).resolve().parent
 ROOT = Path(os.environ.get("ORION_RC2_DATA", r"D:\OrionMaps\rc2-transfers"))
@@ -57,7 +57,9 @@ def valid_point(value: object) -> bool:
 
 
 def validate(payload: object) -> dict:
-    if not isinstance(payload, dict) or set(payload) != {"plan", "route"}:
+    if isinstance(payload, dict) and set(payload) == {"plan", "route"}:
+        raise ValueError("Esta versão do Orion Maps está desatualizada: faltam os intervalos de captura. Abra a interface atualizada antes de enviar; nenhuma missão foi alterada")
+    if not isinstance(payload, dict) or set(payload) != {"plan", "route", "captureRanges"}:
         raise ValueError("Pedido de envio inválido")
     plan, route = payload["plan"], payload["route"]
     if not isinstance(plan, dict) or not isinstance(route, list) or not 2 <= len(route) <= 200:
@@ -81,6 +83,7 @@ def validate(payload: object) -> dict:
     interval = plan.get("photoInterval")
     if mode == "time" and (type(interval) not in (int, float) or not math.isfinite(interval) or not 1 <= interval <= 60):
         raise ValueError("Intervalo de fotos precisa estar entre 1 e 60 s")
+    validate_capture_ranges(route, mode, payload["captureRanges"])
     if length_m([plan["takeoff"], route[0]]) > 20000 or length_m([route[-1], plan["takeoff"]]) > 20000:
         raise ValueError("A rota está distante demais do ponto H")
     return payload
@@ -98,7 +101,8 @@ def transfer(payload: dict) -> dict:
     stage = folder / "stage" / f"{MISSION_ID}.kmz"
     metrics = build(native, stage, route, plan["settings"]["height"],
                     plan["settings"]["speed"], plan["settings"]["gimbal"],
-                    plan["captureMode"], plan.get("photoInterval", 3))
+                    plan["captureMode"], plan.get("photoInterval", 3),
+                    payload["captureRanges"])
     result = mtp("replace", folder, stage, backup["sha256"])
     if result.get("sha256") != sha256(stage):
         raise RuntimeError("O arquivo lido de volta do RC 2 difere do KMZ enviado")
@@ -149,9 +153,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             status = mtp("status")
-            self.reply(200, {"helper": "ready", **status})
+            self.reply(200, {"helper": "ready", "protocolVersion": 2, **status})
         except Exception as exc:
-            self.reply(503, {"helper": "ready", "connected": False, "error": str(exc)})
+            self.reply(503, {"helper": "ready", "protocolVersion": 2, "connected": False, "error": str(exc)})
 
     def do_POST(self) -> None:
         if not self.allowed() or self.path != "/transfer":

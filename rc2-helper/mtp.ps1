@@ -31,6 +31,15 @@ function Wait-File([string]$path) {
   }
   throw "Cópia do RC 2 não concluída: $path"
 }
+
+function Get-Sha256([string]$path) {
+  $stream = [IO.File]::OpenRead($path)
+  try {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $sha.Dispose() }
+  } finally { $stream.Dispose() }
+}
 function Copy-FromDevice($shell, $item, [string]$destination, [string]$name) {
   New-Item -ItemType Directory -Path $destination -Force | Out-Null
   $shell.NameSpace($destination).CopyHere($item,16)
@@ -54,7 +63,7 @@ try {
   New-Item -ItemType Directory -Path $Directory -Force | Out-Null
   if ($Operation -eq 'backup') {
     $backup = Copy-FromDevice $shell $current (Join-Path $Directory 'original') $MissionId
-    @{ backup = $backup; sha256 = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json -Compress
+    @{ backup = $backup; sha256 = (Get-Sha256 $backup) } | ConvertTo-Json -Compress
     exit 0
   }
 
@@ -62,10 +71,10 @@ try {
   if ([IO.Path]::GetFileName($Source) -ne "$MissionId.kmz") { throw 'Nome do KMZ preparado incorreto.' }
   if ($ExpectedHash -notmatch '^[a-fA-F0-9]{64}$') { throw 'Hash esperado inválido.' }
   $preflight = Copy-FromDevice $shell $current (Join-Path $Directory 'preflight') $MissionId
-  if ((Get-FileHash -LiteralPath $preflight -Algorithm SHA256).Hash -ne $ExpectedHash) {
+  if ((Get-Sha256 $preflight) -ne $ExpectedHash) {
     throw 'A missão no RC 2 mudou desde o backup. Feche o DJI Fly e tente novamente.'
   }
-  $newHash = (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash
+  $newHash = Get-Sha256 $Source
   $oldName = $MissionId + '_backup_' + (Get-Date -Format 'yyyyMMdd_HHmmss')
   $renamed = $false
   try {
@@ -82,7 +91,7 @@ try {
     }
     if (-not $candidate) { throw 'O novo KMZ não apareceu no RC 2.' }
     $readback = Copy-FromDevice $shell $candidate (Join-Path $Directory 'readback') $MissionId
-    if ((Get-FileHash -LiteralPath $readback -Algorithm SHA256).Hash -ne $newHash) {
+    if ((Get-Sha256 $readback) -ne $newHash) {
       throw 'A leitura de volta do RC 2 não coincide com o KMZ preparado.'
     }
   } catch {

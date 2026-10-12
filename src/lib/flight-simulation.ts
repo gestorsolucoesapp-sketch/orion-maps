@@ -2,12 +2,12 @@ import type {Coordinate} from "./flight-plan";
 import type {CaptureMode} from "./photo-mission";
 
 /** Read-only, deterministic preview. No storage, device API or mission-export dependency. */
-export type SimulationInput={legs:Coordinate[][];height:number;speed:number;captureMode:CaptureMode;photoInterval:number;captureDistance:number;home?:Coordinate|null;climbSpeed?:number;descentSpeed?:number;turnSeconds?:number;returnHome?:boolean};
+export type SimulationInput={legs:Coordinate[][];captureLegs?:boolean[];captureEdges?:boolean[];height:number;speed:number;captureMode:CaptureMode;photoInterval:number;captureDistance:number;home?:Coordinate|null;climbSpeed?:number;descentSpeed?:number;turnSeconds?:number;returnHome?:boolean;includeTakeoff?:boolean};
 export type FlightPhase="takeoff"|"approach"|"survey"|"connection"|"turn"|"return"|"landing";
 export const PHASE_LABELS:Record<FlightPhase,string>={takeoff:"Decolagem simulada",approach:"Ida ao primeiro waypoint",survey:"Percorrendo a faixa",connection:"Conexão entre faixas",turn:"Mudança de direção",return:"Retorno simulado à base",landing:"Pouso simulado"};
 export type FlightSegment={from:Coordinate;to:Coordinate;fromHeight:number;toHeight:number;start:number;end:number;distanceStart:number;distanceEnd:number;heading:number;nextHeading:number;phase:FlightPhase;leg:number;waypoint:number;acquiring:boolean};
 export type SimulatedPhoto={time:number;position:Coordinate;number:number};
-export type FlightSimulation={segments:FlightSegment[];photos:SimulatedPhoto[];route:Coordinate[];home:Coordinate;homeAssumed:boolean;height:number;speed:number;seconds:number;routeSeconds:number;horizontalM:number;routeM:number;acquisitionStart:number;acquisitionEnd:number;captureMode:CaptureMode;climbSpeed:number;descentSpeed:number;turnSeconds:number;returnHome:boolean};
+export type FlightSimulation={segments:FlightSegment[];photos:SimulatedPhoto[];route:Coordinate[];home:Coordinate;homeAssumed:boolean;height:number;speed:number;seconds:number;routeSeconds:number;horizontalM:number;routeM:number;captureM:number;captureSeconds:number;acquisitionStart:number;acquisitionEnd:number;captureMode:CaptureMode;climbSpeed:number;descentSpeed:number;turnSeconds:number;returnHome:boolean};
 export type FlightFrame={time:number;position:Coordinate;height:number;heading:number;phase:FlightPhase;leg:number;waypoint:number;speed:number;verticalSpeed:number;distance:number;photosTaken:number;finished:boolean;segmentIndex:number};
 const R=6371008.8,D=Math.PI/180;
 export function simulationPoint(value:unknown):value is Coordinate{return Array.isArray(value)&&value.length===2&&value.every(n=>typeof n==="number"&&Number.isFinite(n))&&Math.abs(value[0])<=180&&Math.abs(value[1])<=75;}
@@ -29,12 +29,15 @@ export function buildFlightSimulation(input:SimulationInput):FlightSimulation{
  if(!["manual","time","distance"].includes(input.captureMode))throw Error("Modo de captura inválido.");
  const interval=input.captureMode==="distance"?numberIn(input.captureDistance,1,500,"a distância entre fotos"):numberIn(input.photoInterval,1,60,"o intervalo entre fotos");
  if(!Array.isArray(input.legs)||input.legs.length>5000||input.legs.some(leg=>!Array.isArray(leg)||leg.length<2||leg.some(p=>!simulationPoint(p))))throw Error("Gere uma rota válida antes de simular.");
+ const captureLegs=input.captureLegs??input.legs.map(()=>true);
+ if(captureLegs.length!==input.legs.length||captureLegs.some(value=>typeof value!=="boolean"))throw Error("Revise os trechos de captura da rota.");
  const entries=input.legs.flatMap((leg,index)=>leg.map(point=>({point:[...point] as Coordinate,leg:index+1})));
  if(entries.length<2||entries.length>10000)throw Error("A simulação aceita rotas de 2 a 10.000 waypoints.");
+ if(input.captureEdges&&(input.captureEdges.length!==entries.length-1||input.captureEdges.some(value=>typeof value!=="boolean")))throw Error("Revise os trechos de captura do arquivo.");
  const route=entries.map(p=>p.point),home=input.home??route[0];
  if(!simulationPoint(home))throw Error("Ponto de decolagem simulado inválido.");
  if(route.some(p=>flightDistance(route[0],p)>20000)||flightDistance(home,route[0])>20000)throw Error("Mantenha a rota e a base simulada em uma extensão de até 20 km.");
- const moving=entries.slice(1).map((entry,i)=>({from:entries[i].point,to:entry.point,leg:entry.leg,waypoint:i+2,phase:(entry.leg===entries[i].leg?"survey":"connection") as FlightPhase,length:flightDistance(entries[i].point,entry.point)})).filter(s=>s.length>.001);
+ const moving=entries.slice(1).map((entry,i)=>({from:entries[i].point,to:entry.point,leg:entry.leg,waypoint:i+2,phase:(input.captureEdges?input.captureEdges[i]:entry.leg===entries[i].leg&&captureLegs[entry.leg-1])?"survey" as FlightPhase:"connection" as FlightPhase,length:flightDistance(entries[i].point,entry.point)})).filter(s=>s.length>.001);
  if(!moving.length)throw Error("A rota precisa ter dois pontos distintos.");
  const segments:FlightSegment[]=[];let time=0,distance=0,heading=flightHeading(moving[0].from,moving[0].to);
  function append(from:Coordinate,to:Coordinate,fromHeight:number,toHeight:number,seconds:number,phase:FlightPhase,leg=0,waypoint=0,acquiring=false,nextHeading=heading){
@@ -43,25 +46,27 @@ export function buildFlightSimulation(input:SimulationInput):FlightSimulation{
  }
  function rotate(at:Coordinate,next:number,leg:number,waypoint:number,acquiring:boolean){if(Math.abs(headingDelta(heading,next))>1)append(at,at,height,height,turnSeconds,"turn",leg,waypoint,acquiring,next);heading=next;}
  const approach=flightDistance(home,route[0]);if(approach>.001)heading=flightHeading(home,route[0]);
- append(home,home,0,height,height/climbSpeed,"takeoff");
+ if(input.includeTakeoff!==false)append(home,home,0,height,height/climbSpeed,"takeoff");
  if(approach>.001)append(home,route[0],height,height,approach/speed,"approach");
  rotate(route[0],flightHeading(moving[0].from,moving[0].to),1,1,false);
- const acquisitionStart=time,routeStartDistance=distance;
- moving.forEach(s=>{const next=flightHeading(s.from,s.to);rotate(s.from,next,s.leg,s.waypoint-1,true);append(s.from,s.to,height,height,s.length/speed,s.phase,s.leg,s.waypoint,true);});
- const acquisitionEnd=time,routeM=distance-routeStartDistance,routeSeconds=routeM/speed;
+ const routeStartDistance=distance;
+ moving.forEach(s=>{const next=flightHeading(s.from,s.to);rotate(s.from,next,s.leg,s.waypoint-1,false);append(s.from,s.to,height,height,s.length/speed,s.phase,s.leg,s.waypoint,s.phase==="survey");});
+ const routeM=distance-routeStartDistance,routeSeconds=routeM/speed;
  const returnHome=input.returnHome!==false,last=route.at(-1)!;
  if(returnHome){const back=flightDistance(last,home);if(back>.001){rotate(last,flightHeading(last,home),0,route.length,false);append(last,home,height,height,back/speed,"return");}append(home,home,height,0,height/descentSpeed,"landing");}
- const simulation:FlightSimulation={segments,photos:[],route:route.map(p=>[...p]),home:[...home],homeAssumed:input.home==null,height,speed,seconds:time,routeSeconds,horizontalM:distance,routeM,acquisitionStart,acquisitionEnd,captureMode:input.captureMode,climbSpeed,descentSpeed,turnSeconds,returnHome};
- const acquisition=segments.filter(s=>s.acquiring),movingAcquisition=acquisition.filter(s=>s.distanceEnd>s.distanceStart);
- const extent=input.captureMode==="distance"?routeM:acquisitionEnd-acquisitionStart,count=Math.floor((extent+1e-7)/interval)+1;
+ const captureSegments=segments.filter(s=>s.acquiring&&s.distanceEnd>s.distanceStart);
+ const captureM=captureSegments.reduce((sum,s)=>sum+s.distanceEnd-s.distanceStart,0),captureSeconds=captureSegments.reduce((sum,s)=>sum+s.end-s.start,0);
+ const acquisitionStart=captureSegments[0]?.start??0,acquisitionEnd=captureSegments.at(-1)?.end??0;
+ const simulation:FlightSimulation={segments,photos:[],route:route.map(p=>[...p]),home:[...home],homeAssumed:input.home==null,height,speed,seconds:time,routeSeconds,horizontalM:distance,routeM,captureM,captureSeconds,acquisitionStart,acquisitionEnd,captureMode:input.captureMode,climbSpeed,descentSpeed,turnSeconds,returnHome};
+ const extent=input.captureMode==="distance"?captureM:captureSeconds,count=captureSegments.length?Math.floor((extent+1e-7)/interval)+1:0;
  if(count>30000)throw Error("Mais de 30.000 fotos simuladas. Divida a área ou aumente o intervalo.");
+ const offsets:number[]=[];let total=0;
+ for(const s of captureSegments){total+=input.captureMode==="distance"?s.distanceEnd-s.distanceStart:s.end-s.start;offsets.push(total);}
  for(let i=0;i<count;i++){
-  let photoTime:number;
-  if(input.captureMode==="distance"){
-   const target=Math.min(routeStartDistance+routeM,routeStartDistance+i*interval),index=Math.min(after(movingAcquisition,target-1e-7,s=>s.distanceEnd),movingAcquisition.length-1),segment=movingAcquisition[index];
-   photoTime=i===0?acquisitionStart:segment.start+(target-segment.distanceStart)/speed;
-  }else photoTime=Math.min(acquisitionEnd,acquisitionStart+i*interval);
-  const frame=flightFrame(simulation,photoTime);simulation.photos.push({time:photoTime,position:frame.position,number:i+1});
+  const target=Math.min(extent,i*interval),index=Math.min(after(offsets,target-1e-8,value=>value),captureSegments.length-1),segment=captureSegments[index];
+  const span=input.captureMode==="distance"?segment.distanceEnd-segment.distanceStart:segment.end-segment.start;
+  const fraction=Math.max(0,Math.min(1,(target-(offsets[index-1]??0))/span)),photoTime=segment.start+(segment.end-segment.start)*fraction;
+  simulation.photos.push({time:photoTime,position:interpolateFlight(segment.from,segment.to,fraction),number:i+1});
  }
  return simulation;
 }

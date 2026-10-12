@@ -19,6 +19,7 @@ type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolea
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props),activeBasemap=useRef<Basemap>("satellite");
  const [ready,setReady]=useState(false),[error,setError]=useState("");
+ const [showFlightWaypoints,setShowFlightWaypoints]=useState(false);
  const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
  useEffect(()=>{latest.current=props;});
  useEffect(()=>{
@@ -122,7 +123,8 @@ export default function PlanningCanvas(props:Props){
   ]:[];
   (m.getSource("legs") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:surveyLegs}});
   (m.getSource("connections") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:connections}});
-  const markers=props.points.map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition&&!props.markingTakeoff}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
+  const markers=(props.polygon&&showFlightWaypoints?[]:props.points).map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=props.polygon?`V${i+1}`:String(i+1);element.title=props.polygon?`Vértice ${i+1} da área: arraste para ajustar`:`Waypoint ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition&&!props.markingTakeoff}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
+  const flightMarkers=props.polygon&&showFlightWaypoints?props.legs.flat().map((p,i,route)=>{const element=document.createElement("div");element.className="flight-waypoint-marker";element.textContent=`WP${i+1}`;element.title=`Waypoint de voo ${i+1} de ${route.length}${i===0?" · primeiro da rota":i===route.length-1?" · último da rota":""}`;element.setAttribute("role","img");element.setAttribute("aria-label",element.title);return new maplibregl.Marker({element}).setLngLat(p).addTo(m);}):[];
   const draftMarkers=(props.exclusionDraft??[]).map((p,i)=>{const element=document.createElement("div");element.className="exclusion-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1} da área isolada`;return new maplibregl.Marker({element}).setLngLat(p).addTo(m);});
   const arrowStep=Math.max(1,Math.ceil(surveyLegs.length/80));
   const directionMarkers=props.polygon?surveyLegs.flatMap((leg,i)=>{
@@ -131,8 +133,8 @@ export default function PlanningCanvas(props:Props){
    const element=document.createElement("div"),arrow=document.createElement("span");element.className="flight-direction-marker";element.title=`Faixa ${i+1}: sentido do voo`;element.setAttribute("role","img");element.setAttribute("aria-label",element.title);arrow.textContent="↑";arrow.style.transform=`rotate(${angle}deg)`;element.append(arrow);
    return [new maplibregl.Marker({element,anchor:"center"}).setLngLat(midpoint).addTo(m)];
   }):[];
-  m.getCanvas().style.cursor=(props.drawing||props.drawingExclusion||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>[...markers,...draftMarkers,...directionMarkers].forEach(m=>m.remove());
- },[ready,props.points,props.exclusions,props.exclusionDraft,props.legs,props.polygon,props.drawing,props.drawingExclusion,props.adjustingPosition,props.markingTakeoff]);
+  m.getCanvas().style.cursor=(props.drawing||props.drawingExclusion||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>[...markers,...flightMarkers,...draftMarkers,...directionMarkers].forEach(m=>m.remove());
+ },[ready,props.points,props.exclusions,props.exclusionDraft,props.legs,props.polygon,props.drawing,props.drawingExclusion,props.adjustingPosition,props.markingTakeoff,showFlightWaypoints]);
  useEffect(()=>{
   const m=map.current,p=props.takeoffPoint;if(!m||!ready||!p)return;
   const element=document.createElement("div");element.className="takeoff-marker";element.textContent="H";element.title="Ponto de decolagem escolhido";element.setAttribute("role","img");element.setAttribute("aria-label","Ponto de decolagem");
@@ -157,5 +159,5 @@ export default function PlanningCanvas(props:Props){
  },[ready,props.importedLocation]);
  useEffect(()=>{if(ready&&props.center)map.current?.flyTo({center:props.center,zoom:17});},[ready,props.center]);
  useEffect(()=>{if(!ready||!props.fit||!latest.current.points.length)return;const points=latest.current.points,bounds=new maplibregl.LngLatBounds(points[0],points[0]);points.forEach(p=>bounds.extend(p));map.current?.fitBounds(bounds,{padding:60,maxZoom:19});},[ready,props.fit]);
- return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{error&&(error.startsWith("O editor")?<p role="alert" className="map-error">{error}</p>:<span role="status" className="map-tile-status" title={error} aria-label={error}>!</span>)}{props.tools}<MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
+ return <div className="mission-map-wrap"><div ref={el} data-testid="planning-map" data-ready={ready} data-imported-lat={props.importedLocation?.lat} data-imported-lon={props.importedLocation?.lon} className="mission-map" aria-label="Mapa de planejamento de waypoints"/>{props.polygon&&<div className="map-waypoint-view"><button type="button" aria-pressed={showFlightWaypoints} onClick={()=>setShowFlightWaypoints(value=>!value)}>{showFlightWaypoints?"Ver vértices da área":`Ver sequência de voo (${props.legs.flat().length} WP)`}</button><span>{showFlightWaypoints?"WP = ordem dos pontos exportados. H = decolagem.":"V = vértices do contorno, não waypoints de voo. H = decolagem."}</span></div>}{error&&(error.startsWith("O editor")?<p role="alert" className="map-error">{error}</p>:<span role="status" className="map-tile-status" title={error} aria-label={error}>!</span>)}{props.tools}<MapMeasurement map={ready?measurementMap:null} railMode startAreaRevision={props.measureAreaRevision} startPathRevision={props.measurePathRevision} onActiveChange={props.onMeasurementActiveChange}/></div>;
 }

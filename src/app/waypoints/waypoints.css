@@ -183,6 +183,8 @@
 .flight-save-feedback{margin:0 0 12px;padding:12px 15px;border:1px solid #bdcfc1;border-radius:8px;background:#e9f5eb;color:#17533a;font-size:13px;font-weight:650;line-height:1.5}
 .flight-save-feedback--warning{border-color:#e2bb75;background:#fff5df;color:#704a10}
 .flight-save-feedback--error{border-color:#e2a9a9;background:#fff0ee;color:#922d2d}
+.flight-save-feedback--fullscreen{position:fixed;z-index:1001;top:12px;left:50%;transform:translateX(-50%);box-sizing:border-box;width:min(560px,calc(100vw - 24px));max-height:35dvh;overflow:auto;box-shadow:0 8px 28px #0004}
+.survey-revision-notice p{margin:8px 0;line-height:1.5}.survey-revision-notice>div{display:flex;flex-wrap:wrap;gap:8px}.survey-revision-notice button{padding:9px 12px;border:1px solid currentColor;border-radius:5px;background:#fff;color:inherit;cursor:pointer}
 .takeoff-marker{width:31px;height:31px;display:grid;place-items:center;border:3px solid #fff;border-radius:50%;background:#1476b8;color:#fff;font:700 15px Arial;box-shadow:0 0 0 2px #1476b8,0 2px 8px #0006;pointer-events:none}
 .map-toolbar .takeoff-action{background:#e8f4fb;color:#095c92;border-color:#8bbbd8;font-weight:700}.map-toolbar .takeoff-action.selected{background:#d5edfb;color:#06466f;border-color:#1476b8}
 .takeoff-summary{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;padding:10px 12px;border:1px solid #9fc5dc;border-radius:8px;background:#eef8fd;color:#244a62;font-size:12px}.takeoff-summary b{color:#075b8a}.takeoff-summary button{margin-left:auto;border:1px solid #9fc5dc;border-radius:5px;background:#fff;color:#075b8a;padding:5px 9px}
@@ -274,6 +276,33 @@
 .map-rail-area>button:disabled{opacity:.5;cursor:not-allowed}
 .flight-direction-marker{width:24px;height:24px;display:grid;place-items:center;border:1px solid #0b5b5d;border-radius:50%;background:#eafff3ed;color:#096447;box-shadow:0 1px 5px #102b2580;font:800 19px sans-serif;pointer-events:none}
 .flight-direction-marker span{display:block;line-height:1}
+.map-waypoint-view{position:absolute;z-index:5;top:100px;right:12px;display:grid;gap:5px;max-width:min(240px,calc(100% - 80px));padding:8px;border:1px solid #a9c9b7;border-radius:7px;background:#fffffff0;box-shadow:0 2px 8px #102b2533;color:#234c39;font:11px/1.3 Arial,sans-serif}
+.map-waypoint-view button{padding:7px 9px;border:1px solid #087852;border-radius:5px;background:#087852;color:#fff;cursor:pointer;font:700 11px Arial,sans-serif}
+.map-waypoint-view button:hover,.map-waypoint-view button:focus-visible{background:#065d40}
+.flight-waypoint-marker{min-width:29px;height:23px;padding:0 3px;box-sizing:border-box;display:grid;place-items:center;border:1px solid #075940;border-radius:5px;background:#eafff2;color:#075940;box-shadow:0 1px 5px #0005;font:700 9px Arial,sans-serif;white-space:nowrap;pointer-events:none}
+.plan-file-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:10px 12px;border:1px solid #c9d8cf;border-radius:8px;background:#f2f7f3}
+.plan-file-actions .import-button{position:relative;display:inline-flex;align-items:center;min-height:35px;box-sizing:border-box;margin:0;padding:7px 10px;border:1px solid #a3c4af;border-radius:6px;background:#fff;color:#174b35;font:700 11px Arial,sans-serif;cursor:pointer;overflow:hidden}
+.plan-file-actions .import-button input[type=file]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.plan-file-actions .import-button:focus-within{outline:2px solid #087d59;outline-offset:2px}
+.plan-file-actions>button{min-height:35px;padding:7px 10px;border:1px solid #a3c4af;border-radius:6px;background:#fff;color:#174b35;font:700 11px Arial,sans-serif;cursor:pointer}
+.plan-file-actions>button.primary{border-color:#087852;background:#087852;color:#fff}
+.plan-file-actions>button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:700px){.plan-file-actions{gap:6px}.plan-file-actions>button,.plan-file-actions .import-button{font-size:10px}}
+.mission-layout{gap:12px}
+.mission-controls{display:block;margin:0}
+.flight-settings-heading{padding:0 0 8px}
+.mission-control-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+.mission-control-column{display:flex;flex-direction:column;gap:10px;min-width:0}
+.mission-control-column>.control-section{min-width:0;padding:15px 16px}
+.mission-control-column .section-heading{margin-bottom:11px}
+.mission-control-column .control-section label{margin:8px 0}
+.mission-control-column .slider-control{margin:12px 0!important}
+.mission-control-column .gsd-readout{margin-top:12px}
+@media(max-width:800px){.mission-control-columns{grid-template-columns:minmax(0,1fr);gap:10px}.mission-control-column{gap:10px}}
+.map-settings-links{display:grid;gap:6px;margin-top:10px}
+.map-settings-links a{display:block;padding:9px 11px;border:1px solid #b6d0c0;border-radius:6px;background:#fff;color:#145b42;font:700 12px Arial,sans-serif;text-decoration:none}
+.map-settings-links a:hover,.map-settings-links a:focus-visible{background:#e9f5ed}
+.plan-file-warning{flex-basis:100%;padding:6px 8px;border-left:2px solid #b9602f;background:#fff1e4;color:#74401d;font:11px/1.4 Arial,sans-serif}
 .map-route-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .map-route-summary span{display:grid;gap:3px;padding:9px;border:1px solid #c8ddce;border-radius:6px;background:#f1f8f3;color:#476653;font-size:11px}
 .map-route-summary b{color:#154a32;font-size:15px}
@@ -323,3 +352,7 @@
 .terrain-flight-message{padding:9px 12px;border-radius:6px;background:#e1eee5;color:#24543e}.terrain-flight-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0}.terrain-flight-metrics>div{padding:10px;border:1px solid #c6d8cb;border-radius:7px;background:white}.terrain-flight-metrics span{display:block;color:#537266;font-size:11px}.terrain-flight-metrics b{display:block;margin-top:3px;font-size:15px}
 .terrain-flight-chart{margin:12px 0;padding:9px;border:1px solid #c6d8cb;border-radius:8px;background:white}.terrain-flight-chart svg{display:block;width:100%;height:auto;max-height:240px}.terrain-flight-chart figcaption{display:flex;gap:18px;flex-wrap:wrap;color:#52675c;font-size:11px}.terrain-flight-chart figcaption span{display:flex;align-items:center;gap:5px}.terrain-flight-chart i{width:18px;height:3px;display:inline-block}.terrain-ground-line{background:#a2672b}.terrain-flight-line{background:#087f63}.terrain-flight-note,.terrain-flight-warning{padding:10px 12px;border-radius:6px}.terrain-flight-note{background:#e4f2e8;color:#23583e}.terrain-flight-warning{background:#fff1df;color:#79501c}
 @media(max-width:700px){.terrain-flight-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.terrain-flight-heading{flex-wrap:wrap}}
+
+.control-section .perimeter-pass-option{display:flex;align-items:center;gap:10px;line-height:1.45;cursor:pointer}
+.control-section .perimeter-pass-option input[type="checkbox"]{display:inline-block;flex:0 0 auto;width:18px;height:18px;margin:0;padding:0;accent-color:#27734f}
+.flight-brand .orion-build-label{margin-top:6px;color:#60726b;font:500 10px/1.4 Arial,Helvetica,sans-serif;letter-spacing:.01em;overflow-wrap:anywhere}

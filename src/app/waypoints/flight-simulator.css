@@ -21,3 +21,11 @@
 .sim-battery-plan li b{color:#087852}.sim-battery-plan li small{grid-column:2;color:#5e7462;font-size:11px}
 .sim-battery-plan .sim-battery-caution{margin-top:12px;padding-top:10px;border-top:1px solid #dbe8de;color:#695936}
 @media(max-width:600px){.sim-mission-summary strong{font-size:23px}.sim-mission-summary>div{padding:11px}.sim-mission-summary small{font-size:10px}.sim-battery-plan{margin:10px;padding:13px}.sim-battery-plan li{grid-template-columns:1fr}.sim-battery-plan li small{grid-column:1}}
+.kmz-inspection-result{display:grid;gap:7px;padding:12px 18px;background:#f4faf5;border-bottom:1px solid #d1e2d5;color:#315942;font-size:12px;line-height:1.5}
+.kmz-inspection-result p{margin:0}.kmz-inspection-result ul{margin:6px 0 0;padding-left:20px}
+.kmz-inspection-result [role=alert]{color:#8a3f26}
+.kmz-inspection-details{margin:10px 18px;border:1px solid #c7dccd;border-radius:9px;background:#fff;font-size:11px;line-height:1.5}
+.kmz-inspection-details summary{padding:10px 12px;cursor:pointer;font-weight:700}.kmz-inspection-details p{margin:6px 12px}.kmz-inspection-details ol{margin:6px 12px 12px;padding-left:20px;max-height:160px;overflow:auto}
+.sim-file-start-marker{display:grid;place-items:center;min-width:36px;height:24px;padding:0 4px;border:2px solid #09815c;border-radius:7px;background:#fff;color:#075d43;box-shadow:0 2px 5px #0004;font:bold 11px Arial;pointer-events:none}
+.sim-plan-home-marker{border-color:#c98220;color:#875000}
+@media(max-width:600px){.kmz-inspection-result{padding:10px 12px}.kmz-inspection-details{margin:8px 10px}}

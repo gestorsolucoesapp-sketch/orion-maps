@@ -7,7 +7,7 @@ import {simulationTrace,type FlightFrame,type FlightSimulation} from "@/lib/flig
 import {SimulationDrone} from "./simulation-drone";
 import {streetBasemap,esriImagery} from "@/lib/basemaps";
 
-type Props={simulation:FlightSimulation;frame:FlightFrame;boundary:Coordinate[];running:boolean;pickHome:boolean;onPick:(point:Coordinate)=>void;onReady:(ready:boolean)=>void;children:ReactNode};
+type Props={simulation:FlightSimulation;frame:FlightFrame;boundary:Coordinate[];running:boolean;pickHome:boolean;onPick:(point:Coordinate)=>void;onReady:(ready:boolean)=>void;fileMode?:boolean;planTakeoff?:Coordinate|null;children:ReactNode};
 const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
 const raster={satellite:esriImagery,map:streetBasemap};
 export default function SimulationMap(props:Props){
@@ -15,7 +15,7 @@ export default function SimulationMap(props:Props){
  const [ready,setReady]=useState(false),[error,setError]=useState(""),[background,setBackground]=useState<keyof typeof raster>("satellite"),[perspective,setPerspective]=useState(false),[follow,setFollow]=useState(false);
  const view=useRef({perspective,follow,background});
  useEffect(()=>{latest.current=props;});useEffect(()=>{view.current={perspective,follow,background};},[perspective,follow,background]);
- function fit(){const m=map.current;if(!m)return;const sim=latest.current.simulation,b=new maplibre.LngLatBounds(sim.home,sim.home);sim.route.forEach(p=>b.extend(p));if(view.current.perspective){const margin=sim.height*1.2/111195,longitudeMargin=margin/Math.cos(sim.home[1]*Math.PI/180);b.extend([b.getWest()-longitudeMargin,b.getSouth()-margin]);b.extend([b.getEast()+longitudeMargin,b.getNorth()+margin]);}m.fitBounds(b,{padding:{top:70,left:55,right:55,bottom:155},maxZoom:18,duration:0,pitch:view.current.perspective?45:0,bearing:0});}
+ function fit(){const m=map.current;if(!m)return;const {simulation:sim,fileMode,planTakeoff}=latest.current,b=new maplibre.LngLatBounds(sim.home,sim.home);sim.route.forEach(p=>b.extend(p));if(fileMode&&planTakeoff)b.extend(planTakeoff);if(view.current.perspective){const margin=sim.height*1.2/111195,longitudeMargin=margin/Math.cos(sim.home[1]*Math.PI/180);b.extend([b.getWest()-longitudeMargin,b.getSouth()-margin]);b.extend([b.getEast()+longitudeMargin,b.getNorth()+margin]);}m.fitBounds(b,{padding:{top:70,left:55,right:55,bottom:155},maxZoom:18,duration:0,pitch:view.current.perspective?45:0,bearing:0});}
  useEffect(()=>{
   if(!element.current)return;
   setReady(false);setError("");latest.current.onReady(false);lastTrace.current=-1;lastPhoto.current=-1;
@@ -40,7 +40,10 @@ export default function SimulationMap(props:Props){
     current.addSource("sim-position",{type:"geojson",data:empty});current.addLayer({id:"sim-position-shadow",type:"circle",source:"sim-position",paint:{"circle-color":"#0b2731","circle-opacity":.4,"circle-radius":13,"circle-blur":.5}});
     const model=new SimulationDrone();drone.current=model;model.frame={...latest.current.frame,height:view.current.perspective?latest.current.frame.height:0};
     try{current.addLayer(model);}catch{setError("A visualização 3D não iniciou. O ponto escuro no mapa mostra a posição simulada.");}
-    const home=document.createElement("div");home.className="sim-home-marker";home.textContent="H";home.title="Base apenas da simulação";home.setAttribute("aria-label","Base de decolagem simulada");markers.push(new maplibre.Marker({element:home}).setLngLat(sim.home).addTo(current));
+    if(latest.current.fileMode){
+     const start=document.createElement("div");start.className="sim-file-start-marker";start.textContent="WP1";start.title="WP1 — início da rota do arquivo KMZ";start.setAttribute("aria-label","WP1 — início da rota do arquivo KMZ");markers.push(new maplibre.Marker({element:start,anchor:"bottom"}).setLngLat(sim.route[0]).addTo(current));
+     if(latest.current.planTakeoff){const home=document.createElement("div");home.className="sim-home-marker sim-plan-home-marker";home.textContent="H";home.title="Decolagem do plano — referência externa ao KMZ";home.setAttribute("aria-label","Decolagem do plano — referência externa ao KMZ");markers.push(new maplibre.Marker({element:home}).setLngLat(latest.current.planTakeoff).addTo(current));}
+    }else{const home=document.createElement("div");home.className="sim-home-marker";home.textContent="H";home.title="Base de decolagem da prévia";home.setAttribute("aria-label","Base de decolagem simulada");markers.push(new maplibre.Marker({element:home}).setLngLat(sim.home).addTo(current));}
     fit();setReady(true);latest.current.onReady(true);current.triggerRepaint();
    });
    current.on("click",e=>{if(latest.current.pickHome)latest.current.onPick([e.lngLat.lng,e.lngLat.lat]);});
@@ -54,7 +57,7 @@ export default function SimulationMap(props:Props){
   }
   return()=>{observer?.disconnect();markers.forEach(marker=>marker.remove());m?.remove();map.current=null;drone.current=null;latest.current.onReady(false);};
  // Only a new simulation snapshot recreates this external renderer.
- },[props.simulation]);
+ },[props.simulation,props.fileMode,props.planTakeoff]);
  useEffect(()=>{const m=map.current;if(!m||!ready)return;const f=props.frame,sim=props.simulation;if(drone.current){drone.current.frame={...f,height:perspective?f.height:0};drone.current.rotorAngle=props.running?f.time*18:drone.current.rotorAngle;}
   (m.getSource("sim-position") as maplibre.GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"Point",coordinates:f.position}});
   if(Math.abs(f.time-lastTrace.current)>=.12||f.finished||f.time===0){(m.getSource("sim-trace") as maplibre.GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"LineString",coordinates:simulationTrace(sim,f)}});lastTrace.current=f.time;}

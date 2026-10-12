@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateGrid, validateBoundary, parseBoundaryGeoJson } from '../src/lib/flight-plan.ts';
-import {validateExclusions,segmentAvoidsHoles} from '../src/lib/flight-exclusions.ts';
+import {insidePolygon,validateExclusions,segmentAvoidsHoles} from '../src/lib/flight-exclusions.ts';
 import { previewKmz, previewKml, missionCsv } from '../src/lib/mission-export.ts';
 import { unzipSync, strFromU8 } from 'fflate';
 const degree=180/(Math.PI*6371008.8);
@@ -31,6 +31,26 @@ test('concave boundary produces separate legs rather than crossing its excluded 
  const u=[[0,0],[100,0],[100,100],[70,100],[70,30],[30,30],[30,100],[0,100]].map(p=>p.map(v=>v*degree));
  const g=generateGrid(u,{...config,bearing:90});
  for(const leg of g.legs){const x=(leg[0][0]+leg[1][0])/2/degree,y=(leg[0][1]+leg[1][1])/2/degree;assert.ok(!(x>30.001&&x<69.999&&y>30.001));}
+});
+test('optional perimeter pass adds one closed survey leg without changing the saved area',()=>{
+ const before=JSON.stringify(square),plain=generateGrid(square,config),extra=generateGrid(square,{...config,perimeterPass:true}),again=generateGrid(square,{...config,perimeterPass:true}),off=generateGrid(square,{...config,perimeterPass:false});
+ assert.equal(JSON.stringify(square),before);assert.deepEqual(off,plain);assert.deepEqual(again,extra);
+ assert.equal(extra.area,plain.area);assert.equal(extra.legs.length,plain.legs.length+1);assert.ok(extra.captureLegs.every(Boolean));
+ assert.equal(extra.legs.at(-1).length,square.length+1);assert.deepEqual(extra.legs.at(-1)[0],extra.legs.at(-1).at(-1));
+ assert.ok(Math.abs(extra.length-plain.length-400)<1e-5);assert.ok(extra.photos.length>plain.photos.length);
+});
+test('concave perimeter uses original vertices and keeps its transfer within the area',()=>{
+ const concave=[[0,0],[100,0],[100,100],[70,100],[70,30],[30,30],[30,100],[0,100]].map(p=>p.map(v=>v*degree));
+ const grid=generateGrid(concave,{...config,bearing:90,perimeterPass:true}),ring=grid.legs.at(-1),before=grid.legs.at(-2).at(-1);
+ assert.equal(ring.length,concave.length+1);assert.ok(ring.slice(0,-1).every(p=>concave.some(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<1e-12)));
+ for(let t=0;t<=1;t+=.05)assert.ok(insidePolygon([before[0]+(ring[0][0]-before[0])*t,before[1]+(ring[0][1]-before[1])*t],concave));
+});
+test('optional perimeter remains outside isolated areas and marks avoidance detours as noncapture',()=>{
+ const hole=[[40,40],[60,40],[60,60],[40,60]].map(p=>p.map(v=>v*degree));
+ const grid=generateGrid(square,{...config,spacing:10,perimeterPass:true},[hole]),check=validateExclusions(square,[hole]);
+ assert.equal(grid.captureLegs.length,grid.legs.length);assert.equal(grid.captureLegs.at(-1),true);assert.ok(grid.captureLegs.includes(false));
+ const route=grid.legs.flat().map(check.projection.toLocal);
+ for(let i=1;i<route.length;i++)assert.ok(segmentAvoidsHoles(route[i-1],route[i],check.holes),`segment ${i} crosses isolated area`);
 });
 test('invalid polygons and excessive calculations are rejected',()=>{
  assert.throws(()=>validateBoundary([square[0],square[2],square[1],square[3]]));

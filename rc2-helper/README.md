@@ -23,5 +23,15 @@ O assistente escuta apenas o loopback local e aceita pedidos do domínio de
 produção do Orion Maps. Ele não decola nem controla o drone. O ponto H serve à
 estimativa de ida e retorno; o Home real é definido no DJI Fly.
 
+## Atualização do assistente no PC
+
+As ações fotográficas por faixa exigem `mission.py` e `server.py` desta versão do
+repositório. Feche **Conectar Orion RC2** antes de executar novamente o
+`install.ps1`; ele atualiza os arquivos em `D:\OrionMaps\rc2-helper` e reinicia o
+processo local. O botão do site consulta `/health` e bloqueia o envio quando o
+assistente instalado não informa `protocolVersion: 2`. Não há código a instalar
+no controle. A missão só entra no RC 2 quando o usuário inicia uma
+transferência separada e confirma a operação.
+
 Fotos por tempo continuam **experimentais** até teste em voo. Fotos por distância
 não são aceitas pelo botão. Confira a missão no DJI Fly antes de voar.

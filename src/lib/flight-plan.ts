@@ -1,10 +1,24 @@
-import {routeAroundHoles,validateExclusions} from "./flight-exclusions.ts";
+import {insidePolygon,routeAroundHoles,segmentAvoidsHoles,validateExclusions} from "./flight-exclusions.ts";
 export type Coordinate = [number, number]; // longitude, latitude
-export type GridOptions = { spacing: number; photoSpacing: number; bearing: number; speed: number; doubleGrid: boolean };
-export type Grid = { legs: Coordinate[][]; photos: Coordinate[]; area: number; length: number; seconds: number; spacing: number };
+export type GridOptions = { spacing: number; photoSpacing: number; bearing: number; speed: number; doubleGrid: boolean; perimeterPass?: boolean };
+export type Grid = { legs: Coordinate[][]; captureLegs: boolean[]; photos: Coordinate[]; area: number; length: number; seconds: number; spacing: number };
 const R = 6371008.8, DEG = Math.PI / 180;
 const cross = (a: Coordinate, b: Coordinate, c: Coordinate) => (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
 const distance = (a: Coordinate,b: Coordinate) => Math.hypot(a[0]-b[0],a[1]-b[1]);
+
+// Keep the optional transfer to the perimeter inside a concave boundary.
+function withinBoundary(a:Coordinate,b:Coordinate,ring:Coordinate[]):boolean{
+ if(!insidePolygon(a,ring)||!insidePolygon(b,ring))return false;
+ const cuts=[0,1],r:Coordinate=[b[0]-a[0],b[1]-a[1]];
+ for(let i=0;i<ring.length;i++){
+  const c=ring[i],d=ring[(i+1)%ring.length],s:Coordinate=[d[0]-c[0],d[1]-c[1]],den=r[0]*s[1]-r[1]*s[0];
+  if(Math.abs(den)<1e-9)continue;
+  const x=c[0]-a[0],y=c[1]-a[1],t=(x*s[1]-y*s[0])/den,u=(x*r[1]-y*r[0])/den;
+  if(t>1e-9&&t<1-1e-9&&u>=-1e-9&&u<=1+1e-9)cuts.push(t);
+ }
+ cuts.sort((x,y)=>x-y);
+ return cuts.slice(1).every((t,i)=>{const middle=(t+cuts[i])/2;return insidePolygon([a[0]+r[0]*middle,a[1]+r[1]*middle],ring);});
+}
 
 function intersects(a: Coordinate,b: Coordinate,c: Coordinate,d: Coordinate) {
   const abC=cross(a,b,c), abD=cross(a,b,d), cdA=cross(c,d,a), cdB=cross(c,d,b);
@@ -39,7 +53,7 @@ export function generateGrid(boundary: Coordinate[], options: GridOptions, exclu
   const area=excluded?.area??outerArea;
   const holes=excluded?.holes??[];
   if([options.spacing,options.photoSpacing,options.speed].some(n=>!Number.isFinite(n)||n<=0)||!Number.isFinite(options.bearing)) throw new Error("Informe espaçamentos e velocidade maiores que zero e um rumo válido.");
-  const legs: Coordinate[][]=[], photos: Coordinate[]=[];
+  const legs: Coordinate[][]=[], captureLegs:boolean[]=[], photos: Coordinate[]=[];
   let length=0, tightest=options.spacing;
   for(const angle of options.doubleGrid?[options.bearing,options.bearing+90]:[options.bearing]) {
     const a=angle*DEG, cos=Math.cos(a), sin=Math.sin(a);
@@ -65,14 +79,29 @@ export function generateGrid(boundary: Coordinate[], options: GridOptions, exclu
         const [p,q]=segment, len=distance(p,q), intervals=Math.max(1,Math.ceil(len/options.photoSpacing));
         if(photos.length+intervals+1>30000) throw new Error("O plano excedeu 30.000 fotos. Divida a área ou revise os parâmetros.");
         const geoSegment=segment.map(p=>toGeo(unrotate(p)));
-        if(holes.length&&legs.length){const previous=legs.at(-1)!.at(-1)!,connector=routeAroundHoles(excluded!.projection.toLocal(previous),unrotate(p),holes);if(connector.length>2)legs.push(connector.map(excluded!.projection.toGeo));}
-        length+=len; legs.push(geoSegment);
+        if(holes.length&&legs.length){const previous=legs.at(-1)!.at(-1)!,connector=routeAroundHoles(excluded!.projection.toLocal(previous),unrotate(p),holes);if(connector.length>2){legs.push(connector.map(excluded!.projection.toGeo));captureLegs.push(false);}}
+        length+=len; legs.push(geoSegment);captureLegs.push(true);
         for(let i=0;i<=intervals;i++) photos.push(toGeo(unrotate([p[0]+(q[0]-p[0])*i/intervals,p[1]+(q[1]-p[1])*i/intervals])));
       }
     }
   }
   if(!legs.length) throw new Error("Não foi possível gerar faixas nessa área.");
-  return {legs,photos,area,length,seconds:length/options.speed,spacing:tightest};
+  if(options.perimeterPass){
+   const previous=legs.at(-1)!.at(-1)!;
+   const from:Coordinate=[(previous[0]-boundary[0][0])*DEG*R*Math.cos(boundary[0][1]*DEG),(previous[1]-boundary[0][1])*DEG*R];
+   const candidates=points.map((point,index)=>({point,index,meters:distance(from,point)})).sort((a,b)=>a.meters-b.meters);
+   const chosen=candidates.find(({point})=>withinBoundary(from,point,points)&&segmentAvoidsHoles(from,point,holes));
+   if(!chosen)throw new Error("Não foi possível ligar a rota ao perímetro sem sair da área ou cruzar um isolamento.");
+   const ring=[...boundary.slice(chosen.index),...boundary.slice(0,chosen.index),boundary[chosen.index]];
+   for(let i=0;i<ring.length-1;i++){
+    const a=points[(chosen.index+i)%points.length],b=points[(chosen.index+i+1)%points.length],edge=distance(a,b),intervals=Math.max(1,Math.ceil(edge/options.photoSpacing));
+    if(photos.length+intervals>30000)throw new Error("O plano excedeu 30.000 fotos. Divida a área ou revise os parâmetros.");
+    length+=edge;
+    for(let j=0;j<intervals;j++)photos.push(toGeo([a[0]+(b[0]-a[0])*j/intervals,a[1]+(b[1]-a[1])*j/intervals]));
+   }
+   legs.push(ring);captureLegs.push(true);
+  }
+  return {legs,captureLegs,photos,area,length,seconds:length/options.speed,spacing:tightest};
 }
 
 export function parseBoundaryGeoJson(value: unknown): Coordinate[] {
