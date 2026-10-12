@@ -40,3 +40,19 @@ test('visualization cannot be mistaken for an executable mission',()=>{
  assert.throws(()=>buildKmzSimulation({...file,integrityIssues:['template differs']}),/divergências internas/);
  assert.throws(()=>buildKmzSimulation({...file,waypoints:file.waypoints.map((item,i)=>({...item,height:i?110:100}))}),/varia altura/);
 });
+
+test('RC2 expected preview preserves each exported edge for 2, 3, 4, 7 and 36 waypoints',()=>{
+ for(const count of [2,3,4,7,36]){
+  const points=Array.from({length:count},(_,i)=>[-46.852+i*.00021,-21.596+(i%3)*.00018]);
+  const mission={...file,waypoints:points.map((point,index)=>({index,point,height:80,speed:5.7})),photoActions:[]};
+  const simulation=buildKmzSimulation(mission);
+  const moving=simulation.segments.filter(segment=>segment.distanceEnd>segment.distanceStart);
+  assert.deepEqual(simulation.route,points,`route ${count}`);
+  assert.equal(moving.length,count-1,`edge count ${count}`);
+  for(let i=0;i<moving.length;i++){
+   assert.deepEqual(moving[i].from,points[i],`edge ${i+1} start for ${count}`);
+   assert.deepEqual(moving[i].to,points[i+1],`edge ${i+1} end for ${count}`);
+  }
+  assert.equal(simulation.returnHome,false);
+ }
+});
