@@ -77,7 +77,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
           <Link href="#entrega-resultados" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Preparar entrega e PDF ↓</Link>
         </div>
 
-        {results.length?<>{latestCompleted&&<div className="rounded-[24px] border border-[#9bbba7] bg-[#e7efe7] p-4 shadow-[0_16px_36px_rgba(0,10,8,.2)] sm:p-6"><ProcessingQuality job={latestCompleted} results={clientResults}/></div>}<div className="mt-5"><ProcessingResults results={clientResults} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
+        {results.length?<>{latestCompleted&&<div className="rounded-[24px] border border-[#9bbba7] bg-[#e7efe7] p-4 shadow-[0_16px_36px_rgba(0,10,8,.2)] sm:p-6"><ProcessingQuality job={latestCompleted} results={clientResults}/></div>}<div className="mt-5"><ProcessingResults key={active.id} results={clientResults} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold">Nenhum resultado concluído ainda</h2>
           <p className="mt-2 text-sm text-slate-500">Quando o processamento terminar, ortofoto, elevação, curvas e downloads aparecerão aqui.</p>
           <Link href={productsHref} className="mt-5 inline-block rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Ir para produtos</Link>

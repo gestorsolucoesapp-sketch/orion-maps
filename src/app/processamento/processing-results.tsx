@@ -2,9 +2,10 @@
 /* eslint-disable @next/next/no-img-element -- dynamic signed/blob/data map imagery must bypass the Next image optimizer. */
 
 import dynamic from "next/dynamic";
-import {useMemo,useState} from "react";
+import {useMemo,useReducer,useState} from "react";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
-import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec,type ClipPoint} from "@/lib/orthophoto-clip";
+import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec} from "@/lib/orthophoto-clip";
+import {clipFlowReducer,initialClipFlow,parseClipMargin} from "@/lib/orthophoto-clip-flow";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
@@ -36,13 +37,13 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   const [downloading,setDownloading]=useState<string|null>(null);
   const [selectionTick,setSelectionTick]=useState(0);
   const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
-  const [clipPoints,setClipPoints]=useState<ClipPoint[]>(()=>planBoundary?.points.map(p=>[...p] as ClipPoint)||[]);
-  const [marginText,setMarginText]=useState("1");
-  const marginM=/^\d+(?:[,.]\d+)?$/.test(marginText.trim())?Number(marginText.trim().replace(",",".")):Number.NaN;
-  const [privateMode,setPrivateMode]=useState(!!planBoundary?.points?.length);
-  const [clipEditing,setClipEditing]=useState(false),[clipDrawing,setClipDrawing]=useState(false);
+  const [clip,dispatchClip]=useReducer(clipFlowReducer,undefined,initialClipFlow);
+  const {points:clipPoints,marginText,applied:appliedClip,editing:clipEditing,drawing:clipDrawing}=clip;
+  const marginM=parseClipMargin(marginText);
+  const privateMode=appliedClip!==null;
+  const mapPrivateMode=privateMode&&!clipEditing;
   const clipCheck=useMemo(()=>{try{return {spec:validateClipSpec({points:clipPoints,marginM}),error:""};}catch(e){return {spec:null,error:e instanceof Error?e.message:"Contorno inválido."};}},[clipPoints,marginM]);
-  const clipSpec=clipCheck.spec;
+  const clipSpec=appliedClip;
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||sorted[0];
@@ -57,7 +58,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
     try{return clipPixelGeometry(clipSpec,bounds,1000,1000).coverageLimited;}catch{return false;}
   })();
   const privatePreview=privateMode&&clipSpec&&orthophoto?orthophotoClipUrl(orthophoto.id,reportSurveyId,clipSpec):null;
-  const mapResults=privateMode?sorted.filter(item=>item.kind==="orthophoto"):sorted;
+  const mapResults=mapPrivateMode?sorted.filter(item=>item.kind==="orthophoto"):sorted;
   const reportHref=`/processamento/relatorio?levantamento=${encodeURIComponent(reportSurveyId)}${privateMode?`&privado=1&clip=${encodeURIComponent(JSON.stringify(clipSpec||{points:[],marginM}))}`:""}`;
 
   async function forceDownload(item:ProcessingResult){
@@ -125,19 +126,21 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
       </div>
 
       {orthophoto&&<section aria-label="Recorte de privacidade" className="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950">
-        <h3 className="font-semibold">Recorte de privacidade da ortofoto</h3>
-        <p className="mt-1 text-xs leading-5">O contorno é editável no mapa. A margem padrão de 1 m fica para fora do terreno. O original permanece preservado.</p>
-        <label className="mt-3 flex items-center gap-2 font-semibold"><input type="checkbox" checked={privateMode} onChange={e=>setPrivateMode(e.target.checked)}/> Entrega privada recortada</label>
-        <label className="mt-3 flex items-center gap-2">Margem externa (m)<input className="w-24 rounded-lg border border-emerald-300 bg-white px-2 py-1" aria-label="Margem externa em metros" type="text" inputMode="decimal" value={marginText} onChange={e=>setMarginText(e.target.value)}/></label>
+        <h3 className="font-semibold">Recorte opcional da ortofoto</h3>
+        <p className="mt-1 text-xs leading-5">A ortofoto abre completa, com as ruas capturadas. Desenhe livremente a área que deseja manter; o recorte só entra em vigor quando você clicar em Aplicar recorte. O contorno do plano e as medições não definem esta área.</p>
+        <p className="mt-2 font-semibold" role="status">{clipEditing?"Editando sobre a ortofoto original. O recorte anterior, se houver, continua nas exportações até você aplicar.":privateMode?"Recorte aplicado. Você pode editar a área ou restaurar o original.":"Ortofoto original completa. Nenhum recorte aplicado."}</p>
+        {clipEditing&&<label className="mt-3 flex items-center gap-2">Margem externa opcional (m)<input className="w-24 rounded-lg border border-emerald-300 bg-white px-2 py-1" aria-label="Margem externa em metros" type="text" inputMode="decimal" value={marginText} onChange={e=>dispatchClip({type:"margin",value:e.target.value})}/></label>}
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={()=>{setClipEditing(v=>!v);setClipDrawing(false);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">{clipEditing?"Concluir edição":"Editar vértices no mapa"}</button>
-          <button type="button" onClick={()=>{setPrivateMode(false);setClipPoints([]);setClipEditing(true);setClipDrawing(true);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Desenhar novo contorno</button>
-          {clipDrawing&&<button type="button" onClick={()=>setClipDrawing(false)} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Concluir desenho</button>}
-          {clipEditing&&clipPoints.length>0&&<button type="button" onClick={()=>setClipPoints(v=>v.slice(0,-1))} className="rounded-lg border border-emerald-700 bg-white px-3 py-2">Desfazer último vértice</button>}
-          {planBoundary&&<button type="button" onClick={()=>{setClipPoints(planBoundary.points.map(p=>[...p] as ClipPoint));setClipDrawing(false);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2">Restaurar contorno do plano</button>}
+          <button type="button" onClick={()=>{dispatchClip({type:"draw"});setSelectedKind("orthophoto");setSelectionTick(v=>v+1);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Desenhar novo contorno</button>
+          {privateMode&&!clipEditing&&<button type="button" onClick={()=>{dispatchClip({type:"edit"});setSelectedKind("orthophoto");setSelectionTick(v=>v+1);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Editar recorte aplicado</button>}
+          {clipEditing&&<button type="button" onClick={()=>dispatchClip({type:"toggleDrawing"})} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">{clipDrawing?"Concluir desenho":"Adicionar vértices no mapa"}</button>}
+          {clipEditing&&clipPoints.length>0&&<button type="button" onClick={()=>dispatchClip({type:"undo"})} className="rounded-lg border border-emerald-700 bg-white px-3 py-2">Desfazer último vértice</button>}
+          {clipEditing&&<button type="button" disabled={!clipCheck.spec} onClick={()=>dispatchClip({type:"apply"})} className="rounded-lg bg-emerald-900 px-3 py-2 font-semibold text-white disabled:opacity-50">Aplicar recorte</button>}
+          {clipEditing&&<button type="button" onClick={()=>dispatchClip({type:"cancel"})} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Cancelar edição</button>}
+          {privateMode&&<button type="button" onClick={()=>dispatchClip({type:"restore"})} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Restaurar ortofoto original</button>}
         </div>
-        {clipEditing&&<p className="mt-2 text-xs">Arraste os marcadores para corrigir os vértices. Em “Desenhar novo contorno”, clique no mapa para adicionar pontos. Depois de concluir, ative novamente a entrega privada.</p>}
-        {privateMode&&clipCheck.error&&<p role="alert" className="mt-2 font-semibold text-amber-800">{clipCheck.error} Prévia e exportação privadas bloqueadas.</p>}
+        {clipEditing&&<p className="mt-2 text-xs">Clique no mapa para adicionar pontos; arraste os marcadores para ajustar a área. Inclua as ruas que devem ficar no trabalho. A margem começa em 0 m e só vale para este recorte escolhido.</p>}
+        {clipEditing&&clipCheck.error&&<p role="alert" className="mt-2 font-semibold text-amber-800">{clipCheck.error}</p>}
         {privateMode&&clipSpec&&coverageLimited&&<p role="status" className="mt-2 font-semibold text-amber-800">A margem alcança o limite da cobertura disponível. O recorte usa somente pixels existentes; confirme se ainda oculta tudo o que precisa antes de compartilhar.</p>}
         {privateMode&&clipSpec&&<p className="mt-2 text-xs">Modo privado: só a ortofoto recortada e o PDF recortado podem ser entregues. GeoTIFF, LAZ e demais produtos originais ficam bloqueados neste modo.</p>}
       </section>}
@@ -160,7 +163,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap key={privateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={privateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={privateMode} clipUrl={privateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={setClipPoints}/></div>
+      <div className="mt-6"><ResultsMap key={mapPrivateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={mapPrivateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={mapPrivateMode} clipUrl={mapPrivateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={points=>dispatchClip({type:"points",points})}/></div>
 
       {!privateMode&&selectedKind==="point_cloud"&&(()=>{
         const cloud=sorted.find(item=>item.kind==="point_cloud");
