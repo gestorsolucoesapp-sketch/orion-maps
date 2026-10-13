@@ -1,5 +1,6 @@
 "use client";
 import MapMeasurement from "@/components/measurement/map-measurement";
+import type {MeasurementImageSource} from "@/components/measurement/actions";
 import {EMPTY_TERRAIN_FEEDBACK,type MapMeasureTool,type TerrainToolFeedback,type TerrainToolCommand,type TerrainToolAction} from "@/lib/map-toolbox";
 
 
@@ -10,6 +11,7 @@ import * as maplibregl from "maplibre-gl";
 import type {GeoJSONSource} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import type {ClipPoint} from "@/lib/orthophoto-clip";
 import {renderGeoTiffToDataUrl, type RasterCorners} from "./geotiff-preview";
 import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
@@ -25,6 +27,12 @@ type Props={
   planBoundary?:{name:string;points:Coord[]}|null;
   focusKind?:string|null;
   focusRevision?:number;
+  privateMode?:boolean;
+  clipUrl?:string|null;
+  clipPoints?:ClipPoint[];
+  clipEditing?:boolean;
+  clipDrawing?:boolean;
+  onClipPointsChange?:(points:ClipPoint[])=>void;
 };
 
 const rasterKinds=["orthophoto","hillshade","hypsometry","slope"] as const;
@@ -96,11 +104,12 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
   return null;
 }
 
-export default function ResultsMap({results,planBoundary,focusKind,focusRevision}:Props){
+export default function ResultsMap({results,planBoundary,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
   const [measureSelection,setMeasureSelection]=useState<{drawing:MeasureDrawing;name:string}|null>(null);
   const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0),[startPathRevision,setStartPathRevision]=useState(0);
+  const [areaImageSource,setAreaImageSource]=useState<MeasurementImageSource|null>(null);
   const onMeasurementChange=useCallback((drawing:MeasureDrawing,name:string)=>setMeasureSelection({drawing,name}),[]);
   const [mapTool,setMapTool]=useState<MapMeasureTool|null>(null),[terrainFeedback,setTerrainFeedback]=useState<TerrainToolFeedback>(EMPTY_TERRAIN_FEEDBACK);
   const [terrainCommand,setTerrainCommand]=useState<TerrainToolCommand|null>(null);
@@ -123,7 +132,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
-  const orthoDisplayUrl=orthophoto?orthophotoPreviewUrl(orthophoto):null;
+  const orthoDisplayUrl=privateMode?clipUrl:orthophoto?orthophotoPreviewUrl(orthophoto):null;
   const dtm=results.find(r=>r.kind==="dtm");
   const dsm=results.find(r=>r.kind==="dsm");
 
@@ -199,7 +208,9 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const bm=baseMaps[basemap]??esriImagery;
     const m=new maplibregl.Map({
       container:el.current,
-      style:{
+      style:privateMode?{
+        version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#edf2ed"}}],
+      }:{
         version:8,
         sources:{basemap:{type:"raster",tiles:[bm.url],tileSize:256,maxzoom:bm.maxzoom,attribution:bm.attribution}},
         layers:[{id:"background",type:"background",paint:{"background-color":"#dfe8dc"}},{id:"basemap",type:"raster",source:"basemap"}],
@@ -234,7 +245,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     });
     return()=>{camera.current={center:m.getCenter().toArray() as Coord,zoom:m.getZoom(),bearing:m.getBearing(),pitch:m.getPitch()};resizeObserver.disconnect();setReady(false);m.remove();if(map.current===m)map.current=null;};
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap]);
+  },[results,bounds?.west,bounds?.south,bounds?.east,bounds?.north,basemap,privateMode]);
 
   // Full-size files are not fetched for the map or product thumbnail.
   useEffect(()=>{
@@ -318,6 +329,38 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
+    const coordinates=clipPoints.length>=3?[...clipPoints,clipPoints[0]]:clipPoints;
+    const geometry:GeoJSON.Geometry=clipPoints.length>=3?{type:"Polygon",coordinates:[coordinates]}:{type:"LineString",coordinates};
+    const feature:GeoJSON.Feature={type:"Feature",properties:{},geometry};
+    const source=m.getSource("privacy-cutline") as GeoJSONSource|undefined;
+    if(source)source.setData(feature);
+    else{
+      m.addSource("privacy-cutline",{type:"geojson",data:feature});
+      m.addLayer({id:"privacy-cutline",type:"line",source:"privacy-cutline",paint:{"line-color":"#facc15","line-width":3,"line-dasharray":[2,1]},layout:{visibility:clipEditing?"visible":"none"}});
+    }
+    m.setLayoutProperty("privacy-cutline","visibility",clipEditing?"visible":"none");
+  },[ready,clipPoints,clipEditing]);
+
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!clipEditing||!onClipPointsChange)return;
+    const markers=clipPoints.map((point,index)=>{
+      const element=document.createElement("button");element.type="button";element.className="h-4 w-4 rounded-full border-2 border-emerald-950 bg-yellow-300 shadow";
+      element.setAttribute("aria-label",`Vértice do recorte ${index+1}; arraste para ajustar`);
+      const marker=new maplibregl.Marker({element,draggable:true}).setLngLat(point).addTo(m);
+      marker.on("dragend",()=>{const p=marker.getLngLat();const next=[...clipPoints];next[index]=[p.lng,p.lat];onClipPointsChange(next);});
+      element.addEventListener("click",e=>e.stopPropagation());
+      return marker;
+    });
+    const click=(event:maplibregl.MapMouseEvent)=>{
+      if(!clipDrawing||(event.originalEvent.target as Element)?.closest("button,.maplibregl-control-container"))return;
+      onClipPointsChange([...clipPoints,[event.lngLat.lng,event.lngLat.lat]]);
+    };
+    m.on("click",click);
+    return()=>{m.off("click",click);markers.forEach(marker=>marker.remove());};
+  },[ready,clipEditing,clipDrawing,clipPoints,onClipPointsChange]);
+
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
     if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",Math.min(comparePercent/100,visible.contours&&contoursState==="ready"?0.58:1));
@@ -344,16 +387,26 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false}));
   }
 
+  function measureAreaOnOrthophoto(){
+    setVisible(v=>({...v,orthophoto:true,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false}));
+    setComparePercent(100);
+    setAreaImageSource("orthophoto");
+    setStartAreaRevision(v=>v+1);
+    requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));
+  }
+
   if(!bounds)return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Os resultados existem, mas ainda não há limites geográficos suficientes para abrir o mapa.</div>;
 
-  const controls=[["orthophoto","Ortofoto"],["project","Plano de voo"],["contours","Curvas 0,50 m"],["hillshade","Relevo sombreado"],["hypsometry","Hipsometria"],["slope","Declividade"],["dtm","DTM"],["dsm","DSM"]] as const;
+  const controls=privateMode?[["orthophoto","Ortofoto recortada"],["project","Plano de voo"]] as const:[["orthophoto","Ortofoto"],["project","Plano de voo"],["contours","Curvas 0,50 m"],["hillshade","Relevo sombreado"],["hypsometry","Hipsometria"],["slope","Declividade"],["dtm","DTM"],["dsm","DSM"]] as const;
   const projectArea=coverage?.areaM2??null,projectPerimeter=coverage?.perimeterM??null;
 
   return <div>
-    {orthophoto&&<section aria-label="Comparar mapa e ortofoto" className="mb-4 rounded-2xl border border-emerald-200 bg-[#edf5e9] p-4 sm:p-5">
+    {orthophoto&&!privateMode&&<section aria-label="Comparar mapa e ortofoto" className="mb-4 rounded-2xl border border-emerald-200 bg-[#edf5e9] p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-800">Comparação visual</p><h3 className="mt-1 text-base font-semibold text-slate-950">Antes e depois no mesmo lugar</h3></div><span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-emerald-950">{comparePercent===0?"Mapa de referência":comparePercent===100?"Ortofoto processada":`${comparePercent}% de ortofoto`}</span></div>
       <div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={()=>compare(0)} aria-pressed={visible.orthophoto&&comparePercent===0} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===0?"border-emerald-900 bg-emerald-900 text-white":"border-emerald-300 bg-white text-emerald-950"}`}>Antes · mapa satélite</button><button type="button" onClick={()=>compare(100)} aria-pressed={visible.orthophoto&&comparePercent===100} className={`rounded-xl border px-3 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===100?"border-emerald-900 bg-emerald-900 text-white":"border-emerald-300 bg-white text-emerald-950"}`}>Depois · ortofoto</button></div>
       <label className="mt-4 flex items-center gap-3 text-xs font-semibold text-emerald-950"><span>Antes</span><input type="range" min="0" max="100" step="1" value={comparePercent} onChange={e=>compare(Number(e.target.value))} aria-label="Comparar mapa satélite e ortofoto" className="min-w-0 flex-1 accent-emerald-800"/><span>Depois</span></label><p className="mt-2 text-xs leading-5 text-slate-600">O “antes” é o mapa satélite de referência, cuja data pode ser diferente. O “depois” é a ortofoto deste processamento. Arraste para comparar no mesmo enquadramento.</p>
+      <button type="button" onClick={measureAreaOnOrthophoto} className="mt-4 w-full rounded-xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-white sm:w-auto">Medir área na ortofoto</button>
+      <p className="mt-2 text-xs leading-5 text-slate-600">Marque o contorno no mapa e toque em Concluir. A régua mostra área horizontal, hectares e perímetro; você pode desfazer, limpar e salvar no projeto.</p>
     </section>}
     <div className="mb-4 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]">
       {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
@@ -380,20 +433,20 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
             <strong className="text-xs text-slate-700">Camadas</strong>
             <button type="button" onClick={()=>setLayersOpen(false)} className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-600" aria-label="Fechar camadas">×</button>
           </div>
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
+          {!privateMode&&<><p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
           <div className="grid gap-1">
             {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>{setBasemap(key);setLayersOpen(false);}} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{(baseMaps[key]??esriImagery).label}</button>)}
-          </div>
+          </div></>}
           <p className="mb-2 mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Sobreposições</p>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Ortofoto</span><input type="checkbox" checked={!!visible.orthophoto} onChange={()=>toggleLayer("orthophoto")}/></label>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Plano de voo</span><input type="checkbox" checked={!!visible.project} onChange={()=>setVisible(v=>({...v,project:!v.project}))}/></label>
-          <label className="flex items-center justify-between gap-3 py-1.5"><span>Curvas</span><input type="checkbox" checked={!!visible.contours} onChange={()=>setVisible(v=>({...v,contours:!v.contours}))}/></label>
+          {!privateMode&&<label className="flex items-center justify-between gap-3 py-1.5"><span>Curvas</span><input type="checkbox" checked={!!visible.contours} onChange={()=>setVisible(v=>({...v,contours:!v.contours}))}/></label>}
         </div>}
       </div>
     </div>
 
-    <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive} onDrawArea={()=>{setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
-    <MapMeasurement floating terrainAvailable={!!dtm} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startPathRevision={startPathRevision}/>
+      <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive||clipEditing} onDrawArea={()=>{setAreaImageSource(null);setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
+      <MapMeasurement floating reportSourcesEnabled terrainAvailable={!!dtm} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} disabled={clipEditing} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startAreaImageSource={areaImageSource} startPathRevision={startPathRevision}/>
 
     {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>

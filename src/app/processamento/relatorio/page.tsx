@@ -7,6 +7,9 @@ import PrintProjectButton from "./print-button";
 import ReportPerspectives from "./report-perspectives";
 import {listMissionPlanCandidates,findMissionBoundaryForBounds} from "@/lib/supabase/mission-plans";
 import ProcessingQuality from "@/components/processing-quality";
+import {listMeasurements} from "@/components/measurement/actions";
+import ReportMeasurementComparison from "./report-measurement-comparison";
+import {orthophotoClipUrl,validateClipSpec,type ClipSpec} from "@/lib/orthophoto-clip";
 
 function n(v:unknown){
   return typeof v==="number"&&Number.isFinite(v)?v:null;
@@ -19,19 +22,26 @@ function bytes(value:number|null){
   return value+" B";
 }
 
-export default async function ProcessingReportPage({searchParams}:{searchParams:Promise<{levantamento?:string}>}){
+export default async function ProcessingReportPage({searchParams}:{searchParams:Promise<{levantamento?:string;antes?:string;depois?:string;privado?:string;clip?:string}>}){
   const [user,token,query]=await Promise.all([getCurrentUser(),getCurrentAccessToken(),searchParams]);
   if(!user||!token)redirect("/entrar?retorno=%2Fprocessamento%2Frelatorio");
   const surveyId=query.levantamento||"";
   const survey=await requireSurvey(surveyId,token).catch(()=>null);
   if(!survey)redirect(surveyId?`/painel?levantamento=${encodeURIComponent(surveyId)}`:"/painel");
-  const [images,jobs,results]=await Promise.all([
+  const [images,jobs,results,savedMeasurements]=await Promise.all([
     listImages(survey.id,user.id,token),
     listProcessingJobs(survey.id,token),
     listProcessingResults(survey.id,token),
+    listMeasurements(survey.id),
   ]);
   const completed=jobs.find(j=>j.status==="completed");
   const currentResults=completed?results.filter(r=>r.job_id===completed.id):results;
+  const privateMode=query.privado==="1";
+  let privateClip:ClipSpec|null=null,privateError="";
+  if(privateMode){try{privateClip=validateClipSpec(JSON.parse(query.clip||"null"));}catch(e){privateError=e instanceof Error?e.message:"Recorte privado inválido.";}}
+  const privateOrtho=currentResults.find(item=>item.kind==="orthophoto");
+  const privateImage=privateMode&&privateClip&&privateOrtho?orthophotoClipUrl(privateOrtho.id,survey.id,privateClip):null;
+  const reportResults=privateMode?currentResults.map(item=>({...item,preview_url:null,original_preview_url:null,download_url:null})):currentResults;
   const reference=currentResults.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||currentResults[0];
   const meta=reference?.metadata||{};
   const min=n(meta.altitude_min_m),max=n(meta.altitude_max_m),range=n(meta.elevation_range_m);
@@ -69,7 +79,7 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
   const formats:Record<string,string>={"image/jpeg":"JPEG","image/png":"PNG","image/webp":"WebP","image/tiff":"GeoTIFF","application/geo+json":"GeoJSON","application/octet-stream":"LAZ"};
 
   return <main className="mx-auto max-w-5xl bg-white p-6 text-slate-900 sm:p-10 print:max-w-none print:p-0">
-    <div className="print-hide mb-6 flex justify-end"><PrintProjectButton/></div>
+    <div className="print-hide mb-6 flex justify-end">{(!privateMode||privateImage)&&<PrintProjectButton requireImages={privateMode}/>}</div>
 
     <header className="border-b border-emerald-200 pb-6">
       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">ORION MAPS</p>
@@ -97,9 +107,16 @@ export default async function ProcessingReportPage({searchParams}:{searchParams:
       <div className="rounded-xl border border-emerald-200 p-4"><span className="text-xs text-slate-600">Perímetro</span><strong className="mt-1 block text-2xl">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
     </section>}
 
-    <ProcessingQuality job={completed||null} results={currentResults} compact/>
+    <ProcessingQuality job={completed||null} results={reportResults} compact/>
 
-    <ReportPerspectives results={currentResults} planBoundary={planBoundary}/>
+    {privateMode?<section className="mt-8 break-before-page">
+      <h2 className="text-xl font-semibold">Ortofoto recortada para entrega privada</h2>
+      {privateImage?<><p className="mt-2 text-xs text-slate-600">Contorno editado no mapa, margem externa de {privateClip!.marginM.toLocaleString("pt-BR")} m. A imagem abaixo é gerada novamente no servidor com pixels externos removidos.</p>
+        {/* eslint-disable-next-line @next/next/no-img-element -- authenticated same-origin generated PNG */}
+        <img src={privateImage} alt="Ortofoto recortada ao terreno e margem externa" className="mt-4 w-full border border-slate-200"/>
+        <p className="mt-3 text-xs text-amber-800">Somente a ortofoto recortada está incluída nesta entrega. GeoTIFF, LAZ, outros mapas, fotos originais e arquivos de processamento exigem recorte próprio antes de compartilhar.</p></>:<p role="alert" className="mt-3 rounded-xl bg-amber-50 p-4 text-amber-900">{privateError||"Ortofoto não disponível para recorte privado."} PDF bloqueado.</p>}
+    </section>:<><ReportMeasurementComparison surveyId={survey.id} flightDate={survey.flight_date} results={currentResults} measurements={savedMeasurements.rows} beforeId={query.antes} afterId={query.depois} error={savedMeasurements.error}/>
+      <ReportPerspectives results={currentResults} planBoundary={planBoundary}/></>}
 
     <section className="mt-8 break-before-page">
       <h2 className="text-xl font-semibold">Produtos gerados</h2>

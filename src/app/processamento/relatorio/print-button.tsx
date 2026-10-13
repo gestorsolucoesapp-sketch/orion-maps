@@ -2,7 +2,7 @@
 
 import {useState} from "react";
 
-export default function PrintProjectButton(){
+export default function PrintProjectButton({requireImages=false}:{requireImages?:boolean}){
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
 
@@ -16,11 +16,12 @@ export default function PrintProjectButton(){
         const done=()=>resolve();img.addEventListener("load",done,{once:true});img.addEventListener("error",done,{once:true});
         window.setTimeout(done,4000);
       })));
+      if(requireImages&&images.some(img=>!img.complete||img.naturalWidth===0))throw new Error("A ortofoto recortada não carregou; o PDF não foi gerado.");
       await new Promise(resolve=>window.setTimeout(resolve,350));
       window.print();
       setMessage("No iPhone: na prévia, toque em Compartilhar e escolha Salvar em Arquivos ou outro app.");
-    }catch{
-      setMessage("Não foi possível abrir a folha de impressão. Use o menu Compartilhar do navegador e escolha Imprimir.");
+    }catch(error){
+      setMessage(error instanceof Error?error.message:"Não foi possível preparar o PDF.");
     }finally{
       window.setTimeout(()=>setBusy(false),700);
     }

@@ -1,0 +1,10 @@
+.orion-measure-segment{min-height:28px;padding:3px 7px;border:1px solid #d1a000;border-radius:8px;background:#fff8d7;color:#172721;font:600 11px Arial,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 1px 5px #0005}
+.orion-measure-segment:focus-visible{outline:3px solid #fff;outline-offset:3px}
+.measure-segments{margin:14px 0;padding:12px;border:1px solid #3a5758;border-radius:12px;background:#12292e;color:#f4faf7}
+.measure-segments>strong{display:block;font-size:14px}
+.measure-segments>p,.measure-segment-form>p{margin:7px 0;color:#c9d7d1;font-size:12px;line-height:1.5}
+.measure-segment-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.measure-segment-list button{padding:7px 10px;border:1px solid #54716d;border-radius:8px;background:#1c3839;color:#fff}
+.measure-segment-form{margin-top:12px;padding-top:12px;border-top:1px solid #3a5758}
+.measure-segment-form label{display:block;font-size:12px}
+.measure-segment-form input{display:block;width:100%;max-width:220px;min-height:42px;margin-top:5px;padding:8px;border:1px solid #729991;border-radius:8px;background:#fff;color:#162621;font-size:16px}

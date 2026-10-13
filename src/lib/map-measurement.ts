@@ -1,6 +1,6 @@
 import geo from "geographiclib-geodesic";
 export type MeasurePoint=[number,number];
-export type MeasureDrawing={kind:"path"|"polygon";points:MeasurePoint[]};
+export type MeasureDrawing={kind:"path"|"polygon";points:MeasurePoint[];manual_adjusted?:true};
 export type Measurement=MeasureDrawing&{schema_version:1};
 export type MeasureMetrics={distance_m:number;perimeter_m:number|null;area_m2:number|null;issue:string;complete:boolean};
 export const MEASUREMENT_METHOD="GeographicLib 2.2.0 / WGS84 ellipsoid / horizontal";
@@ -16,7 +16,33 @@ export function validateMeasureDrawing(v:unknown):MeasureDrawing{
  const points=(d.points as MeasurePoint[]).map(p=>[...p] as MeasurePoint);
  if(d.kind==="polygon"&&points.length>1&&points[0][0]===points.at(-1)![0]&&points[0][1]===points.at(-1)![1])points.pop();
  for(const p of points){if(Math.abs(p[0]-points[0][0])>180)throw Error("Divida contornos que cruzam o antimeridiano.");if(measureDistance(points[0],p)>100000)throw Error("Cada ponto deve ficar a até 100 km do primeiro. Divida a medição.");}
- return {kind:d.kind,points};
+ if(d.manual_adjusted!==undefined&&d.manual_adjusted!==true&&d.manual_adjusted!==false)throw Error("Indicador de ajuste manual inválido.");
+ return {kind:d.kind,points,...(d.manual_adjusted===true?{manual_adjusted:true as const}:{})};
+}
+
+export function parseDesiredMetres(value:string):number{
+ const normalized=value.trim().replace(",",".");
+ if(!/^\d+(?:\.\d+)?$/.test(normalized))throw Error("Digite um comprimento positivo em metros; use vírgula ou ponto decimal.");
+ const metres=Number(normalized);
+ if(!Number.isFinite(metres)||metres<0.01||metres>100000)throw Error("Use um comprimento entre 0,01 m e 100.000 m.");
+ return metres;
+}
+
+/** Keeps the segment start and geodesic bearing; moves only its end vertex. */
+export function adjustMeasurementSegment(input:MeasureDrawing,startIndex:number,desired:string):MeasureDrawing{
+ const drawing=validateMeasureDrawing(input),points=drawing.points;
+ const limit=drawing.kind==="polygon"?points.length:points.length-1;
+ if(!Number.isInteger(startIndex)||startIndex<0||startIndex>=limit)throw Error("Selecione um trecho existente.");
+ const endIndex=(startIndex+1)%points.length,start=points[startIndex],end=points[endIndex];
+ const current=earth.Inverse(start[1],start[0],end[1],end[0]);
+ if(!Number.isFinite(current.s12!)||current.s12!<0.01||!Number.isFinite(current.azi1!))throw Error("O trecho precisa ter direção definida; ajuste os vértices no mapa.");
+ const distance=parseDesiredMetres(desired);
+ const moved=earth.Direct(start[1],start[0],current.azi1!,distance);
+ const next=[...points];next[endIndex]=[moved.lon2!,moved.lat2!];
+ const result=validateMeasureDrawing({...drawing,points:next,manual_adjusted:true});
+ const metrics=measureDrawing(result);
+ if(!metrics.complete)throw Error(metrics.issue||"O novo comprimento invalida o contorno.");
+ return result;
 }
 const cross=(a:MeasurePoint,b:MeasurePoint,c:MeasurePoint)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
 const on=(a:MeasurePoint,b:MeasurePoint,p:MeasurePoint)=>Math.abs(cross(a,b,p))<1e-6&&p[0]>=Math.min(a[0],b[0])-1e-8&&p[0]<=Math.max(a[0],b[0])+1e-8&&p[1]>=Math.min(a[1],b[1])-1e-8&&p[1]<=Math.max(a[1],b[1])+1e-8;
@@ -42,4 +68,4 @@ export type DistanceUnit="m"|"km";
 export const areaUnits={m2:{label:"m²",factor:1},ha:{label:"ha",factor:10000},km2:{label:"km²",factor:1000000}};
 export const distanceUnits={m:{label:"m",factor:1},km:{label:"km",factor:1000}};
 export function measureNumber(v:number|null,factor=1){return v===null?"—":(v/factor).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:factor>1?4:2});}
-export function measurementGeoJSON(name:string,input:Measurement):GeoJSON.Feature{const d=requireMeasurement(input),m=measureDrawing(d);return {type:"Feature",properties:{name,kind:d.kind,method:MEASUREMENT_METHOD,horizontal:true,distance_m:d.kind==="path"?m.distance_m:null,perimeter_m:m.perimeter_m,area_m2:m.area_m2,terrain_adjusted:false},geometry:d.kind==="path"?{type:"LineString",coordinates:d.points}:{type:"Polygon",coordinates:[[...d.points,d.points[0]]]}};}
+export function measurementGeoJSON(name:string,input:Measurement):GeoJSON.Feature{const d=requireMeasurement(input),m=measureDrawing(d);return {type:"Feature",properties:{name,kind:d.kind,method:MEASUREMENT_METHOD,horizontal:true,manual_adjusted:d.manual_adjusted===true,distance_m:d.kind==="path"?m.distance_m:null,perimeter_m:m.perimeter_m,area_m2:m.area_m2,terrain_adjusted:false},geometry:d.kind==="path"?{type:"LineString",coordinates:d.points}:{type:"Polygon",coordinates:[[...d.points,d.points[0]]]}};}

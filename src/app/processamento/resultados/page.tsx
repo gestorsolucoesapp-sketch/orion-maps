@@ -22,6 +22,8 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   const jobs=await listProcessingJobs(active.id,token);
   const latestCompleted=jobs.find(j=>j.status==="completed");
   if(latestCompleted)results=results.filter(r=>r.job_id===latestCompleted.id);
+  // Signed originals must not be serialized into the result page. Refresh only on an explicit non-private action.
+  const clientResults=results.map(r=>({...r,preview_url:r.preview_url?"available":null,original_preview_url:null,download_url:null}));
 
   const bounds=(()=>{
     for(const item of results){
@@ -33,7 +35,7 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
   let planBoundary:null|{name:string;points:[number,number][]}=null;
   try{
     const missions=await listMissionPlanCandidates(token);
-    const match=findMissionBoundaryForBounds(missions,bounds);
+    const match=findMissionBoundaryForBounds(missions,bounds,active.id);
     if(match)planBoundary={name:match.name,points:match.points};
   }catch{}
 
@@ -72,10 +74,10 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
             <p className="mt-2 text-sm text-slate-500">{active.location||"Local a definir"} · {active.drone||"Drone a definir"} · {active.flight_date?.split("-").reverse().join("/")||"Data a definir"}</p>
             <EditSurveyHeader survey={active}/><Link href={`/agro?levantamento=${active.id}${latestCompleted?`&processamento=${latestCompleted.id}`:""}#mapa-plantio`} target="_blank" rel="noopener noreferrer" prefetch={false} title="Abrir planejamento em outra aba; a ortofoto original permanece intacta" className="mt-3 inline-block rounded-xl border border-emerald-800 bg-white px-4 py-3 text-sm font-semibold text-emerald-900">Planejar plantio / pulverização neste mapa ↗</Link>
           </div>
-          <Link href={`/processamento/relatorio?levantamento=${active.id}`} target="_blank" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Exportar PDF ↗</Link>
+          <Link href="#entrega-resultados" className="rounded-2xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Preparar entrega e PDF ↓</Link>
         </div>
 
-        {results.length?<>{latestCompleted&&<div className="rounded-[24px] border border-[#9bbba7] bg-[#e7efe7] p-4 shadow-[0_16px_36px_rgba(0,10,8,.2)] sm:p-6"><ProcessingQuality job={latestCompleted} results={results}/></div>}<div className="mt-5"><ProcessingResults results={results} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
+        {results.length?<>{latestCompleted&&<div className="rounded-[24px] border border-[#9bbba7] bg-[#e7efe7] p-4 shadow-[0_16px_36px_rgba(0,10,8,.2)] sm:p-6"><ProcessingQuality job={latestCompleted} results={clientResults}/></div>}<div className="mt-5"><ProcessingResults results={clientResults} surveyId={active.id} planBoundary={planBoundary}/></div></>:<div className="rounded-[26px] border border-white bg-white p-8 text-center shadow-sm">
           <h2 className="text-xl font-semibold">Nenhum resultado concluído ainda</h2>
           <p className="mt-2 text-sm text-slate-500">Quando o processamento terminar, ortofoto, elevação, curvas e downloads aparecerão aqui.</p>
           <Link href={productsHref} className="mt-5 inline-block rounded-xl bg-emerald-900 px-5 py-3 text-sm font-semibold text-white">Ir para produtos</Link>

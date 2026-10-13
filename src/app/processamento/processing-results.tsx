@@ -2,8 +2,9 @@
 /* eslint-disable @next/next/no-img-element -- dynamic signed/blob/data map imagery must bypass the Next image optimizer. */
 
 import dynamic from "next/dynamic";
-import {useState} from "react";
+import {useMemo,useState} from "react";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
+import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec,type ClipPoint} from "@/lib/orthophoto-clip";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 
@@ -35,15 +36,36 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   const [downloading,setDownloading]=useState<string|null>(null);
   const [selectionTick,setSelectionTick]=useState(0);
   const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
+  const [clipPoints,setClipPoints]=useState<ClipPoint[]>(()=>planBoundary?.points.map(p=>[...p] as ClipPoint)||[]);
+  const [marginText,setMarginText]=useState("1");
+  const marginM=/^\d+(?:[,.]\d+)?$/.test(marginText.trim())?Number(marginText.trim().replace(",",".")):Number.NaN;
+  const [privateMode,setPrivateMode]=useState(!!planBoundary?.points?.length);
+  const [clipEditing,setClipEditing]=useState(false),[clipDrawing,setClipDrawing]=useState(false);
+  const clipCheck=useMemo(()=>{try{return {spec:validateClipSpec({points:clipPoints,marginM}),error:""};}catch(e){return {spec:null,error:e instanceof Error?e.message:"Contorno inválido."};}},[clipPoints,marginM]);
+  const clipSpec=clipCheck.spec;
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
   const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
   const reference=sorted.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||sorted[0];
   const min=num(reference?.metadata??null,"altitude_min_m");
   const max=num(reference?.metadata??null,"altitude_max_m");
   const range=num(reference?.metadata??null,"elevation_range_m");
+  const orthophoto=sorted.find(item=>item.kind==="orthophoto");
+  const coverageLimited=(()=>{
+    if(!clipSpec||!orthophoto)return false;
+    const bounds=orthophoto.metadata?.bounds_wgs84 as {west:number;south:number;east:number;north:number}|undefined;
+    if(!bounds)return false;
+    try{return clipPixelGeometry(clipSpec,bounds,1000,1000).coverageLimited;}catch{return false;}
+  })();
+  const privatePreview=privateMode&&clipSpec&&orthophoto?orthophotoClipUrl(orthophoto.id,reportSurveyId,clipSpec):null;
+  const mapResults=privateMode?sorted.filter(item=>item.kind==="orthophoto"):sorted;
+  const reportHref=`/processamento/relatorio?levantamento=${encodeURIComponent(reportSurveyId)}${privateMode?`&privado=1&clip=${encodeURIComponent(JSON.stringify(clipSpec||{points:[],marginM}))}`:""}`;
 
   async function forceDownload(item:ProcessingResult){
     if(downloading)return;
+    if(privateMode){
+      if(item.kind!=="orthophoto"||!clipSpec)return;
+      const a=document.createElement("a");a.href=orthophotoClipUrl(item.id,reportSurveyId,clipSpec,"download");a.download="ortofoto-recortada.png";a.click();return;
+    }
     setDownloading(item.id);
     try{
       const signed=await freshProcessingUrl(item,"download");
@@ -66,6 +88,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   }
 
   function openResult(item:ProcessingResult){
+    if(privateMode&&item.kind!=="orthophoto")return;
     const mapKinds=["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"];
     if(mapKinds.includes(item.kind)){
       setSelectedKind(item.kind);setSelectionTick(v=>v+1);
@@ -83,7 +106,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   if(error)return <section className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">{error}</section>;
   if(!results.length)return null;
 
-  return <section className="mb-8">
+  return <section id="entrega-resultados" className="mb-8">
     <div className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-[0_10px_30px_rgba(22,63,45,.08)] sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -101,15 +124,32 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         <div className="col-span-2 rounded-2xl bg-[#101d37] p-4 text-white lg:col-span-1"><span className="text-xs text-slate-300">CRS técnico</span><strong className="mt-1 block text-xl">{reference?.source_crs||"—"}</strong></div>
       </div>
 
+      {orthophoto&&<section aria-label="Recorte de privacidade" className="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950">
+        <h3 className="font-semibold">Recorte de privacidade da ortofoto</h3>
+        <p className="mt-1 text-xs leading-5">O contorno é editável no mapa. A margem padrão de 1 m fica para fora do terreno. O original permanece preservado.</p>
+        <label className="mt-3 flex items-center gap-2 font-semibold"><input type="checkbox" checked={privateMode} onChange={e=>setPrivateMode(e.target.checked)}/> Entrega privada recortada</label>
+        <label className="mt-3 flex items-center gap-2">Margem externa (m)<input className="w-24 rounded-lg border border-emerald-300 bg-white px-2 py-1" aria-label="Margem externa em metros" type="text" inputMode="decimal" value={marginText} onChange={e=>setMarginText(e.target.value)}/></label>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={()=>{setClipEditing(v=>!v);setClipDrawing(false);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">{clipEditing?"Concluir edição":"Editar vértices no mapa"}</button>
+          <button type="button" onClick={()=>{setPrivateMode(false);setClipPoints([]);setClipEditing(true);setClipDrawing(true);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Desenhar novo contorno</button>
+          {clipDrawing&&<button type="button" onClick={()=>setClipDrawing(false)} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Concluir desenho</button>}
+          {clipEditing&&clipPoints.length>0&&<button type="button" onClick={()=>setClipPoints(v=>v.slice(0,-1))} className="rounded-lg border border-emerald-700 bg-white px-3 py-2">Desfazer último vértice</button>}
+          {planBoundary&&<button type="button" onClick={()=>{setClipPoints(planBoundary.points.map(p=>[...p] as ClipPoint));setClipDrawing(false);}} className="rounded-lg border border-emerald-700 bg-white px-3 py-2">Restaurar contorno do plano</button>}
+        </div>
+        {clipEditing&&<p className="mt-2 text-xs">Arraste os marcadores para corrigir os vértices. Em “Desenhar novo contorno”, clique no mapa para adicionar pontos. Depois de concluir, ative novamente a entrega privada.</p>}
+        {privateMode&&clipCheck.error&&<p role="alert" className="mt-2 font-semibold text-amber-800">{clipCheck.error} Prévia e exportação privadas bloqueadas.</p>}
+        {privateMode&&clipSpec&&coverageLimited&&<p role="status" className="mt-2 font-semibold text-amber-800">A margem alcança o limite da cobertura disponível. O recorte usa somente pixels existentes; confirme se ainda oculta tudo o que precisa antes de compartilhar.</p>}
+        {privateMode&&clipSpec&&<p className="mt-2 text-xs">Modo privado: só a ortofoto recortada e o PDF recortado podem ser entregues. GeoTIFF, LAZ e demais produtos originais ficam bloqueados neste modo.</p>}
+      </section>}
       <div className="mt-6">
         <p className="mb-3 text-sm font-semibold text-slate-800">Produtos disponíveis</p>
         <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none]">
           {sorted.map(item=>{
-            const visual=!!item.preview_url&&(["image/jpeg","image/png","image/webp"].includes(item.mime_type||""));
+            const visual=item.kind==="orthophoto"&&!!item.preview_url&&(["image/jpeg","image/png","image/webp"].includes(item.mime_type||""));
             return <button key={item.id} type="button" onClick={()=>openResult(item)} disabled={downloading!==null} className="group min-w-[168px] max-w-[190px] flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm disabled:opacity-60">
               <div className="relative h-24 overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-800 to-slate-900">
-                {visual?<img src={item.kind==="orthophoto"?orthophotoPreviewUrl(item)!:item.preview_url!} loading={item.kind==="orthophoto"?"eager":"lazy"} decoding="async" fetchPriority={item.kind==="orthophoto"?"high":"low"} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
-                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"].includes(item.kind)?"Mostrar no mapa":item.kind==="point_cloud"?"Abrir 3D":"Baixar"}</span>
+                {visual&&(!privateMode||item.kind==="orthophoto"&&privatePreview)?<img src={item.kind==="orthophoto"?(privateMode?privatePreview!:orthophotoPreviewUrl(item)!):item.preview_url!} loading={item.kind==="orthophoto"?"eager":"lazy"} decoding="async" fetchPriority={item.kind==="orthophoto"?"high":"low"} alt="" className="h-full w-full object-cover transition group-hover:scale-[1.02]"/>:<div className="grid h-full place-items-center text-lg font-bold tracking-widest text-white/90">{short[item.kind]||"ARQ"}</div>}
+                <span className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-1 text-[9px] font-semibold text-white backdrop-blur">{privateMode&&item.kind!=="orthophoto"?"Bloqueado no modo privado":["orthophoto","contours","hillshade","hypsometry","slope","dtm","dsm"].includes(item.kind)?"Mostrar no mapa":item.kind==="point_cloud"?"Abrir 3D":"Baixar"}</span>
               </div>
               <div className="p-3">
                 <strong className="block truncate text-sm text-slate-900">{item.display_name||labels[item.kind]||item.kind}</strong>
@@ -120,9 +160,9 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap focusRevision={selectionTick} results={results} planBoundary={planBoundary} focusKind={selectedKind==="point_cloud"?null:selectedKind}/></div>
+      <div className="mt-6"><ResultsMap key={privateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={privateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={privateMode} clipUrl={privateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={setClipPoints}/></div>
 
-      {selectedKind==="point_cloud"&&(()=>{
+      {!privateMode&&selectedKind==="point_cloud"&&(()=>{
         const cloud=sorted.find(item=>item.kind==="point_cloud");
         if(!cloud)return null;
         return <section id="nuvem-pontos" className="mt-5 scroll-mt-24 rounded-2xl border border-slate-200 bg-[#f5f8f4] p-5">
@@ -141,7 +181,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
       })()}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <a href={"/processamento/relatorio?levantamento="+encodeURIComponent(reportSurveyId)} target="_blank" rel="noreferrer" className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">Exportar PDF ↗</a>
+        {privateMode&&!clipSpec?<span className="rounded-2xl bg-slate-200 px-5 py-4 text-center text-sm font-semibold text-slate-600">Corrija o contorno para exportar PDF</span>:<a href={reportHref} target="_blank" rel="noreferrer" className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">{privateMode?"Exportar PDF recortado":"Exportar PDF"} ↗</a>}
         <button type="button" onClick={()=>document.getElementById("arquivos-tecnicos")?.scrollIntoView({behavior:"smooth",block:"start"})} className="rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-950">Baixar arquivos ↓</button>
         <button type="button" onClick={()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"})} className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm font-semibold text-slate-700">Voltar ao mapa ↑</button>
       </div>
@@ -156,11 +196,16 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
               <td className="p-3 text-slate-500">{item.mime_type||"—"}</td>
               <td className="p-3 text-slate-500">{fmtBytes(item.size_bytes)}</td>
               <td className="p-3 text-slate-500">{item.source_crs||"—"}</td>
-              <td className="p-3">{item.storage_path?<button type="button" aria-busy={downloading===item.id} disabled={downloading!==null} onClick={()=>void forceDownload(item)} className="rounded-lg px-2 py-1 font-semibold text-emerald-800 disabled:opacity-60">{downloading===item.id?"Preparando":"Baixar ↓"}</button>:<span className="text-slate-400">Indisponível</span>}</td>
+              <td className="p-3">{privateMode&&item.kind!=="orthophoto"?<span className="text-amber-800">Original bloqueado no modo privado</span>:privateMode&&!clipSpec?<span className="text-amber-800">Corrija o contorno</span>:item.storage_path?<button type="button" aria-busy={downloading===item.id} disabled={downloading!==null} onClick={()=>void forceDownload(item)} className="rounded-lg px-2 py-1 font-semibold text-emerald-800 disabled:opacity-60">{privateMode?"Baixar PNG recortado":downloading===item.id?"Preparando":"Baixar ↓"}</button>:<span className="text-slate-400">Indisponível</span>}</td>
             </tr>)}</tbody>
           </table>
         </div>
       </details>
+
+      {privateMode&&clipSpec&&orthophoto&&<div className="mt-3 flex flex-wrap gap-3 text-xs">
+        <a className="font-semibold text-emerald-900 underline" href={orthophotoClipUrl(orthophoto.id,reportSurveyId,clipSpec,"worldfile")}>Baixar georreferenciamento .pgw</a>
+        <a className="font-semibold text-emerald-900 underline" href={orthophotoClipUrl(orthophoto.id,reportSurveyId,clipSpec,"projection")}>Baixar projeção WGS84 .prj</a>
+      </div>}
 
       <p className="mt-4 text-[11px] leading-5 text-slate-500">DTM e curvas em áreas vegetadas são estimativas fotogramétricas. Para divisa, cadastro ou uso legal, valide a geometria com levantamento apropriado.</p>
     </div>
