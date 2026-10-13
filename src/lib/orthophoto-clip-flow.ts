@@ -28,6 +28,14 @@ export function parseClipMargin(text:string):number{
   return /^\d+(?:[,.]\d+)?$/.test(value)?Number(value.replace(",",".")):Number.NaN;
 }
 
+export function clipDrawingGeoJson(points:ClipPoint[]):GeoJSON.FeatureCollection{
+  if(points.length<2)return {type:"FeatureCollection",features:[]};
+  const geometry:GeoJSON.Geometry=points.length>=3
+    ?{type:"Polygon",coordinates:[[...points,points[0]]]}
+    :{type:"LineString",coordinates:points};
+  return {type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry}]};
+}
+
 export function clipFlowReducer(state:ClipFlowState,action:ClipFlowAction):ClipFlowState{
   switch(action.type){
     case "draw":return {...state,points:[],marginText:"0",editing:true,drawing:true};

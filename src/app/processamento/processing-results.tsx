@@ -2,9 +2,9 @@
 /* eslint-disable @next/next/no-img-element -- dynamic signed/blob/data map imagery must bypass the Next image optimizer. */
 
 import dynamic from "next/dynamic";
-import {useMemo,useReducer,useState} from "react";
+import {useCallback,useMemo,useReducer,useState} from "react";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
-import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec} from "@/lib/orthophoto-clip";
+import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec,type ClipPoint} from "@/lib/orthophoto-clip";
 import {clipFlowReducer,initialClipFlow,parseClipMargin} from "@/lib/orthophoto-clip-flow";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
@@ -45,7 +45,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
   const clipCheck=useMemo(()=>{try{return {spec:validateClipSpec({points:clipPoints,marginM}),error:""};}catch(e){return {spec:null,error:e instanceof Error?e.message:"Contorno inválido."};}},[clipPoints,marginM]);
   const clipSpec=appliedClip;
   const reportSurveyId=surveyId||results[0]?.survey_id||"";
-  const sorted=[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind));
+  const sorted=useMemo(()=>[...results].sort((a,b)=>order.indexOf(a.kind)-order.indexOf(b.kind)),[results]);
   const reference=sorted.find(item=>item.kind==="other"&&item.mime_type==="image/tiff")||sorted[0];
   const min=num(reference?.metadata??null,"altitude_min_m");
   const max=num(reference?.metadata??null,"altitude_max_m");
@@ -58,7 +58,9 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
     try{return clipPixelGeometry(clipSpec,bounds,1000,1000).coverageLimited;}catch{return false;}
   })();
   const privatePreview=privateMode&&clipSpec&&orthophoto?orthophotoClipUrl(orthophoto.id,reportSurveyId,clipSpec):null;
-  const mapResults=mapPrivateMode?sorted.filter(item=>item.kind==="orthophoto"):sorted;
+  // Keep the array identity stable while drawing: ResultsMap recreates MapLibre when results changes.
+  const mapResults=useMemo(()=>mapPrivateMode?sorted.filter(item=>item.kind==="orthophoto"):sorted,[mapPrivateMode,sorted]);
+  const onClipPointsChange=useCallback((points:ClipPoint[])=>dispatchClip({type:"points",points}),[]);
   const reportHref=`/processamento/relatorio?levantamento=${encodeURIComponent(reportSurveyId)}${privateMode?`&privado=1&clip=${encodeURIComponent(JSON.stringify(clipSpec||{points:[],marginM}))}`:""}`;
 
   async function forceDownload(item:ProcessingResult){
@@ -140,7 +142,8 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
           {privateMode&&<button type="button" onClick={()=>dispatchClip({type:"restore"})} className="rounded-lg border border-emerald-700 bg-white px-3 py-2 font-semibold">Restaurar ortofoto original</button>}
         </div>
         {clipEditing&&<p className="mt-2 text-xs">Clique no mapa para adicionar pontos; arraste os marcadores para ajustar a área. Inclua as ruas que devem ficar no trabalho. A margem começa em 0 m e só vale para este recorte escolhido.</p>}
-        {clipEditing&&clipCheck.error&&<p role="alert" className="mt-2 font-semibold text-amber-800">{clipCheck.error}</p>}
+        {clipEditing&&clipPoints.length<3&&<p className="mt-2 text-xs font-semibold">Pontos marcados: {clipPoints.length}/3 mínimos. Continue clicando na ortofoto.</p>}
+        {clipEditing&&clipPoints.length>=3&&clipCheck.error&&<p role="alert" className="mt-2 font-semibold text-amber-800">{clipCheck.error}</p>}
         {privateMode&&clipSpec&&coverageLimited&&<p role="status" className="mt-2 font-semibold text-amber-800">A margem alcança o limite da cobertura disponível. O recorte usa somente pixels existentes; confirme se ainda oculta tudo o que precisa antes de compartilhar.</p>}
         {privateMode&&clipSpec&&<p className="mt-2 text-xs">Modo privado: só a ortofoto recortada e o PDF recortado podem ser entregues. GeoTIFF, LAZ e demais produtos originais ficam bloqueados neste modo.</p>}
       </section>}
@@ -163,7 +166,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap key={mapPrivateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={mapPrivateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={mapPrivateMode} clipUrl={mapPrivateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={points=>dispatchClip({type:"points",points})}/></div>
+      <div className="mt-6"><ResultsMap key={mapPrivateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={mapPrivateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={mapPrivateMode} clipUrl={mapPrivateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={onClipPointsChange}/></div>
 
       {!privateMode&&selectedKind==="point_cloud"&&(()=>{
         const cloud=sorted.find(item=>item.kind==="point_cloud");

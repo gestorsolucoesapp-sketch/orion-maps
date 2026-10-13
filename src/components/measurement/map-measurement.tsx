@@ -34,8 +34,8 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
  const detailsRef=useRef<HTMLDivElement>(null);
  const drawing=state.drawing,points=live||drawing.points;
  const editing=!!map&&!disabled&&open&&(!floating||(!finished&&tool!=="slope"));
- const showDrawing=floating?(tool!=="slope"&&(open||points.length>0)):open;
- const showPanel=embedded?detailsOpen:floating?(detailsOpen||(points.length>0&&(finished||!open))):open;
+ const showDrawing=!disabled&&(floating?(tool!=="slope"&&(open||points.length>0)):open);
+ const showPanel=!disabled&&(embedded?detailsOpen:floating?(detailsOpen||(points.length>0&&(finished||!open))):open);
  const metrics=useMemo(()=>{try{return measureDrawing({kind:drawing.kind,points});}catch(e){return {area_m2:null,perimeter_m:null,distance_m:0,complete:false,issue:e instanceof Error?e.message:"Revise os pontos."};}},[drawing.kind,points]);
  function change(d:MeasureDrawing){try{const next=validateMeasureDrawing(d);requestId.current=null;dispatch({type:"change",drawing:next});setFinished(false);setOptionsOpen(false);setMessage("");setDrawingError("");setPicked(null);setSegmentEdit(null);}catch(e){const error=e instanceof Error?e.message:"Ponto inválido.";setDrawingError(error);setMessage(error);}}
  useEffect(()=>{latest.current={drawing,busy:busy||!editing,change};});
@@ -51,7 +51,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
    setOpen(true);setOptionsOpen(false);setTool("profile");setFinished(false);setImageSourceForSave(null);const d=latest.current.drawing;if(d.kind!=="path")latest.current.change({kind:"path",points:[]});
  },[startPathRevision]);
  useEffect(()=>{onActiveChange?.(editing);return()=>onActiveChange?.(false);},[editing,onActiveChange]);
- useEffect(()=>{if(floating)onToolChange?.(open?tool:null);return()=>{if(floating)onToolChange?.(null);};},[floating,open,tool,onToolChange]);
+ useEffect(()=>{if(floating)onToolChange?.(open&&!disabled?tool:null);return()=>{if(floating)onToolChange?.(null);};},[floating,open,tool,disabled,onToolChange]);
  useEffect(()=>{
   if(!map||!floating||!open||!optionsOpen)return;
   const collapseOptions=(event:MapMouseEvent)=>{

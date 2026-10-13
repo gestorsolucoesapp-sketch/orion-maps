@@ -12,6 +12,7 @@ import type {GeoJSONSource} from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
 import type {ClipPoint} from "@/lib/orthophoto-clip";
+import {clipDrawingGeoJson} from "@/lib/orthophoto-clip-flow";
 import {renderGeoTiffToDataUrl, type RasterCorners} from "./geotiff-preview";
 import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
@@ -255,7 +256,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     if(source)source.updateImage({url:transparentOrtho,coordinates});
     else{
       m.addSource("result-orthophoto",{type:"image",url:transparentOrtho,coordinates});
-      const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow"].find(id=>!!m.getLayer(id));
+      const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow","privacy-cutline"].find(id=>!!m.getLayer(id));
       m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":Math.min(comparePercent/100,visibleRef.current.contours&&contoursState==="ready"?.58:1),"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -280,7 +281,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
         m.on("sourcedata",loaded);
         m.on("error",event=>{if("sourceId" in event&&event.sourceId==="result-contours"&&map.current===m){setContoursState("error");setContoursError("Não foi possível desenhar as curvas no mapa.");}});
         m.addSource("result-contours",{type:"geojson",data,tolerance:0.1});
-        m.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#ff7a00","line-width":1.35,"line-opacity":1},layout:{visibility:visibleRef.current.contours?"visible":"none"}});
+        m.addLayer({id:"result-contours",type:"line",source:"result-contours",paint:{"line-color":"#ff7a00","line-width":1.35,"line-opacity":1},layout:{visibility:visibleRef.current.contours?"visible":"none"}},m.getLayer("privacy-cutline")?"privacy-cutline":undefined);
       }).catch(e=>{if(map.current===m&&!controller.signal.aborted){setContoursState("error");setContoursError(e instanceof Error?e.message:"Falha ao abrir as curvas.");}});
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Report the unavailable external source selected by the user.
       else {setContoursState("error");setContoursError("Arquivo de curvas indisponível para visualização.");}
@@ -296,7 +297,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       void freshProcessingUrl(item,"preview").then(url=>{
         if(map.current!==m||m.getSource(id))return;
         m.addSource(id,{type:"image",url,coordinates});
-        const before=["result-contours","project-boundary-shadow"].find(layer=>!!m.getLayer(layer));
+        const before=["result-contours","project-boundary-shadow","privacy-cutline"].find(layer=>!!m.getLayer(layer));
         m.addLayer({id,type:"raster",source:id,paint:{"raster-opacity":1,"raster-fade-duration":0},layout:{visibility:visibleRef.current[kind]?"visible":"none"}},before);
       }).catch(e=>{if(map.current===m)setElevationError(e instanceof Error?e.message:"Não foi possível abrir a camada.");});
     }
@@ -312,7 +313,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       if(source)source.updateImage({url,coordinates});
       else {
         m.addSource(id,{type:"image",url,coordinates});
-        const before=["result-contours","project-boundary-shadow"].find(layer=>!!m.getLayer(layer));
+        const before=["result-contours","project-boundary-shadow","privacy-cutline"].find(layer=>!!m.getLayer(layer));
         m.addLayer({id,type:"raster",source:id,paint:{"raster-opacity":1,"raster-fade-duration":0,"raster-resampling":kind==="slope"?"nearest":"linear"},layout:{visibility:visibleRef.current[kind]?"visible":"none"}},before);
       }
     }
@@ -322,23 +323,23 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const m=map.current;if(!m||!ready||!coverage)return;
     if(!m.getSource("project-boundary")){
       m.addSource("project-boundary",{type:"geojson",data:coverage.feature});
-      m.addLayer({id:"project-boundary-shadow",type:"line",source:"project-boundary",paint:{"line-color":"#15252a","line-width":4.5,"line-opacity":0.82},layout:{visibility:visible.project?"visible":"none"}});
-      m.addLayer({id:"project-boundary-line",type:"line",source:"project-boundary",paint:{"line-color":"#ffffff","line-width":2.6,"line-dasharray":[2.2,1.7],"line-opacity":1},layout:{visibility:visible.project?"visible":"none"}});
+      const before=m.getLayer("privacy-cutline")?"privacy-cutline":undefined;
+      m.addLayer({id:"project-boundary-shadow",type:"line",source:"project-boundary",paint:{"line-color":"#15252a","line-width":4.5,"line-opacity":0.82},layout:{visibility:visible.project?"visible":"none"}},before);
+      m.addLayer({id:"project-boundary-line",type:"line",source:"project-boundary",paint:{"line-color":"#ffffff","line-width":2.6,"line-dasharray":[2.2,1.7],"line-opacity":1},layout:{visibility:visible.project?"visible":"none"}},before);
     }else (m.getSource("project-boundary") as GeoJSONSource).setData(coverage.feature);
   },[ready,coverage,visible.project]);
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
-    const coordinates=clipPoints.length>=3?[...clipPoints,clipPoints[0]]:clipPoints;
-    const geometry:GeoJSON.Geometry=clipPoints.length>=3?{type:"Polygon",coordinates:[coordinates]}:{type:"LineString",coordinates};
-    const feature:GeoJSON.Feature={type:"Feature",properties:{},geometry};
+    const data=clipDrawingGeoJson(clipPoints);
     const source=m.getSource("privacy-cutline") as GeoJSONSource|undefined;
-    if(source)source.setData(feature);
+    if(source)source.setData(data);
     else{
-      m.addSource("privacy-cutline",{type:"geojson",data:feature});
+      m.addSource("privacy-cutline",{type:"geojson",data});
       m.addLayer({id:"privacy-cutline",type:"line",source:"privacy-cutline",paint:{"line-color":"#facc15","line-width":3,"line-dasharray":[2,1]},layout:{visibility:clipEditing?"visible":"none"}});
     }
     m.setLayoutProperty("privacy-cutline","visibility",clipEditing?"visible":"none");
+    if(clipEditing)m.moveLayer("privacy-cutline");
   },[ready,clipPoints,clipEditing]);
 
   useEffect(()=>{
