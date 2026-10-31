@@ -46,6 +46,7 @@ def load_upload_functions():
         "logging": Mock(),
         "time": types.SimpleNamespace(sleep=Mock()),
         "PRODUCTS_BUCKET": "processing-results",
+        "prepare_cloud_upload": lambda kind, path: (path, None, {}),
         "update_job": Mock(),
     }
     exec(compile(ast.Module(body=functions, type_ignores=[]), str(AGENT), "exec"), namespace)

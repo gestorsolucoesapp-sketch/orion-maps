@@ -14,7 +14,7 @@ import time
 import threading
 
 from orion_progress import NodeODMProgress, choose_concurrency
-from orion_upload_opt import prepare_cloud_upload
+from orion_upload_opt import CLOUD_MAX_BYTES, prepare_cloud_upload
 from orion_runtime import heartbeat_loop, worker_lock, recover_task_id
 import zipfile
 from datetime import datetime, timezone
@@ -548,10 +548,10 @@ def make_derivatives(sb, job_id: str, odm: Path, products: Path, config: dict[st
             {"type": "filters.voxelcenternearestneighbor", "cell": cell},
             {"type": "writers.las", "filename": "/data/ground_web.laz", "compression": "laszip"},
         ], "cloud_web.json")
-        if cloud_web.stat().st_size < 45 * 1024 * 1024:
+        if cloud_web.stat().st_size <= CLOUD_MAX_BYTES:
             break
-    if cloud_web.stat().st_size >= 45 * 1024 * 1024:
-        raise RuntimeError("A nuvem de pontos web permaneceu acima de 48 MB.")
+    if cloud_web.stat().st_size > CLOUD_MAX_BYTES:
+        raise RuntimeError("A nuvem de pontos web permaneceu acima de 150 MiB.")
 
     product_crs["orthophoto"] = raster_crs("orthophoto.tif")
     product_crs["dtm"] = raster_crs("dtm.tif")

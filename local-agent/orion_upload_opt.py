@@ -10,7 +10,8 @@ import subprocess
 from pathlib import Path
 from PIL import Image
 
-CLOUD_MAX_BYTES = 45 * 1024 * 1024
+WINDOWLESS = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+CLOUD_MAX_BYTES = 150 * 1024 * 1024
 
 
 def prepare_cloud_upload(kind: str, original: Path) -> tuple[Path, str | None, dict]:
@@ -34,6 +35,47 @@ def prepare_cloud_upload(kind: str, original: Path) -> tuple[Path, str | None, d
         return dest, "image/webp", {
             "cloud_optimized": True,
             "cloud_compression": "WEBP_87_or_lower",
+            "original_size_bytes": size,
+            "original_preserved_locally": True,
+        }
+
+    if kind in ("dtm", "dsm"):
+        dest = original.with_name(f"{kind}_cloud.tif")
+        mount = ["docker", "run", "--rm", "-v", str(original.parent) + ":/data",
+                 "ghcr.io/osgeo/gdal:ubuntu-full-latest"]
+        if not dest.is_file() or dest.stat().st_size > CLOUD_MAX_BYTES:
+            temp = original.with_name(f"{kind}_cloud_tmp.tif")
+            if temp.exists():
+                temp.unlink()
+            subprocess.run(mount + [
+                "gdal_translate", "-of", "COG", "-co", "COMPRESS=DEFLATE",
+                "-co", "PREDICTOR=3", "-co", "NUM_THREADS=ALL_CPUS",
+                f"/data/{original.name}", f"/data/{temp.name}",
+            ], check=True, timeout=600, creationflags=WINDOWLESS)
+            if temp.stat().st_size > CLOUD_MAX_BYTES:
+                raise RuntimeError(f"{kind.upper()} comprimido excede 150 MiB; original local preservado.")
+            temp.replace(dest)
+
+        def info(name: str) -> dict:
+            check = subprocess.run(mount + ["gdalinfo", "-json", "-checksum", f"/data/{name}"],
+                                   capture_output=True, text=True, check=True, timeout=180,
+                                   creationflags=WINDOWLESS)
+            return json.loads(check.stdout)
+
+        source_info = info(original.name)
+        cloud_info = info(dest.name)
+        same_bands = len(source_info.get("bands", [])) == len(cloud_info.get("bands", [])) and all(
+            all(a.get(field) == b.get(field) for field in ("type", "noDataValue", "checksum"))
+            for a, b in zip(source_info.get("bands", []), cloud_info.get("bands", []))
+        )
+        if (source_info.get("size") != cloud_info.get("size")
+                or source_info.get("geoTransform") != cloud_info.get("geoTransform")
+                or source_info.get("coordinateSystem") != cloud_info.get("coordinateSystem")
+                or not same_bands):
+            raise RuntimeError(f"{kind.upper()} comprimido não preservou pixels ou georreferenciamento.")
+        return dest, "image/tiff", {
+            "cloud_optimized": True,
+            "cloud_compression": "COG_DEFLATE_lossless",
             "original_size_bytes": size,
             "original_preserved_locally": True,
         }
@@ -83,4 +125,4 @@ def prepare_cloud_upload(kind: str, original: Path) -> tuple[Path, str | None, d
             "original_preserved_locally": True,
         }
 
-    raise RuntimeError(f"{kind}: objeto de {size} bytes excede 45 MiB; original local preservado.")
+    raise RuntimeError(f"{kind}: objeto de {size} bytes excede 150 MiB; original local preservado.")
