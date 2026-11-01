@@ -18,6 +18,7 @@ import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
+import {dragTranslation,translateCorners} from "@/lib/visual-alignment";
 import {streetBasemap,esriImagery,reliefBasemap} from "@/lib/basemaps";
 
 type Bounds={west:number;south:number;east:number;north:number};
@@ -108,6 +109,10 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
 export default function ResultsMap({results,planBoundary,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
+  const [savedOffset,setSavedOffset]=useState<Coord>([0,0]),[draftOffset,setDraftOffset]=useState<Coord>([0,0]),[dragMode,setDragMode]=useState(false);
+  const [dragFeedback,setDragFeedback]=useState("");
+  const draftOffsetRef=useRef<Coord>([0,0]);
+  const alignmentKey=`orion-visual-drag-v1:${results[0]?.job_id??"none"}`;
   const [measureSelection,setMeasureSelection]=useState<{drawing:MeasureDrawing;name:string}|null>(null);
   const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0),[startPathRevision,setStartPathRevision]=useState(0);
   const [areaImageSource,setAreaImageSource]=useState<MeasurementImageSource|null>(null);
@@ -128,7 +133,9 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const camera=useRef<{center:Coord;zoom:number;bearing:number;pitch:number}|null>(null);
   const visibleRef=useRef(visible);
   useEffect(()=>{visibleRef.current=visible;},[visible]);
+  useEffect(()=>{draftOffsetRef.current=draftOffset;},[draftOffset]);
   const bounds=useMemo(()=>readBounds(results),[results]);
+  const displayCorners=useMemo(()=>bounds?translateCorners([[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]],dragMode?draftOffset:savedOffset) as RasterCorners:null,[bounds,dragMode,draftOffset,savedOffset]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
@@ -136,6 +143,16 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const orthoDisplayUrl=privateMode?clipUrl:orthophoto?orthophotoPreviewUrl(orthophoto):null;
   const dtm=results.find(r=>r.kind==="dtm");
   const dsm=results.find(r=>r.kind==="dsm");
+  const visualAdjusted=dragMode||savedOffset.some(v=>v!==0);
+
+  useEffect(()=>{
+    try{
+      const raw=localStorage.getItem(alignmentKey),value=raw?JSON.parse(raw):[0,0];
+      const offset:Coord=Array.isArray(value)&&value.length===2&&value.every((n:unknown)=>typeof n==="number"&&Number.isFinite(n)&&Math.abs(n)<=1000)?value as Coord:[0,0];
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore a browser-only visual preference after hydration.
+      setSavedOffset(offset);setDraftOffset(offset);
+    }catch{setSavedOffset([0,0]);setDraftOffset([0,0]);}
+  },[alignmentKey]);
 
 
   useEffect(()=>{
@@ -250,17 +267,17 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
 
   // Full-size files are not fetched for the map or product thumbnail.
   useEffect(()=>{
-    const m=map.current;if(!m||!ready||!bounds||!transparentOrtho)return;
-    const coordinates:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
+    const m=map.current;if(!m||!ready||!displayCorners||!transparentOrtho)return;
+    const coordinates=displayCorners;
     const source=m.getSource("result-orthophoto") as maplibregl.ImageSource|undefined;
-    if(source)source.updateImage({url:transparentOrtho,coordinates});
+    if(source)source.setCoordinates(coordinates);
     else{
       m.addSource("result-orthophoto",{type:"image",url:transparentOrtho,coordinates});
       const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow","privacy-cutline"].find(id=>!!m.getLayer(id));
       m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":Math.min(comparePercent/100,visibleRef.current.contours&&contoursState==="ready"?.58:1),"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[ready,transparentOrtho,bounds]);
+  },[ready,transparentOrtho,displayCorners]);
 
   // Do not download the 9.5 MB contour file before the user selects it.
   useEffect(()=>{
@@ -361,6 +378,28 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   },[ready,clipEditing,clipDrawing,clipPoints,onClipPointsChange]);
 
   useEffect(()=>{
+    const m=map.current;if(!m||!ready||!dragMode||privateMode)return;
+    const panEnabled=m.dragPan.isEnabled();
+    m.dragPan.disable();m.getCanvas().style.cursor="grab";
+    let start:{point:Coord;offset:Coord}|null=null;
+    const down=(event:maplibregl.MapMouseEvent)=>{
+      if(event.originalEvent.button!==0||(event.originalEvent.target as Element)?.closest("button,.maplibregl-control-container"))return;
+      const p=m.unproject(event.point);
+      start={point:[p.lng,p.lat],offset:draftOffsetRef.current};
+      m.getCanvas().style.cursor="grabbing";event.originalEvent.preventDefault();
+    };
+    const move=(event:maplibregl.MapMouseEvent)=>{
+      if(!start)return;
+      const p=m.unproject(event.point),delta=dragTranslation(start.point,[p.lng,p.lat]);
+      const next:Coord=[start.offset[0]+delta[0],start.offset[1]+delta[1]];
+      if(Math.hypot(...next)<=1000){draftOffsetRef.current=next;setDraftOffset(next);}
+    };
+    const up=()=>{start=null;m.getCanvas().style.cursor="grab";};
+    m.on("mousedown",down);m.on("mousemove",move);m.on("mouseup",up);window.addEventListener("mouseup",up);
+    return()=>{m.off("mousedown",down);m.off("mousemove",move);m.off("mouseup",up);window.removeEventListener("mouseup",up);if(panEnabled)m.dragPan.enable();m.getCanvas().style.cursor="";};
+  },[ready,dragMode,privateMode]);
+
+  useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
@@ -388,6 +427,17 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false}));
   }
 
+  function startVisualDrag(){setDraftOffset(savedOffset);setDragFeedback("");setDragMode(true);compare(65);}
+  function saveVisualDrag(){
+    try{
+      const offset=draftOffsetRef.current;
+      localStorage.setItem(alignmentKey,JSON.stringify(offset));
+      setSavedOffset(offset);setDragMode(false);setDragFeedback("Posição visual salva neste navegador para este processamento.");
+    }catch{setDragFeedback("Não foi possível salvar neste navegador. O ajuste continua aberto para tentar novamente.");}
+  }
+  function cancelVisualDrag(){setDraftOffset(savedOffset);setDragMode(false);setDragFeedback("Ajuste não salvo descartado.");}
+  function clearVisualDrag(){setDragMode(false);setSavedOffset([0,0]);setDraftOffset([0,0]);setDragFeedback("Ajuste visual removido.");try{localStorage.removeItem(alignmentKey);}catch{/* Browser storage can be disabled. */}}
+
   function measureAreaOnOrthophoto(){
     setVisible(v=>({...v,orthophoto:true,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false}));
     setComparePercent(100);
@@ -402,6 +452,14 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const projectArea=coverage?.areaM2??null,projectPerimeter=coverage?.perimeterM??null;
 
   return <div>
+    {orthophoto&&!privateMode&&<section aria-label="Ajustar posição visual da ortofoto" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+      <h3 className="font-semibold">Ajuste visual da ortofoto</h3>
+      <p className="mt-1 text-xs leading-5">Arraste a prévia sobre o mapa satélite para alinhar a estrada. O satélite fica parado.</p>
+      <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={startVisualDrag} disabled={clipEditing||measurementActive||!orthoRendered||dragMode} className="rounded-lg bg-amber-800 px-4 py-2 font-semibold text-white disabled:opacity-50">Arrastar ortofoto</button>{dragMode&&<><button type="button" onClick={saveVisualDrag} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white">Salvar ajuste visual</button><button type="button" onClick={cancelVisualDrag} className="rounded-lg border border-amber-600 bg-white px-4 py-2 font-semibold">Cancelar</button></>}{savedOffset.some(v=>v!==0)&&!dragMode&&<button type="button" onClick={clearVisualDrag} className="rounded-lg border border-amber-600 bg-white px-4 py-2 font-semibold">Limpar ajuste</button>}</div>
+      {dragMode&&<p className="mt-2 font-semibold">Arraste a ortofoto no mapa e clique em Salvar ajuste visual.</p>}
+      {dragFeedback&&<p role="status" className="mt-2 font-semibold">{dragFeedback}</p>}
+      <p className="mt-2 text-xs leading-5">O ajuste fica neste navegador e não altera o GeoTIFF. O satélite pode ter outra data ou posição; para precisão técnica, use pontos de controle medidos.</p>
+    </section>}
     <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Camadas e comparação do mapa">
       {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
       {orthophoto&&!privateMode&&<div role="group" aria-label="Antes e depois" className="ml-1 flex shrink-0 items-center gap-2 border-l border-emerald-200 pl-3">
@@ -410,7 +468,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
         <button type="button" onClick={()=>compare(100)} aria-pressed={visible.orthophoto&&comparePercent===100} title="Ortofoto processada" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===100?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Depois</button>
       </div>}
     </div>
-    {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Antes: mapa satélite de referência, com data possivelmente diferente. Depois: ortofoto deste processamento.</p><button type="button" onClick={measureAreaOnOrthophoto} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white">Medir área na ortofoto</button></div>}
+    {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Antes: mapa satélite de referência, com data possivelmente diferente. Depois: ortofoto deste processamento.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={visualAdjusted} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
       <div ref={el} className="orion-results-map h-[58vh] min-h-[440px] max-h-[720px] w-full" aria-label="Mapa dos resultados do processamento" data-ortho-preview="private-webp-v1" data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
@@ -445,8 +503,8 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       </div>
     </div>
 
-      <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive||clipEditing} onDrawArea={()=>{setAreaImageSource(null);setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
-      <MapMeasurement floating reportSourcesEnabled terrainAvailable={!!dtm} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} disabled={clipEditing} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startAreaImageSource={areaImageSource} startPathRevision={startPathRevision}/>
+      <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready&&!visualAdjusted?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive||clipEditing||dragMode} onDrawArea={()=>{setAreaImageSource(null);setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
+      <MapMeasurement floating reportSourcesEnabled terrainAvailable={!!dtm} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} disabled={clipEditing||visualAdjusted} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startAreaImageSource={areaImageSource} startPathRevision={startPathRevision}/>
 
     {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
       <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
