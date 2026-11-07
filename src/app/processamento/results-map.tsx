@@ -18,15 +18,29 @@ import {SLOPE_CLASSES} from "@/lib/terrain-preview";
 import {prepareOrthophotoPreview,type OrthoLoadProgress} from "./orthophoto-preview";
 import {orthophotoPreviewUrl} from "@/lib/orthophoto-preview-url";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
-import {dragTranslation,translateCorners} from "@/lib/visual-alignment";
 import {streetBasemap,esriImagery,reliefBasemap} from "@/lib/basemaps";
+import {alignedCorners,dragTranslation,transformPreviewPoint,translateCorners,type AlignmentPair} from "@/lib/visual-alignment";
+import type {VisualReferencePoint} from "@/lib/survey-planning";
+import {changeResultReference} from "./reference-actions";
+import {getMetadata,getWaybackItems,type WaybackItem,type WaybackMetadata} from "@esri/wayback-core";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
 type Coverage={feature:GeoJSON.Feature<GeoJSON.Polygon>;areaM2:number;perimeterM:number};
+function waybackTileUrl(item:WaybackItem){
+  const url=new URL(item.itemURL);
+  if(!/^wayback(?:-[ab])?\.maptiles\.arcgis\.com$/.test(url.hostname)||url.protocol!=="https:")throw new Error("Endereço do mapa histórico inválido.");
+  if(!item.itemURL.includes("{level}/{row}/{col}"))throw new Error("Formato do mapa histórico inválido.");
+  return item.itemURL.replace("{level}","{z}").replace("{row}","{y}").replace("{col}","{x}");
+}
+function historicalDate(value:number|undefined){return value&&Number.isFinite(value)?new Date(value).toLocaleDateString("pt-BR",{timeZone:"UTC"}):null;}
+const EMPTY_REFERENCE_POINTS:VisualReferencePoint[]=[];
 type Props={
   results:ProcessingResult[];
+  surveyId?:string;
   planBoundary?:{name:string;points:Coord[]}|null;
+  referencePoints?:VisualReferencePoint[];
+  onReferencePointsChange?:(points:VisualReferencePoint[])=>void;
   focusKind?:string|null;
   focusRevision?:number;
   privateMode?:boolean;
@@ -106,13 +120,17 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
   return null;
 }
 
-export default function ResultsMap({results,planBoundary,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
+export default function ResultsMap({results,surveyId,planBoundary,referencePoints=EMPTY_REFERENCE_POINTS,onReferencePointsChange,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
+  const [alignment,setAlignment]=useState<AlignmentPair[]>([]),[alignmentLoadedKey,setAlignmentLoadedKey]=useState<string|null>(null),[aligningId,setAligningId]=useState<string|null>(null);
   const [savedOffset,setSavedOffset]=useState<Coord>([0,0]),[draftOffset,setDraftOffset]=useState<Coord>([0,0]),[dragMode,setDragMode]=useState(false);
   const [dragFeedback,setDragFeedback]=useState("");
+  const [alignmentStatus,setAlignmentStatus]=useState<{matched:number;total:number}|null>(null);
+  const [placingReference,setPlacingReference]=useState(false),[showReferences,setShowReferences]=useState(true),[referenceBusy,setReferenceBusy]=useState(false),[referenceMessage,setReferenceMessage]=useState("");
   const draftOffsetRef=useRef<Coord>([0,0]);
-  const alignmentKey=`orion-visual-drag-v1:${results[0]?.job_id??"none"}`;
+  const alignmentKey=`orion-visual-alignment-v2:${results[0]?.job_id??"none"}`;
+  const legacyAlignmentKey=`orion-visual-alignment-v1:${results[0]?.job_id??"none"}`;
   const [measureSelection,setMeasureSelection]=useState<{drawing:MeasureDrawing;name:string}|null>(null);
   const [measurementActive,setMeasurementActive]=useState(false),[startAreaRevision,setStartAreaRevision]=useState(0),[startPathRevision,setStartPathRevision]=useState(0);
   const [areaImageSource,setAreaImageSource]=useState<MeasurementImageSource|null>(null);
@@ -122,6 +140,9 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const onTerrainAction=useCallback((action:TerrainToolAction)=>setTerrainCommand(v=>({sequence:(v?.sequence||0)+1,action})),[]);
   const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
   const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null),[comparePercent,setComparePercent]=useState(100);
+  const [historyOpen,setHistoryOpen]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[historyError,setHistoryError]=useState("");
+  const [historyItems,setHistoryItems]=useState<WaybackItem[]>([]),[historyChoice,setHistoryChoice]=useState<WaybackItem|null>(null);
+  const [historyMetadata,setHistoryMetadata]=useState<WaybackMetadata|null>(null),[historyPoint,setHistoryPoint]=useState<{longitude:number;latitude:number;zoom:number}|null>(null);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
   const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
@@ -135,7 +156,14 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   useEffect(()=>{visibleRef.current=visible;},[visible]);
   useEffect(()=>{draftOffsetRef.current=draftOffset;},[draftOffset]);
   const bounds=useMemo(()=>readBounds(results),[results]);
-  const displayCorners=useMemo(()=>bounds?translateCorners([[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]],dragMode?draftOffset:savedOffset) as RasterCorners:null,[bounds,dragMode,draftOffset,savedOffset]);
+  const alignmentView=useMemo(()=>{
+    if(!bounds)return {corners:null,error:""};
+    const original:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
+    if(privateMode||aligningId)return {corners:original,error:""};
+    try{return {corners:translateCorners(alignedCorners(original,alignment,referencePoints),dragMode?draftOffset:savedOffset) as RasterCorners,error:""};}
+    catch(e){return {corners:original,error:e instanceof Error?e.message:"Correspondências inválidas."};}
+  },[bounds,privateMode,aligningId,alignment,referencePoints,dragMode,draftOffset,savedOffset]);
+  const measurementTransform=useMemo(()=>bounds&&alignmentView.corners?{original:[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]] as RasterCorners,aligned:alignmentView.corners}:null,[bounds,alignmentView.corners]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
@@ -143,31 +171,39 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const orthoDisplayUrl=privateMode?clipUrl:orthophoto?orthophotoPreviewUrl(orthophoto):null;
   const dtm=results.find(r=>r.kind==="dtm");
   const dsm=results.find(r=>r.kind==="dsm");
-  const visualAdjusted=dragMode||savedOffset.some(v=>v!==0);
+  const visualAdjusted=dragMode||alignment.length>0||savedOffset.some(v=>v!==0);
 
   useEffect(()=>{
     try{
-      const raw=localStorage.getItem(alignmentKey),value=raw?JSON.parse(raw):[0,0];
-      const offset:Coord=Array.isArray(value)&&value.length===2&&value.every((n:unknown)=>typeof n==="number"&&Number.isFinite(n)&&Math.abs(n)<=1000)?value as Coord:[0,0];
+      const raw=localStorage.getItem(alignmentKey)??localStorage.getItem(legacyAlignmentKey),value=raw?JSON.parse(raw):[];
+      const pairs=Array.isArray(value)?value:Array.isArray(value?.pairs)?value.pairs:[];
+      const offset=value?.offset;
+      const validOffset:Array<number>=Array.isArray(offset)&&offset.length===2&&offset.every((n:unknown)=>typeof n==="number"&&Number.isFinite(n)&&Math.abs(n)<=1000)?offset:[0,0];
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Restore a browser-only visual preference after hydration.
-      setSavedOffset(offset);setDraftOffset(offset);
-    }catch{setSavedOffset([0,0]);setDraftOffset([0,0]);}
-  },[alignmentKey]);
+      setAlignment(pairs.filter((pair:unknown)=>{const p=pair as AlignmentPair;return !!p&&typeof p.id==="string"&&referencePoints.some(ref=>ref.id===p.id)&&Array.isArray(p.source)&&p.source.length===2&&p.source.every((v,i)=>typeof v==="number"&&Number.isFinite(v)&&Math.abs(v)<=(i===0?180:85));}).slice(0,2));
+      setSavedOffset(validOffset as Coord);setDraftOffset(validOffset as Coord);
+    }catch{setAlignment([]);setSavedOffset([0,0]);setDraftOffset([0,0]);}
+    setAlignmentLoadedKey(alignmentKey);
+  },[alignmentKey,legacyAlignmentKey,referencePoints]);
+  useEffect(()=>{if(alignmentLoadedKey===alignmentKey)try{localStorage.setItem(alignmentKey,JSON.stringify({pairs:alignment,offset:savedOffset}));}catch{/* Browser storage can be disabled. */}},[alignmentKey,alignment,savedOffset,alignmentLoadedKey]);
 
 
   useEffect(()=>{
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset the external image loader when its URL changes.
     setTransparentOrtho(null);setOrthoError("");setOrthoProgress(null);setOrthoRendered(false);
+    const oldMap=map.current;
+    if(oldMap?.getLayer("result-orthophoto"))oldMap.removeLayer("result-orthophoto");
+    if(oldMap?.getSource("result-orthophoto"))oldMap.removeSource("result-orthophoto");
     if(!orthoDisplayUrl){setOrthoBusy(false);return;}
     const controller=new AbortController();
     setOrthoBusy(true);
-    prepareOrthophotoPreview(orthoDisplayUrl,controller.signal,progress=>{if(!controller.signal.aborted)setOrthoProgress(progress);}).then(url=>{
+    (privateMode?Promise.resolve(orthoDisplayUrl):prepareOrthophotoPreview(orthoDisplayUrl,controller.signal,progress=>{if(!controller.signal.aborted)setOrthoProgress(progress);})).then(url=>{
       if(!controller.signal.aborted)setTransparentOrtho(url);
     }).catch(error=>{
       if(!controller.signal.aborted)setOrthoError(error instanceof Error?error.message:"Não foi possível carregar a ortofoto.");
     }).finally(()=>{if(!controller.signal.aborted)setOrthoBusy(false);});
     return()=>controller.abort();
-  },[orthoDisplayUrl,orthoRetry]);
+  },[orthoDisplayUrl,orthoRetry,privateMode]);
 
   useEffect(()=>{
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Reflect cancellation of the external raster preview loader.
@@ -184,11 +220,11 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   },[visible.slope,dtm,processedSlope]);
 
   useEffect(()=>{
-    if(planCoverage||savedCoverage||!bounds||!transparentOrtho)return;
+    if(privateMode||planCoverage||savedCoverage||!bounds||!transparentOrtho)return;
     let cancelled=false;
     deriveCoverage(transparentOrtho,bounds).then(v=>{if(!cancelled)setFallbackCoverage(v)}).catch(()=>{});
     return()=>{cancelled=true};
-  },[planCoverage,savedCoverage,bounds,transparentOrtho]);
+  },[privateMode,planCoverage,savedCoverage,bounds,transparentOrtho]);
 
   useEffect(()=>{
     if(!focusKind)return;
@@ -226,9 +262,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     const bm=baseMaps[basemap]??esriImagery;
     const m=new maplibregl.Map({
       container:el.current,
-      style:privateMode?{
-        version:8,sources:{},layers:[{id:"background",type:"background",paint:{"background-color":"#edf2ed"}}],
-      }:{
+      style:{
         version:8,
         sources:{basemap:{type:"raster",tiles:[bm.url],tileSize:256,maxzoom:bm.maxzoom,attribution:bm.attribution}},
         layers:[{id:"background",type:"background",paint:{"background-color":"#dfe8dc"}},{id:"basemap",type:"raster",source:"basemap"}],
@@ -267,17 +301,18 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
 
   // Full-size files are not fetched for the map or product thumbnail.
   useEffect(()=>{
-    const m=map.current;if(!m||!ready||!displayCorners||!transparentOrtho)return;
-    const coordinates=displayCorners;
+    const m=map.current;if(!m||!ready||!bounds||!transparentOrtho)return;
+    const coordinates=alignmentView.corners;
+    if(!coordinates)return;
     const source=m.getSource("result-orthophoto") as maplibregl.ImageSource|undefined;
     if(source)source.setCoordinates(coordinates);
     else{
       m.addSource("result-orthophoto",{type:"image",url:transparentOrtho,coordinates});
       const before=["result-hillshade","result-hypsometry","result-slope","result-dtm","result-dsm","result-contours","project-boundary-shadow","privacy-cutline"].find(id=>!!m.getLayer(id));
-      m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":Math.min(comparePercent/100,visibleRef.current.contours&&contoursState==="ready"?.58:1),"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
+      m.addLayer({id:"result-orthophoto",type:"raster",source:"result-orthophoto",paint:{"raster-opacity":dragMode?0.5:Math.min(comparePercent/100,visibleRef.current.contours&&contoursState==="ready"?.58:1),"raster-fade-duration":0},layout:{visibility:visibleRef.current.orthophoto?"visible":"none"}},before);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[ready,transparentOrtho,displayCorners]);
+  },[ready,transparentOrtho,bounds,alignmentView]);
 
   // Do not download the 9.5 MB contour file before the user selects it.
   useEffect(()=>{
@@ -362,7 +397,7 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   useEffect(()=>{
     const m=map.current;if(!m||!ready||!clipEditing||!onClipPointsChange)return;
     const markers=clipPoints.map((point,index)=>{
-      const element=document.createElement("button");element.type="button";element.className="h-4 w-4 rounded-full border-2 border-emerald-950 bg-yellow-300 shadow";
+      const element=document.createElement("button");element.type="button";element.className="h-8 w-8 touch-none rounded-full border-2 border-emerald-950 bg-yellow-300 shadow";
       element.setAttribute("aria-label",`Vértice do recorte ${index+1}; arraste para ajustar`);
       const marker=new maplibregl.Marker({element,draggable:true}).setLngLat(point).addTo(m);
       marker.on("dragend",()=>{const p=marker.getLngLat();const next=[...clipPoints];next[index]=[p.lng,p.lat];onClipPointsChange(next);});
@@ -378,15 +413,73 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   },[ready,clipEditing,clipDrawing,clipPoints,onClipPointsChange]);
 
   useEffect(()=>{
+    const m=map.current;if(!m||!ready||privateMode||!showReferences||!bounds||!alignmentView.corners)return;
+    const original:RasterCorners=[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]];
+    const matches=new Map<string,{position:Coord;close:boolean}>();
+    if(dragMode){
+      for(const pair of alignment){
+        const ref=referencePoints.find(item=>item.id===pair.id);
+        if(!ref)continue;
+        const position=transformPreviewPoint(pair.source,original,alignmentView.corners);
+        const sourcePixel=m.project(position),targetPixel=m.project(ref.point);
+        matches.set(ref.id,{position,close:Math.hypot(sourcePixel.x-targetPixel.x,sourcePixel.y-targetPixel.y)<=5});
+      }
+    }
+    setAlignmentStatus(current=>{
+      const next=dragMode?{matched:[...matches.values()].filter(value=>value.close).length,total:matches.size}:null;
+      return current?.matched===next?.matched&&current?.total===next?.total?current:next;
+    });
+    const markers=referencePoints.map((ref,index)=>{
+      const element=document.createElement("div");
+      const color=matches.get(ref.id)?.close?"#15803d":"#b45309";
+      element.innerHTML=`<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><path d="M11 2v18M2 11h18" stroke="white" stroke-width="4"/><path d="M11 2v18M2 11h18" stroke="${color}" stroke-width="1.5"/></svg>`;
+      element.title=`Cruz ${index+1} do mapa de referência`;
+      element.style.cssText="display:grid;place-items:center;width:22px;height:22px;pointer-events:none";
+      return new maplibregl.Marker({element}).setLngLat(ref.point).addTo(m);
+    });
+    if(dragMode)for(const match of matches.values()){
+      const element=document.createElement("div");element.title="Ponto correspondente na ortofoto";
+      element.style.cssText=`width:13px;height:13px;border:2px solid ${match.close?"#15803d":"#2563eb"};border-radius:50%;background:white;box-shadow:0 0 0 1px white;pointer-events:none`;
+      markers.push(new maplibregl.Marker({element}).setLngLat(match.position).addTo(m));
+    }
+    return()=>markers.forEach(marker=>marker.remove());
+  },[ready,referencePoints,privateMode,showReferences,bounds,alignmentView.corners,alignment,dragMode]);
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!placingReference||privateMode)return;
+    m.getCanvas().style.cursor="crosshair";
+    const click=(event:maplibregl.MapMouseEvent)=>{
+      if((event.originalEvent.target as Element)?.closest("button,.maplibregl-control-container"))return;
+      setPlacingReference(false);setReferenceBusy(true);setReferenceMessage("");
+      changeResultReference(surveyId??"",{kind:"add",point:[event.lngLat.lng,event.lngLat.lat]}).then(points=>{
+        onReferencePointsChange?.(points);setShowReferences(true);setReferenceMessage("Cruz salva no levantamento. Mostre a ortofoto e marque o mesmo ponto nela.");
+      }).catch(error=>setReferenceMessage(error instanceof Error?error.message:"Não foi possível salvar a cruz.")).finally(()=>setReferenceBusy(false));
+    };
+    m.on("click",click);
+    return()=>{m.off("click",click);m.getCanvas().style.cursor="";};
+  },[ready,placingReference,privateMode,surveyId,onReferencePointsChange]);
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!aligningId||privateMode)return;
+    m.getCanvas().style.cursor="crosshair";
+    const click=(event:maplibregl.MapMouseEvent)=>{
+      if((event.originalEvent.target as Element)?.closest("button,.maplibregl-control-container"))return;
+      setAlignment(current=>[...current.filter(pair=>pair.id!==aligningId),{id:aligningId,source:[event.lngLat.lng,event.lngLat.lat] as Coord}].slice(-2));
+      setAligningId(null);
+    };
+    m.on("click",click);
+    return()=>{m.off("click",click);m.getCanvas().style.cursor="";};
+  },[ready,aligningId,privateMode]);
+  useEffect(()=>{
     const m=map.current;if(!m||!ready||!dragMode||privateMode)return;
     const panEnabled=m.dragPan.isEnabled();
-    m.dragPan.disable();m.getCanvas().style.cursor="grab";
+    m.dragPan.disable();
+    m.getCanvas().style.cursor="grab";
     let start:{point:Coord;offset:Coord}|null=null;
     const down=(event:maplibregl.MapMouseEvent)=>{
       if(event.originalEvent.button!==0||(event.originalEvent.target as Element)?.closest("button,.maplibregl-control-container"))return;
       const p=m.unproject(event.point);
       start={point:[p.lng,p.lat],offset:draftOffsetRef.current};
-      m.getCanvas().style.cursor="grabbing";event.originalEvent.preventDefault();
+      m.getCanvas().style.cursor="grabbing";
+      event.originalEvent.preventDefault();
     };
     const move=(event:maplibregl.MapMouseEvent)=>{
       if(!start)return;
@@ -395,16 +488,41 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       if(Math.hypot(...next)<=1000){draftOffsetRef.current=next;setDraftOffset(next);}
     };
     const up=()=>{start=null;m.getCanvas().style.cursor="grab";};
-    m.on("mousedown",down);m.on("mousemove",move);m.on("mouseup",up);window.addEventListener("mouseup",up);
+    m.on("mousedown",down);m.on("mousemove",move);m.on("mouseup",up);
+    window.addEventListener("mouseup",up);
     return()=>{m.off("mousedown",down);m.off("mousemove",move);m.off("mouseup",up);window.removeEventListener("mouseup",up);if(panEnabled)m.dragPan.enable();m.getCanvas().style.cursor="";};
   },[ready,dragMode,privateMode]);
 
   useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
+    const source=m.getSource("basemap") as maplibregl.RasterTileSource|undefined;
+    if(!source)return;
+    source.setTiles([basemap==="satellite"&&historyChoice?waybackTileUrl(historyChoice):baseMaps[basemap].url]);
+  },[ready,basemap,historyChoice]);
+
+  useEffect(()=>{
+    if(!historyChoice||!historyPoint)return;
+    const controller=new AbortController();
+    // Metadata describes the image at the searched point, not the release date.
+    getMetadata({longitude:historyPoint.longitude,latitude:historyPoint.latitude},historyPoint.zoom,historyChoice.releaseNum,{signal:controller.signal})
+      .then(value=>{if(!controller.signal.aborted)setHistoryMetadata(value);})
+      .catch(()=>{if(!controller.signal.aborted)setHistoryMetadata(null);});
+    return()=>controller.abort();
+  },[historyChoice,historyPoint]);
+
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready||!historyChoice)return;
+    const update=()=>{const center=m.getCenter();setHistoryPoint({longitude:center.lng,latitude:center.lat,zoom:Math.max(10,Math.min(19,Math.round(m.getZoom())))});setHistoryMetadata(null);};
+    m.on("moveend",update);
+    return()=>{m.off("moveend",update);};
+  },[ready,historyChoice]);
+
+  useEffect(()=>{
+    const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
-    if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",Math.min(comparePercent/100,visible.contours&&contoursState==="ready"?0.58:1));
-  },[visible,ready,contoursState,comparePercent]);
+    if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",dragMode?0.5:Math.min(comparePercent/100,visible.contours&&contoursState==="ready"?0.58:1));
+  },[visible,ready,contoursState,comparePercent,dragMode]);
 
   function toggleLayer(key:string){
     setElevationError("");
@@ -426,17 +544,49 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
     setBasemap("satellite");setComparePercent(value);
     setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false}));
   }
+  async function findHistoricalImages(){
+    const m=map.current;if(!m)return;
+    const center=m.getCenter(),zoom=Math.max(10,Math.min(19,Math.round(m.getZoom())));
+    setHistoryBusy(true);setHistoryError("");setHistoryItems([]);setHistoryOpen(true);
+    try{
+      const items=await getWaybackItems();
+      const valid=items.filter(item=>{try{waybackTileUrl(item);return true;}catch{return false;}});
+      setHistoryItems(valid);setHistoryPoint({longitude:center.lng,latitude:center.lat,zoom});
+      if(!valid.length)setHistoryError("Nenhuma versão histórica está disponível no momento.");
+    }catch{setHistoryError("Não foi possível consultar o arquivo histórico. Tente novamente.");}
+    finally{setHistoryBusy(false);}
+  }
+  function startReferencePlacement(){
+    setAligningId(null);setDragMode(false);setPlacingReference(true);setShowReferences(true);setReferenceMessage("");compare(0);
+  }
+  async function removeReference(id:string){
+    setReferenceBusy(true);setReferenceMessage("");
+    try{
+      const points=await changeResultReference(surveyId??"",{kind:"remove",id});
+      onReferencePointsChange?.(points);setAlignment(current=>current.filter(pair=>pair.id!==id));
+      if(aligningId===id)setAligningId(null);
+      setReferenceMessage("Cruz removida do levantamento.");
+    }catch(error){setReferenceMessage(error instanceof Error?error.message:"Não foi possível remover a cruz.");}
+    finally{setReferenceBusy(false);}
+  }
 
-  function startVisualDrag(){setDraftOffset(savedOffset);setDragFeedback("");setDragMode(true);compare(65);}
+  function startVisualDrag(){
+    setAligningId(null);setDraftOffset(savedOffset);setDragFeedback("");setShowReferences(true);setDragMode(true);
+    compare(50);
+  }
   function saveVisualDrag(){
     try{
       const offset=draftOffsetRef.current;
-      localStorage.setItem(alignmentKey,JSON.stringify(offset));
-      setSavedOffset(offset);setDragMode(false);setDragFeedback("Posição visual salva neste navegador para este processamento.");
+      localStorage.setItem(alignmentKey,JSON.stringify({pairs:alignment,offset}));
+      setSavedOffset(offset);setDragMode(false);
+      setDragFeedback("Posição visual salva neste navegador para este processamento.");
     }catch{setDragFeedback("Não foi possível salvar neste navegador. O ajuste continua aberto para tentar novamente.");}
   }
   function cancelVisualDrag(){setDraftOffset(savedOffset);setDragMode(false);setDragFeedback("Ajuste não salvo descartado.");}
-  function clearVisualDrag(){setDragMode(false);setSavedOffset([0,0]);setDraftOffset([0,0]);setDragFeedback("Ajuste visual removido.");try{localStorage.removeItem(alignmentKey);}catch{/* Browser storage can be disabled. */}}
+  function clearVisualAlignment(){
+    setAligningId(null);setDragMode(false);setAlignment([]);setSavedOffset([0,0]);setDraftOffset([0,0]);
+    setDragFeedback("Ajuste visual removido.");
+  }
 
   function measureAreaOnOrthophoto(){
     setVisible(v=>({...v,orthophoto:true,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false}));
@@ -452,26 +602,57 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
   const projectArea=coverage?.areaM2??null,projectPerimeter=coverage?.perimeterM??null;
 
   return <div>
-    {orthophoto&&!privateMode&&<section aria-label="Ajustar posição visual da ortofoto" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-      <h3 className="font-semibold">Ajuste visual da ortofoto</h3>
-      <p className="mt-1 text-xs leading-5">Arraste a prévia sobre o mapa satélite para alinhar a estrada. O satélite fica parado.</p>
-      <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={startVisualDrag} disabled={clipEditing||measurementActive||!orthoRendered||dragMode} className="rounded-lg bg-amber-800 px-4 py-2 font-semibold text-white disabled:opacity-50">Arrastar ortofoto</button>{dragMode&&<><button type="button" onClick={saveVisualDrag} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white">Salvar ajuste visual</button><button type="button" onClick={cancelVisualDrag} className="rounded-lg border border-amber-600 bg-white px-4 py-2 font-semibold">Cancelar</button></>}{savedOffset.some(v=>v!==0)&&!dragMode&&<button type="button" onClick={clearVisualDrag} className="rounded-lg border border-amber-600 bg-white px-4 py-2 font-semibold">Limpar ajuste</button>}</div>
-      {dragMode&&<p className="mt-2 font-semibold">Arraste a ortofoto no mapa e clique em Salvar ajuste visual.</p>}
+    {orthophoto&&!privateMode&&<section aria-label="Alinhar prévia visualmente" className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+      <h3 className="font-semibold">⊕ Alinhamento visual da prévia</h3>
+      <p className="mt-1 text-xs leading-5">Marque na ortofoto o mesmo detalhe de cada cruz do mapa do levantamento.</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" aria-pressed={placingReference} onClick={placingReference?()=>setPlacingReference(false):startReferencePlacement} disabled={clipEditing||measurementActive||referenceBusy||referencePoints.length>=6||!surveyId} className="rounded-lg border border-amber-600 bg-white px-3 py-2 font-semibold disabled:opacity-50">{placingReference?"Cancelar nova cruz":"Nova cruz no satélite"}</button>
+        {referencePoints.length>0&&<button type="button" onClick={()=>setShowReferences(value=>!value)} disabled={dragMode} className="rounded-lg border border-amber-600 bg-white px-3 py-2 font-semibold disabled:opacity-50">{showReferences?"Ocultar cruzes":"Mostrar cruzes"}</button>}
+        <button type="button" onClick={clearVisualAlignment} disabled={!visualAdjusted&&aligningId===null} className="rounded-lg border border-amber-500 px-3 py-2 disabled:opacity-50">Limpar ajuste</button>
+      </div>
+      {referencePoints.length>0&&<div className="mt-2 flex flex-wrap gap-2">{referencePoints.map((ref,index)=><div key={ref.id} className="flex items-center gap-1 rounded-lg border border-amber-300 bg-white p-1"><button type="button" aria-pressed={aligningId===ref.id} disabled={clipEditing||dragMode||placingReference||referenceBusy} onClick={()=>{setShowReferences(true);compare(75);setAligningId(ref.id);}} className="rounded px-2 py-1 font-semibold disabled:opacity-50">{aligningId===ref.id?`Clique na ortofoto para cruz ${index+1}`:`Cruz ${index+1}: marcar na ortofoto${alignment.some(pair=>pair.id===ref.id)?" ✓":""}`}</button><button type="button" aria-label={`Remover cruz ${index+1}`} onClick={()=>void removeReference(ref.id)} disabled={referenceBusy||placingReference} className="rounded border border-red-300 px-2 py-1 text-red-800 disabled:opacity-50">Remover</button></div>)}</div>}
+      {placingReference&&<p className="mt-2 font-semibold">Satélite visível. Clique no detalhe da estrada onde deseja colocar a cruz fina.</p>}
+      {referenceMessage&&<p role="status" className="mt-2 font-semibold">{referenceMessage}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2"><button type="button" onClick={startVisualDrag} disabled={clipEditing||measurementActive||placingReference||!orthoRendered||dragMode} className="rounded-lg bg-amber-800 px-4 py-2 font-semibold text-white disabled:opacity-50">Arrastar ortofoto</button>{dragMode&&<><button type="button" onClick={saveVisualDrag} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white">Salvar ajuste visual</button><button type="button" onClick={cancelVisualDrag} className="rounded-lg border border-amber-600 bg-white px-4 py-2 font-semibold">Cancelar</button></>}</div>
+      {dragMode&&<div className={`mt-2 rounded-lg border px-3 py-2 font-semibold ${alignmentStatus&&alignmentStatus.total>=2&&alignmentStatus.matched===alignmentStatus.total?"border-green-600 bg-green-100 text-green-900":"border-amber-400 bg-white"}`} role="status"><p>Satélite por baixo · ortofoto 50% transparente por cima. Arraste a imagem até a estrada coincidir.</p><p className="mt-1 text-xs">{!alignmentStatus?.total?"Marque pontos correspondentes em duas cruzes para verificar a coincidência.":alignmentStatus.total<2?"Uma cruz marcada; marque outra para verificar também a rotação.":alignmentStatus.matched===alignmentStatus.total?"Verde: as duas cruzes coincidem na tela (até 5 pixels). Confira a estrada antes de salvar.":`${alignmentStatus.matched} de ${alignmentStatus.total} cruzes coincidem. Aproximar os pontos azuis das cruzes.`}</p></div>}
       {dragFeedback&&<p role="status" className="mt-2 font-semibold">{dragFeedback}</p>}
-      <p className="mt-2 text-xs leading-5">O ajuste fica neste navegador e não altera o GeoTIFF. O satélite pode ter outra data ou posição; para precisão técnica, use pontos de controle medidos.</p>
+      {alignmentView.error&&<p role="alert" className="mt-2 font-semibold">{alignmentView.error}</p>}
+      {aligningId&&<p className="mt-2 font-semibold">A imagem original está visível enquanto você escolhe o ponto correspondente.</p>}
+      <details className="mt-2 text-xs leading-5"><summary className="cursor-pointer font-semibold">Como funciona e limites</summary><p className="mt-1">Arrastar desloca apenas a prévia. Uma cruz desloca a prévia; duas também ajustam rotação e escala. O ajuste fica neste navegador e não altera o GeoTIFF. O satélite pode estar deslocado. Para precisão técnica, use GCP medido e reprocesse.</p></details>
+      {visualAdjusted&&!dragMode&&<p className="mt-2 text-xs font-semibold">A medição acompanha a prévia alinhada; as coordenadas salvas continuam referidas à ortofoto original.</p>}
     </section>}
     <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Camadas e comparação do mapa">
       {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
       {orthophoto&&!privateMode&&<div role="group" aria-label="Antes e depois" className="ml-1 flex shrink-0 items-center gap-2 border-l border-emerald-200 pl-3">
-        <button type="button" onClick={()=>compare(0)} aria-pressed={visible.orthophoto&&comparePercent===0} title="Mapa satélite de referência" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===0?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Antes</button>
-        <input type="range" min="0" max="100" step="1" value={comparePercent} onChange={e=>compare(Number(e.target.value))} aria-label="Comparar mapa satélite e ortofoto" aria-valuetext={`${comparePercent}% de ortofoto`} className="w-28 accent-emerald-800 sm:w-36"/>
-        <button type="button" onClick={()=>compare(100)} aria-pressed={visible.orthophoto&&comparePercent===100} title="Ortofoto processada" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible.orthophoto&&comparePercent===100?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Depois</button>
+        <button type="button" onClick={()=>compare(0)} disabled={dragMode} aria-pressed={visible.orthophoto&&comparePercent===0} title="Mapa satélite de referência" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible.orthophoto&&comparePercent===0?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Antes</button>
+        <input type="range" min="0" max="100" step="1" value={comparePercent} onChange={e=>compare(Number(e.target.value))} disabled={dragMode} aria-label="Comparar mapa satélite e ortofoto" aria-valuetext={`${comparePercent}% de ortofoto`} className="w-28 accent-emerald-800 disabled:opacity-50 sm:w-36"/>
+        <button type="button" onClick={()=>compare(100)} disabled={dragMode} aria-pressed={visible.orthophoto&&comparePercent===100} title="Ortofoto processada" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible.orthophoto&&comparePercent===100?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Depois</button>
       </div>}
     </div>
-    {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Antes: mapa satélite de referência, com data possivelmente diferente. Depois: ortofoto deste processamento.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={visualAdjusted} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
+    {orthophoto&&!privateMode&&<div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+      <button type="button" onClick={()=>setHistoryOpen(value=>!value)} aria-expanded={historyOpen} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 font-semibold text-emerald-950">Imagens antigas {historyChoice?`· ${historyChoice.releaseDateLabel}`:""}</button>
+      {historyChoice&&<button type="button" onClick={()=>{setHistoryChoice(null);setHistoryMetadata(null);}} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 font-semibold text-emerald-950">Voltar ao satélite atual</button>}
+      <span>Antes: {historyChoice?`versão histórica publicada em ${historyChoice.releaseDateLabel}`:"mapa satélite de referência"}. Depois: ortofoto deste processamento.</span>
+    </div>}
+    {historyOpen&&orthophoto&&!privateMode&&<div className="mb-3 rounded-xl border border-emerald-200 bg-[#f4f8ef] p-3 text-xs text-emerald-950">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={()=>void findHistoricalImages()} disabled={historyBusy||dragMode} className="rounded-lg bg-emerald-900 px-3 py-2 font-semibold text-white disabled:opacity-50">{historyBusy?"Carregando datas…":"Carregar datas históricas"}</button>
+        {historyItems.length>0&&<label className="flex items-center gap-2 font-semibold">Versão
+          <select aria-label="Escolher imagem histórica" value={historyChoice?.releaseNum??""} onChange={event=>{const item=historyItems.find(value=>value.releaseNum===Number(event.target.value))??null;setHistoryChoice(item);setHistoryMetadata(null);if(item)compare(0);}} className="max-w-full rounded-lg border border-emerald-300 bg-white px-2 py-2 text-emerald-950">
+            <option value="">Escolha uma data</option>
+            {historyItems.map(item=><option key={item.releaseNum} value={item.releaseNum}>{item.releaseDateLabel}</option>)}
+          </select>
+        </label>}
+      </div>
+      {historyError&&<p role="alert" className="mt-2 text-amber-900">{historyError}</p>}
+      {historyChoice&&<p className="mt-2">{historyMetadata?.date?`Imagem no centro do mapa capturada em ${historicalDate(historyMetadata.date)}${historyMetadata.provider?` · ${historyMetadata.provider}`:""}.`:"Data de captura neste ponto indisponível."} A data da lista indica quando a versão do mapa foi publicada.</p>}
+      <p className="mt-2">Cada data da lista identifica uma versão do mapa, não uma nova foto deste local. Verifique a data de captura exibida após escolher a versão; algumas versões podem mostrar a mesma imagem.</p>
+    </div>}
+    {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Arraste a barra “Antes/Depois” para comparar a imagem escolhida com a ortofoto.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={clipEditing||!!aligningId||placingReference||dragMode} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
-      <div ref={el} className="orion-results-map h-[58vh] min-h-[440px] max-h-[720px] w-full" aria-label="Mapa dos resultados do processamento" data-ortho-preview="private-webp-v1" data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
+      <div ref={el} className="orion-results-map h-[58vh] min-h-[440px] max-h-[720px] w-full" aria-label="Mapa dos resultados do processamento" data-ortho-preview={privateMode?"server-protected-png-v2":"webp-v1"} data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
+      {dragMode&&<div className={`pointer-events-none absolute bottom-11 left-3 z-10 rounded-lg border px-3 py-2 text-xs font-bold shadow ${alignmentStatus&&alignmentStatus.total>=2&&alignmentStatus.matched===alignmentStatus.total?"border-green-700 bg-green-100 text-green-950":"border-amber-500 bg-white/95 text-amber-950"}`}>{alignmentStatus&&alignmentStatus.total>=2&&alignmentStatus.matched===alignmentStatus.total?"✓ Cruzes coincidem na tela":"Satélite embaixo · ortofoto 50% por cima"}</div>}
       {visible.orthophoto&&(orthoBusy||(!orthoRendered&&!!transparentOrtho))&&!orthoError&&<div role="status" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-white/95 p-3 text-center text-xs text-emerald-950 shadow">
         <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent"/>
         {orthoProgress?.phase==="download"?`Recebendo prévia: ${Math.round(orthoProgress.loaded/1024)} KB${orthoProgress.total?" / "+Math.round(orthoProgress.total/1024)+" KB":""}`:orthoProgress?.phase==="prepare"?"Preparando imagem no mapa…":orthoProgress?.phase==="ready"?"Exibindo ortofoto…":"Carregando prévia leve da ortofoto…"}
@@ -491,10 +672,11 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
             <strong className="text-xs text-slate-700">Camadas</strong>
             <button type="button" onClick={()=>setLayersOpen(false)} className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-sm font-bold text-slate-600" aria-label="Fechar camadas">×</button>
           </div>
-          {!privateMode&&<><p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">Mapa base</p>
+          {basemap==="streets"&&<p className="mb-2 text-[11px] leading-4 text-slate-600">As ruas do OSM são linhas cartográficas e podem diferir da posição e largura vistas na ortofoto. Satélite oferece uma junção visual mais natural. A georreferência não é ajustada aqui.</p>}
           <div className="grid gap-1">
             {(Object.keys(baseMaps) as BaseMap[]).map(key=><button key={key} type="button" onClick={()=>{setBasemap(key);setLayersOpen(false);}} className={`rounded-xl px-3 py-2 text-left text-xs font-semibold ${basemap===key?"bg-emerald-900 text-white":"bg-slate-50 text-slate-700"}`}>{(baseMaps[key]??esriImagery).label}</button>)}
-          </div></>}
+          </div>
           <p className="mb-2 mt-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Sobreposições</p>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Ortofoto</span><input type="checkbox" checked={!!visible.orthophoto} onChange={()=>toggleLayer("orthophoto")}/></label>
           <label className="flex items-center justify-between gap-3 py-1.5"><span>Plano de voo</span><input type="checkbox" checked={!!visible.project} onChange={()=>setVisible(v=>({...v,project:!v.project}))}/></label>
@@ -503,13 +685,10 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       </div>
     </div>
 
-      <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready&&!visualAdjusted?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive||clipEditing||dragMode} onDrawArea={()=>{setAreaImageSource(null);setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
-      <MapMeasurement floating reportSourcesEnabled terrainAvailable={!!dtm} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} disabled={clipEditing||visualAdjusted} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startAreaImageSource={areaImageSource} startPathRevision={startPathRevision}/>
+      <SlopeInspector embedded mapTool={mapTool} toolbarCommand={terrainCommand} onToolbarFeedback={setTerrainFeedback} key={dtm?.id||"no-dtm"} map={ready&&!visualAdjusted?measurementMap:null} source={dtm||null} slopeVisible={!!visible.slope} selection={measureSelection} measuring={measurementActive||clipEditing||!!aligningId||placingReference||dragMode} onDrawArea={()=>{setAreaImageSource(null);setStartAreaRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}} onDrawProfile={()=>{setStartPathRevision(v=>v+1);requestAnimationFrame(()=>el.current?.scrollIntoView({behavior:"smooth",block:"center"}));}}/>
+      <MapMeasurement floating reportSourcesEnabled terrainAvailable={!!dtm&&!visualAdjusted} terrainFeedback={terrainFeedback} onTerrainAction={onTerrainAction} onToolChange={setMapTool} map={ready?measurementMap:null} disabled={clipEditing||!!aligningId||placingReference||dragMode} displayTransform={measurementTransform} surveyId={results[0]?.survey_id||null} onActiveChange={setMeasurementActive} onDrawingChange={onMeasurementChange} startAreaRevision={startAreaRevision} startAreaImageSource={areaImageSource} startPathRevision={startPathRevision}/>
 
-    {(projectArea!==null||projectPerimeter!==null)&&<div className="mt-4 grid grid-cols-2 gap-3">
-      <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Área do plano</span><strong className="mt-1 block text-xl text-slate-950">{projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"}</strong>{projectArea!==null&&<small className="text-[11px] text-slate-500">{projectArea.toLocaleString("pt-BR",{maximumFractionDigits:0})} m²</small>}</div>
-      <div className="rounded-2xl border border-emerald-100 bg-[#f4f8ef] p-4"><span className="text-xs font-medium text-slate-500">Perímetro</span><strong className="mt-1 block text-xl text-slate-950">{projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</strong></div>
-    </div>}
+    {visible.project&&(projectArea!==null||projectPerimeter!==null)&&<p className="mt-3 rounded-xl border border-emerald-100 bg-[#f4f8ef] px-3 py-2 text-xs text-slate-700">{planCoverage?"Plano de voo":"Cobertura estimada"} · Área {projectArea!==null?(projectArea/10000).toLocaleString("pt-BR",{maximumFractionDigits:2})+" ha":"—"} · Perímetro {projectPerimeter!==null?projectPerimeter.toLocaleString("pt-BR",{maximumFractionDigits:0})+" m":"—"}</p>}
 
     {orthoError&&<div role="alert" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">{orthoError}</div>}
     {elevationError&&<div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{elevationError}</div>}
@@ -522,6 +701,5 @@ export default function ResultsMap({results,planBoundary,focusKind,focusRevision
       <strong>DSM ativo.</strong> Mostra a superfície observada, incluindo vegetação, telhados e outros objetos.
       {dsmRange&&<div className="mt-2"><div className="h-2 rounded-full" style={{background:"linear-gradient(90deg,#2c5fa0,#3a97b0,#5ba878,#d7be52,#b65240)"}}/><div className="mt-1 flex justify-between text-[10px]"><span>{dsmRange.min.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span><span>{dsmRange.max.toLocaleString("pt-BR",{maximumFractionDigits:1})} m</span></div></div>}
     </div>}
-    <p className="mt-3 text-[11px] leading-5 text-slate-500">{visible.project?(planCoverage?"A linha branca tracejada usa o contorno salvo do plano de voo.":"Nenhum plano de voo compatível foi encontrado; a linha usa uma estimativa da cobertura processada."):"Visualização sem contorno. Ative Plano de voo para consultar o limite salvo; as medidas e os arquivos técnicos permanecem inalterados."}</p>
   </div>;
 }

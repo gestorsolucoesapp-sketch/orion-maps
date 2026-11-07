@@ -2,7 +2,8 @@ import {validateImportedMapLocation,type ImportedMapLocation} from "./google-map
 import {validateMeasureDrawing,measureDrawing,type MeasureDrawing,type MeasurePoint} from "./map-measurement";
 import {droneProfiles,type CameraProfile,type DroneProfile} from "./drone-cameras";
 export type SurveyBasemap="streets"|"satellite"|"topo";
-export type SurveyPlanning={importedLocation?:ImportedMapLocation|null;version:1;center:MeasurePoint|null;zoom:number;basemap:SurveyBasemap;cityQuery:string;drawing:MeasureDrawing};
+export type VisualReferencePoint={id:string;point:MeasurePoint};
+export type SurveyPlanning={importedLocation?:ImportedMapLocation|null;reference_points?:VisualReferencePoint[];version:1;center:MeasurePoint|null;zoom:number;basemap:SurveyBasemap;cityQuery:string;drawing:MeasureDrawing};
 export type CustomDroneProfile={id:string;name:string;camera:CameraProfile;source:string;features:string;created_at?:string};
 export type SurveyDroneConfig={version:1;name:string;camera:CameraProfile|null;custom_id:string|null;source:string;features:string};
 export const SUGGESTED_DRONE="DJI Mini 5 Pro";
@@ -16,7 +17,16 @@ export function validateSurveyPlanning(v:unknown):SurveyPlanning{
  if(!["streets","satellite","topo"].includes(String(p.basemap)))throw Error("Camada do mapa inválida.");
  const center=p.center===null?null:validateMeasureDrawing({kind:"path",points:[p.center]}).points[0];
  const drawing=validateMeasureDrawing(p.drawing),metrics=measureDrawing(drawing);if(metrics.issue)throw Error(metrics.issue);
- return {version:1,center,zoom:numeric(p.zoom,0,22,"o zoom"),basemap:p.basemap as SurveyBasemap,cityQuery:text(p.cityQuery,200,"a cidade"),drawing,...(p.importedLocation!==undefined?{importedLocation:p.importedLocation===null?null:validateImportedMapLocation(p.importedLocation)}:{})};
+ const rawReferences=p.reference_points??[];
+ if(!Array.isArray(rawReferences)||rawReferences.length>6)throw Error("Use até 6 cruzes de referência.");
+ const reference_points=rawReferences.map((item:unknown)=>{
+  if(!item||typeof item!=="object")throw Error("Cruz de referência inválida.");
+  const ref=item as Record<string,unknown>;
+  if(typeof ref.id!=="string"||!/^[a-zA-Z0-9-]{1,80}$/.test(ref.id))throw Error("Identificação da cruz inválida.");
+  return {id:ref.id,point:validateMeasureDrawing({kind:"path",points:[ref.point]}).points[0]};
+ });
+ if(new Set(reference_points.map(item=>item.id)).size!==reference_points.length)throw Error("Cruzes de referência repetidas.");
+ return {version:1,center,zoom:numeric(p.zoom,0,22,"o zoom"),basemap:p.basemap as SurveyBasemap,cityQuery:text(p.cityQuery,200,"a cidade"),drawing,...(p.reference_points!==undefined?{reference_points}:{}),...(p.importedLocation!==undefined?{importedLocation:p.importedLocation===null?null:validateImportedMapLocation(p.importedLocation)}:{})};
 }
 export function validateCustomDrone(v:unknown):CustomDroneProfile{
  if(!v||typeof v!=="object")throw Error("Cadastro de drone inválido.");const p=v as Record<string,unknown>,c=p.camera as Record<string,unknown>|undefined;

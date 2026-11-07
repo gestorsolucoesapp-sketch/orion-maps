@@ -16,6 +16,29 @@ export function translateCorners(corners:AlignmentCoord[],offset:AlignmentCoord)
  if(!offset[0]&&!offset[1])return corners;
  return corners.map(c=>{const p=project(c);return unproject([p[0]+offset[0],p[1]+offset[1]]);});
 }
+export function transformPreviewPoint(source:AlignmentCoord,original:AlignmentCoord[],transformed:AlignmentCoord[]):AlignmentCoord{
+ if(original.length!==4||transformed.length!==4)throw Error("Limites da ortofoto inválidos.");
+ const point=project(source),northWest=project(original[0]),northEast=project(original[1]),southWest=project(original[3]);
+ const width=northEast[0]-northWest[0],height=southWest[1]-northWest[1];
+ if(!width||!height)throw Error("Limites da ortofoto inválidos.");
+ const u=(point[0]-northWest[0])/width,v=(point[1]-northWest[1])/height;
+ const corners=transformed.map(project),nw=corners[0],ne=corners[1],se=corners[2],sw=corners[3];
+ return unproject([
+  nw[0]*(1-u)*(1-v)+ne[0]*u*(1-v)+se[0]*u*v+sw[0]*(1-u)*v,
+  nw[1]*(1-u)*(1-v)+ne[1]*u*(1-v)+se[1]*u*v+sw[1]*(1-u)*v,
+ ]);
+}
+export function inverseTransformPreviewPoint(display:AlignmentCoord,original:AlignmentCoord[],transformed:AlignmentCoord[]):AlignmentCoord{
+ if(original.length!==4||transformed.length!==4)throw Error("Limites da ortofoto inválidos.");
+ const point=project(display),nw=project(transformed[0]),ne=project(transformed[1]),sw=project(transformed[3]);
+ const ux=ne[0]-nw[0],uy=ne[1]-nw[1],vx=sw[0]-nw[0],vy=sw[1]-nw[1];
+ const determinant=ux*vy-uy*vx;
+ if(Math.abs(determinant)<1)throw Error("Limites da ortofoto inválidos.");
+ const dx=point[0]-nw[0],dy=point[1]-nw[1];
+ const u=(dx*vy-dy*vx)/determinant,v=(ux*dy-uy*dx)/determinant;
+ const sourceNw=project(original[0]),sourceNe=project(original[1]),sourceSw=project(original[3]);
+ return unproject([sourceNw[0]+u*(sourceNe[0]-sourceNw[0])+v*(sourceSw[0]-sourceNw[0]),sourceNw[1]+u*(sourceNe[1]-sourceNw[1])+v*(sourceSw[1]-sourceNw[1])]);
+}
 export function alignedCorners(corners:AlignmentCoord[],pairs:AlignmentPair[],references:{id:string;point:AlignmentCoord}[]):AlignmentCoord[]{
  const matched=pairs.map(pair=>({source:project(pair.source),target:references.find(ref=>ref.id===pair.id)?.point})).filter((pair):pair is {source:AlignmentCoord;target:AlignmentCoord}=>!!pair.target).map(pair=>({source:pair.source,target:project(pair.target)}));
  if(!matched.length)return corners;

@@ -9,11 +9,11 @@ export function MeasureIcon({name}:{name:IconName}){
  return <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth={name==="slope"?2.7:1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/>{name==="slope"&&<><circle cx="6" cy="5" r="2.1"/><circle cx="18" cy="19" r="2.1"/></>}</svg>;
 }
 type Props={
- open:boolean;optionsOpen:boolean;tool:MapMeasureTool;finished:boolean;points:number;picked:number|null;valid:boolean;busy:boolean;
+ open:boolean;optionsOpen:boolean;tool:MapMeasureTool;finished:boolean;points:number;picked:number|null;valid:boolean;busy:boolean;showLengths:boolean;
  canUndo:boolean;canRedo:boolean;canClear:boolean;terrainAvailable:boolean;
- primary:string;secondary:string;issue?:string;feedback:TerrainToolFeedback;
+ primary:string;secondary:string;issue?:string;hint?:string;feedback:TerrainToolFeedback;
  onOpen:()=>void;onClose:()=>void;onToggleOptions:()=>void;onTool:(tool:MapMeasureTool)=>void;
- onUndo:()=>void;onRedo:()=>void;onClear:()=>void;onFinish:()=>void;onEdit:()=>void;onRemovePoint:()=>void;
+ onUndo:()=>void;onRedo:()=>void;onClear:()=>void;onFinish:()=>void;onEdit:()=>void;onRemovePoint:()=>void;onToggleLengths:()=>void;
  onFix:()=>void;onRetry:()=>void;onDetails:()=>void;
 };
 const tools:[MapMeasureTool,string,string][]=[["distance","Distância","Medir distância"],["area","Área","Medir área"],["profile","Perfil","Medir perfil de elevação"],["slope","Inclinação %","Consultar inclinação em porcentagem"]];
@@ -37,6 +37,7 @@ export default function MapMeasureToolbar(p:Props){
    </button>
    {p.open&&<>
     {p.tool==="slope"?<button type="button" className="map-tools-confirm" onClick={p.onFix} disabled={p.busy||!p.feedback.canFix||p.feedback.state==="busy"} title="Fixar ponto de inclinação">Fixar ponto</button>:<button type="button" className="map-tools-confirm" disabled={p.busy||(!p.finished&&!p.valid)} onClick={p.finished?p.onEdit:p.onFinish}><MeasureIcon name={p.finished?"edit":"check"}/><span>{p.finished?"Editar":"Concluir"}</span></button>}
+    {p.tool!=="slope"&&<button type="button" className="map-tools-lengths" aria-label={p.showLengths?"Ocultar medidas dos trechos":"Mostrar medidas dos trechos"} aria-pressed={p.showLengths} onClick={p.onToggleLengths} title={p.showLengths?"Ocultar medidas dos trechos":"Mostrar medidas dos trechos"}>{p.showLengths?"Medidas ✓":"Medidas"}</button>}
     <button type="button" className="map-tools-close" onClick={p.onClose} aria-label="Fechar ferramentas de medição" title="Fechar sem apagar"><MeasureIcon name="close"/></button>
    </>}
   </div>
@@ -51,6 +52,7 @@ export default function MapMeasureToolbar(p:Props){
   </div>}
   {p.open&&p.tool!=="slope"&&!p.finished&&p.picked!==null&&p.picked>=0&&p.picked<p.points&&<div className="map-tools-selection"><span>Vértice {p.picked+1}</span><button type="button" aria-label={`Remover vértice ${p.picked+1} no mapa`} disabled={p.busy} onClick={p.onRemovePoint}>Remover vértice</button></div>}
   {p.open&&notice&&<div className="map-tools-notice" role={p.issue||info?.state==="error"?"alert":"status"}>{info?.state==="busy"&&<i className="map-tools-spinner"/>}<span>{notice}</span>{info?.state==="error"&&<button type="button" onClick={p.onRetry}>Tentar novamente</button>}</div>}
+  {p.open&&p.hint&&!notice&&<div className="map-tools-notice" role="status">{p.hint}</div>}
   {p.open&&<div className="map-tools-sr-only" role="status" aria-live="polite" data-testid="map-measure-readout">{p.primary}. {p.secondary}. {info?.title} {info?.detail} {p.issue}</div>}
  </div>;
 }

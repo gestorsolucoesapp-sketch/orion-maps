@@ -1,4 +1,4 @@
-.orion-measure-segment{min-height:28px;padding:3px 7px;border:1px solid #d1a000;border-radius:8px;background:#fff8d7;color:#172721;font:600 11px Arial,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 1px 5px #0005}
+.orion-measure-segment{min-height:22px;padding:2px 5px;border:1px solid #d1a000;border-radius:6px;background:#fff8d7;color:#172721;font:600 10px Arial,sans-serif;white-space:nowrap;cursor:pointer;box-shadow:0 1px 4px #0004}
 .orion-measure-segment:focus-visible{outline:3px solid #fff;outline-offset:3px}
 .measure-segments{margin:14px 0;padding:12px;border:1px solid #3a5758;border-radius:12px;background:#12292e;color:#f4faf7}
 .measure-segments>strong{display:block;font-size:14px}

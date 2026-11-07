@@ -8,11 +8,12 @@ import {clipPixelGeometry,orthophotoClipUrl,validateClipSpec,type ClipPoint} fro
 import {clipFlowReducer,initialClipFlow,parseClipMargin} from "@/lib/orthophoto-clip-flow";
 import {freshProcessingUrl} from "@/lib/processing-fresh-url";
 import type {ProcessingResult} from "@/lib/supabase/processing-results";
+import type {VisualReferencePoint} from "@/lib/survey-planning";
 
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
 const PointCloudViewer=dynamic(()=>import("./point-cloud-viewer"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-slate-200 bg-slate-950 p-8 text-center text-sm text-white/70">Carregando visualizador 3D…</div>});
 
-type Props={results:ProcessingResult[];error?:string;surveyId?:string;planBoundary?:{name:string;points:[number,number][]}|null};
+type Props={results:ProcessingResult[];error?:string;surveyId?:string;referencePoints?:VisualReferencePoint[];planBoundary?:{name:string;points:[number,number][]}|null};
 
 function fmtBytes(value:number|null){
   if(!value)return "—";
@@ -33,7 +34,8 @@ const labels:Record<string,string>={
 };
 const short:Record<string,string>={orthophoto:"ORTO",contours:"CURVAS",hillshade:"RELEVO",hypsometry:"HIPS",slope:"SLOPE",dtm:"DTM",dsm:"DSM",point_cloud:"LAZ",report:"PDF",mesh:"3D",other:"ARQ"};
 
-export default function ProcessingResults({results,error,surveyId,planBoundary}:Props){
+export default function ProcessingResults({results,error,surveyId,referencePoints=[],planBoundary}:Props){
+  const [resultReferences,setResultReferences]=useState(referencePoints);
   const [downloading,setDownloading]=useState<string|null>(null);
   const [selectionTick,setSelectionTick]=useState(0);
   const [selectedKind,setSelectedKind]=useState<string|null>("orthophoto");
@@ -166,7 +168,7 @@ export default function ProcessingResults({results,error,surveyId,planBoundary}:
         </div>
       </div>
 
-      <div className="mt-6"><ResultsMap key={mapPrivateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} planBoundary={planBoundary} focusKind={mapPrivateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={mapPrivateMode} clipUrl={mapPrivateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={onClipPointsChange}/></div>
+      <div className="mt-6"><ResultsMap key={mapPrivateMode?"private":"full"} focusRevision={selectionTick} results={mapResults} surveyId={reportSurveyId} referencePoints={resultReferences} onReferencePointsChange={setResultReferences} planBoundary={planBoundary} focusKind={mapPrivateMode?"orthophoto":selectedKind==="point_cloud"?null:selectedKind} privateMode={mapPrivateMode} clipUrl={mapPrivateMode?privatePreview:null} clipPoints={clipPoints} clipEditing={clipEditing} clipDrawing={clipDrawing} onClipPointsChange={onClipPointsChange}/></div>
 
       {!privateMode&&selectedKind==="point_cloud"&&(()=>{
         const cloud=sorted.find(item=>item.kind==="point_cloud");
