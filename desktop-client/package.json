@@ -1,0 +1,22 @@
+{
+  "name": "orion-maps-desktop",
+  "productName": "Orion Maps",
+  "version": "0.4.46",
+  "description": "Aplicativo Windows do Orion Maps",
+  "author": "Orion Maps",
+  "main": "main.cjs",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "make": "electron-forge make --platform win32 --arch x64"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "1.0.1"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "8.0.1",
+    "@electron-forge/maker-squirrel": "8.0.1",
+    "electron": "45.2.3"
+  }
+}
