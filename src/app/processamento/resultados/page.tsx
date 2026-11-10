@@ -32,11 +32,11 @@ export default async function ProcessingResultsPage({searchParams}:{searchParams
     }
     return null;
   })();
-  let planBoundary:null|{name:string;points:[number,number][]}=null;
+  let planBoundary:null|{name:string;points:[number,number][];legs:[number,number][][]}=null;
   try{
     const missions=await listMissionPlanCandidates(token);
     const match=findMissionBoundaryForBounds(missions,bounds,active.id);
-    if(match)planBoundary={name:match.name,points:match.points};
+    if(match)planBoundary={name:match.name,points:match.points,legs:match.legs};
   }catch{}
 
   const projectHref=`/painel?levantamento=${active.id}`;

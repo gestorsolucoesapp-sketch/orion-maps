@@ -7,6 +7,9 @@ type Props={
   projectName:string;
   oldDate:string;
   flightDate:string;
+  planAvailable:boolean;
+  planShown:boolean;
+  onPlanShownChange:(shown:boolean)=>void;
   onRecordingChange?:(recording:boolean)=>void;
 };
 
@@ -38,7 +41,7 @@ function videoMime(){
   return null;
 }
 
-export default function BeforeAfterRecorder({getMapCanvas,projectName,oldDate,flightDate,onRecordingChange}:Props){
+export default function BeforeAfterRecorder({getMapCanvas,projectName,oldDate,flightDate,planAvailable,planShown,onPlanShownChange,onRecordingChange}:Props){
   const recorder=useRef<MediaRecorder|null>(null),stream=useRef<MediaStream|null>(null),frame=useRef<number|null>(null),timer=useRef<number|null>(null),ticker=useRef<number|null>(null),started=useRef(0),lastFrame=useRef(0),url=useRef<string|null>(null);
   const [recording,setRecording]=useState(false),[elapsed,setElapsed]=useState(0),[blob,setBlob]=useState<Blob|null>(null),[previewUrl,setPreviewUrl]=useState<string|null>(null),[message,setMessage]=useState("");
 
@@ -148,6 +151,7 @@ export default function BeforeAfterRecorder({getMapCanvas,projectName,oldDate,fl
 
   return <section aria-label="Gravar comparação antes e depois" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
     <p className="font-semibold">Vídeo do antes e depois</p>
+    {planAvailable?<label className="mt-2 flex items-center gap-2 font-semibold"><input type="checkbox" checked={planShown} disabled={recording} onChange={event=>onPlanShownChange(event.target.checked)} className="h-5 w-5 accent-emerald-800"/>Mostrar linhas do plano de voo no vídeo</label>:<p className="mt-2 text-xs text-slate-600">As linhas de voo aparecem quando existe um plano salvo para este levantamento.</p>}
     <p className="mt-1 text-xs">Coloque a barra em “Antes”, toque em Gravar, mova a barra com o dedo e toque em Parar. Máximo de 20 segundos. O vídeo inclui as datas e os créditos da imagem.</p>
     <div className="mt-3 flex flex-wrap gap-2">
       {!recording?<button type="button" onClick={start} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white">● Gravar transição</button>:<button type="button" onClick={stop} className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">■ Parar · {elapsed}s</button>}

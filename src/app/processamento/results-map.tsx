@@ -36,12 +36,13 @@ function waybackTileUrl(item:WaybackItem){
 }
 function historicalDate(value:number|undefined){return value&&Number.isFinite(value)?new Date(value).toLocaleDateString("pt-BR",{timeZone:"UTC"}):null;}
 const EMPTY_REFERENCE_POINTS:VisualReferencePoint[]=[];
+const EMPTY_FLIGHT_LEGS:Coord[][]=[];
 type Props={
   results:ProcessingResult[];
   surveyId?:string;
   projectName?:string;
   flightDate?:string|null;
-  planBoundary?:{name:string;points:Coord[]}|null;
+  planBoundary?:{name:string;points:Coord[];legs?:Coord[][]}|null;
   referencePoints?:VisualReferencePoint[];
   onReferencePointsChange?:(points:VisualReferencePoint[])=>void;
   focusKind?:string|null;
@@ -151,7 +152,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
   const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
   const [dtmRange,setDtmRange]=useState<{min:number;max:number}|null>(null),[dsmRange,setDsmRange]=useState<{min:number;max:number}|null>(null);
-  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false});
+  const [visible,setVisible]=useState<Record<string,boolean>>({orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false,flightRoute:false});
   const [dtmCorners,setDtmCorners]=useState<RasterCorners|null>(null),[dsmCorners,setDsmCorners]=useState<RasterCorners|null>(null),[slopeCorners,setSlopeCorners]=useState<RasterCorners|null>(null);
   const [contoursState,setContoursState]=useState<"loading"|"ready"|"error">("loading"),[contoursError,setContoursError]=useState("");
   const [contoursCount,setContoursCount]=useState(0);
@@ -169,6 +170,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
   },[bounds,privateMode,aligningId,alignment,referencePoints,dragMode,draftOffset,savedOffset]);
   const measurementTransform=useMemo(()=>bounds&&alignmentView.corners?{original:[[bounds.west,bounds.north],[bounds.east,bounds.north],[bounds.east,bounds.south],[bounds.west,bounds.south]] as RasterCorners,aligned:alignmentView.corners}:null,[bounds,alignmentView.corners]);
   const planCoverage=useMemo(()=>coverageFromPlan(planBoundary),[planBoundary]);
+  const flightLegs=planBoundary?.legs??EMPTY_FLIGHT_LEGS;
   const savedCoverage=useMemo(()=>storedCoverage(results),[results]);
   const coverage=planCoverage||savedCoverage||fallbackCoverage;
   const orthophoto=results.find(r=>r.kind==="orthophoto"&&r.preview_url);
@@ -386,6 +388,18 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
   },[ready,coverage,visible.project]);
 
   useEffect(()=>{
+    const m=map.current;if(!m||!ready||!flightLegs.length)return;
+    const route=flightLegs.filter(leg=>leg.length>=2).flat();
+    const data:GeoJSON.FeatureCollection<GeoJSON.LineString>={type:"FeatureCollection",features:route.length>=2?[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:route}}]:[]};
+    if(!m.getSource("saved-flight-route")){
+      m.addSource("saved-flight-route",{type:"geojson",data});
+      const before=m.getLayer("privacy-cutline")?"privacy-cutline":undefined;
+      m.addLayer({id:"saved-flight-route-halo",type:"line",source:"saved-flight-route",paint:{"line-color":"#17221d","line-width":5,"line-opacity":0.9},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
+      m.addLayer({id:"saved-flight-route-line",type:"line",source:"saved-flight-route",paint:{"line-color":"#f9d943","line-width":2.8,"line-opacity":1},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
+    }else (m.getSource("saved-flight-route") as GeoJSONSource).setData(data);
+  },[ready,flightLegs,visible.flightRoute]);
+
+  useEffect(()=>{
     const m=map.current;if(!m||!ready)return;
     const data=clipDrawingGeoJson(clipPoints);
     const source=m.getSource("privacy-cutline") as GeoJSONSource|undefined;
@@ -525,6 +539,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
     const m=map.current;if(!m||!ready)return;
     for(const key of [...rasterKinds,"contours","dtm","dsm"]){const id=`result-${key}`;if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible[key]?"visible":"none");}
     for(const id of ["project-boundary-shadow","project-boundary-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.project?"visible":"none");
+    for(const id of ["saved-flight-route-halo","saved-flight-route-line"])if(m.getLayer(id))m.setLayoutProperty(id,"visibility",visible.flightRoute?"visible":"none");
     if(m.getLayer("result-orthophoto"))m.setPaintProperty("result-orthophoto","raster-opacity",dragMode?0.5:Math.min(comparePercent/100,visible.contours&&contoursState==="ready"?0.58:1));
   },[visible,ready,contoursState,comparePercent,dragMode]);
 
@@ -546,7 +561,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
 
   function compare(value:number){
     setBasemap("satellite");setComparePercent(value);
-    setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false,project:false}));
+    setVisible(v=>({...v,orthophoto:true,contours:false,hillshade:false,hypsometry:false,slope:false,dtm:false,dsm:false}));
   }
   async function findHistoricalImages(){
     const m=map.current;if(!m)return;
@@ -655,7 +670,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
         <button type="button" onClick={()=>compare(100)} disabled={dragMode} aria-pressed={visible.orthophoto&&comparePercent===100} title="Ortofoto processada" className={`shrink-0 rounded-lg border px-3 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible.orthophoto&&comparePercent===100?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Depois</button>
       </div>
     </div>}
-    {historyChoice&&orthophoto&&!privateMode&&orthoRendered&&ready&&<BeforeAfterRecorder getMapCanvas={()=>map.current?.getCanvas()??null} projectName={projectName} oldDate={historyMetadata?.date?`Imagem antiga: ${historicalDate(historyMetadata.date)}`:`Versão publicada: ${historyChoice.releaseDateLabel.split("-").reverse().join("/")}`} flightDate={flightDate?`Levantamento: ${flightDate.split("-").reverse().join("/")}`:"Levantamento: data não informada"} onRecordingChange={setRecordingVideo}/>}
+    {historyChoice&&orthophoto&&!privateMode&&orthoRendered&&ready&&<BeforeAfterRecorder getMapCanvas={()=>map.current?.getCanvas()??null} projectName={projectName} oldDate={historyMetadata?.date?`Imagem antiga: ${historicalDate(historyMetadata.date)}`:`Versão publicada: ${historyChoice.releaseDateLabel.split("-").reverse().join("/")}`} flightDate={flightDate?`Levantamento: ${flightDate.split("-").reverse().join("/")}`:"Levantamento: data não informada"} planAvailable={flightLegs.length>0} planShown={visible.flightRoute} onPlanShownChange={value=>setVisible(v=>({...v,flightRoute:value}))} onRecordingChange={setRecordingVideo}/>}
     {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Arraste a barra “Antes/Depois” para comparar a imagem escolhida com a ortofoto.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={clipEditing||!!aligningId||placingReference||dragMode} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">

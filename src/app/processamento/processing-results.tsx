@@ -13,7 +13,7 @@ import type {VisualReferencePoint} from "@/lib/survey-planning";
 const ResultsMap=dynamic(()=>import("./results-map"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-emerald-200 bg-emerald-50 p-8 text-center text-sm text-emerald-900">Carregando mapa dos resultados…</div>});
 const PointCloudViewer=dynamic(()=>import("./point-cloud-viewer"),{ssr:false,loading:()=> <div className="rounded-[22px] border border-slate-200 bg-slate-950 p-8 text-center text-sm text-white/70">Carregando visualizador 3D…</div>});
 
-type Props={results:ProcessingResult[];error?:string;surveyId?:string;projectName?:string;flightDate?:string|null;referencePoints?:VisualReferencePoint[];planBoundary?:{name:string;points:[number,number][]}|null};
+type Props={results:ProcessingResult[];error?:string;surveyId?:string;projectName?:string;flightDate?:string|null;referencePoints?:VisualReferencePoint[];planBoundary?:{name:string;points:[number,number][];legs?:[number,number][][]}|null};
 
 function fmtBytes(value:number|null){
   if(!value)return "—";
