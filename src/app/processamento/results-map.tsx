@@ -23,6 +23,7 @@ import {alignedCorners,dragTranslation,transformPreviewPoint,translateCorners,ty
 import type {VisualReferencePoint} from "@/lib/survey-planning";
 import {changeResultReference} from "./reference-actions";
 import {getMetadata,getWaybackItems,type WaybackItem,type WaybackMetadata} from "@esri/wayback-core";
+import BeforeAfterRecorder from "./before-after-recorder";
 
 type Bounds={west:number;south:number;east:number;north:number};
 type Coord=[number,number];
@@ -38,6 +39,8 @@ const EMPTY_REFERENCE_POINTS:VisualReferencePoint[]=[];
 type Props={
   results:ProcessingResult[];
   surveyId?:string;
+  projectName?:string;
+  flightDate?:string|null;
   planBoundary?:{name:string;points:Coord[]}|null;
   referencePoints?:VisualReferencePoint[];
   onReferencePointsChange?:(points:VisualReferencePoint[])=>void;
@@ -120,7 +123,7 @@ function storedCoverage(results:ProcessingResult[]):Coverage|null{
   return null;
 }
 
-export default function ResultsMap({results,surveyId,planBoundary,referencePoints=EMPTY_REFERENCE_POINTS,onReferencePointsChange,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
+export default function ResultsMap({results,surveyId,projectName="Levantamento",flightDate,planBoundary,referencePoints=EMPTY_REFERENCE_POINTS,onReferencePointsChange,focusKind,focusRevision,privateMode=false,clipUrl=null,clipPoints=[],clipEditing=false,clipDrawing=false,onClipPointsChange}:Props){
   const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null);
   const [measurementMap,setMeasurementMap]=useState<maplibregl.Map|null>(null);
   const [alignment,setAlignment]=useState<AlignmentPair[]>([]),[alignmentLoadedKey,setAlignmentLoadedKey]=useState<string|null>(null),[aligningId,setAligningId]=useState<string|null>(null);
@@ -143,6 +146,7 @@ export default function ResultsMap({results,surveyId,planBoundary,referencePoint
   const [historyOpen,setHistoryOpen]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[historyError,setHistoryError]=useState("");
   const [historyItems,setHistoryItems]=useState<WaybackItem[]>([]),[historyChoice,setHistoryChoice]=useState<WaybackItem|null>(null);
   const [historyMetadata,setHistoryMetadata]=useState<WaybackMetadata|null>(null),[historyPoint,setHistoryPoint]=useState<{longitude:number;latitude:number;zoom:number}|null>(null);
+  const [recordingVideo,setRecordingVideo]=useState(false);
   const [orthoBusy,setOrthoBusy]=useState(false),[orthoError,setOrthoError]=useState("");
   const [orthoProgress,setOrthoProgress]=useState<OrthoLoadProgress|null>(null),[orthoRendered,setOrthoRendered]=useState(false),[orthoRetry,setOrthoRetry]=useState(0);
   const [dtmPreview,setDtmPreview]=useState<string|null>(null),[dsmPreview,setDsmPreview]=useState<string|null>(null),[processedSlope,setProcessedSlope]=useState<string|null>(null),[elevationBusy,setElevationBusy]=useState<string|null>(null),[elevationError,setElevationError]=useState("");
@@ -268,7 +272,7 @@ export default function ResultsMap({results,surveyId,planBoundary,referencePoint
         layers:[{id:"background",type:"background",paint:{"background-color":"#dfe8dc"}},{id:"basemap",type:"raster",source:"basemap"}],
       },
       center:camera.current?.center||[(bounds.west+bounds.east)/2,(bounds.south+bounds.north)/2],
-      zoom:camera.current?.zoom??17,bearing:camera.current?.bearing??0,pitch:camera.current?.pitch??0,attributionControl:false,renderWorldCopies:false,
+      zoom:camera.current?.zoom??17,bearing:camera.current?.bearing??0,pitch:camera.current?.pitch??0,attributionControl:false,renderWorldCopies:false,canvasContextAttributes:{preserveDrawingBuffer:true},
     });
     map.current=m;
     m.on("sourcedata",event=>{if(event.sourceId==="result-orthophoto"&&event.isSourceLoaded&&map.current===m)setOrthoRendered(true);});
@@ -623,14 +627,14 @@ export default function ResultsMap({results,surveyId,planBoundary,referencePoint
     </section>}
     {orthophoto&&!privateMode&&<div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-600">
       <button type="button" onClick={()=>setHistoryOpen(value=>!value)} aria-expanded={historyOpen} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 font-semibold text-emerald-950">Imagens antigas {historyChoice?`· ${historyChoice.releaseDateLabel}`:""}</button>
-      {historyChoice&&<button type="button" onClick={()=>{setHistoryChoice(null);setHistoryMetadata(null);}} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 font-semibold text-emerald-950">Voltar ao satélite atual</button>}
+      {historyChoice&&<button type="button" onClick={()=>{setHistoryChoice(null);setHistoryMetadata(null);}} disabled={recordingVideo} className="rounded-xl border border-emerald-300 bg-white px-3 py-2 font-semibold text-emerald-950 disabled:opacity-50">Voltar ao satélite atual</button>}
       <span>Antes: {historyChoice?`versão histórica publicada em ${historyChoice.releaseDateLabel}`:"mapa satélite de referência"}. Depois: ortofoto deste processamento.</span>
     </div>}
     {historyOpen&&orthophoto&&!privateMode&&<div className="mb-3 rounded-xl border border-emerald-200 bg-[#f4f8ef] p-3 text-xs text-emerald-950">
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" onClick={()=>void findHistoricalImages()} disabled={historyBusy||dragMode} className="rounded-lg bg-emerald-900 px-3 py-2 font-semibold text-white disabled:opacity-50">{historyBusy?"Carregando datas…":"Carregar datas históricas"}</button>
+        <button type="button" onClick={()=>void findHistoricalImages()} disabled={historyBusy||dragMode||recordingVideo} className="rounded-lg bg-emerald-900 px-3 py-2 font-semibold text-white disabled:opacity-50">{historyBusy?"Carregando datas…":"Carregar datas históricas"}</button>
         {historyItems.length>0&&<label className="flex items-center gap-2 font-semibold">Versão
-          <select aria-label="Escolher imagem histórica" value={historyChoice?.releaseNum??""} onChange={event=>{const item=historyItems.find(value=>value.releaseNum===Number(event.target.value))??null;setHistoryChoice(item);setHistoryMetadata(null);if(item)compare(0);}} className="max-w-full rounded-lg border border-emerald-300 bg-white px-2 py-2 text-emerald-950">
+          <select aria-label="Escolher imagem histórica" value={historyChoice?.releaseNum??""} disabled={recordingVideo} onChange={event=>{const item=historyItems.find(value=>value.releaseNum===Number(event.target.value))??null;setHistoryChoice(item);setHistoryMetadata(null);if(item)compare(0);}} className="max-w-full rounded-lg border border-emerald-300 bg-white px-2 py-2 text-emerald-950 disabled:opacity-50">
             <option value="">Escolha uma data</option>
             {historyItems.map(item=><option key={item.releaseNum} value={item.releaseNum}>{item.releaseDateLabel}</option>)}
           </select>
@@ -641,13 +645,14 @@ export default function ResultsMap({results,surveyId,planBoundary,referencePoint
       <p className="mt-2">Cada data da lista identifica uma versão do mapa, não uma nova foto deste local. Verifique a data de captura exibida após escolher a versão; algumas versões podem mostrar a mesma imagem.</p>
     </div>}
     <div className="mb-3 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none]" aria-label="Camadas e comparação do mapa">
-      {controls.map(([key,label])=><button key={key} type="button" aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
+      {controls.map(([key,label])=><button key={key} type="button" disabled={recordingVideo} aria-pressed={!!visible[key]} onClick={()=>toggleLayer(key)} aria-busy={elevationBusy===key||(key==="contours"&&visible.contours&&contoursState==="loading")} className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible[key]?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>{elevationBusy===key?"Abrindo…":label}</button>)}
       {orthophoto&&!privateMode&&<div role="group" aria-label="Antes e depois" className="ml-1 flex shrink-0 items-center gap-2 border-l border-emerald-200 pl-3">
         <button type="button" onClick={()=>compare(0)} disabled={dragMode} aria-pressed={visible.orthophoto&&comparePercent===0} title="Mapa satélite de referência" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible.orthophoto&&comparePercent===0?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Antes</button>
         <input type="range" min="0" max="100" step="1" value={comparePercent} onChange={e=>compare(Number(e.target.value))} disabled={dragMode} aria-label="Comparar mapa satélite e ortofoto" aria-valuetext={`${comparePercent}% de ortofoto`} className="w-28 accent-emerald-800 disabled:opacity-50 sm:w-36"/>
         <button type="button" onClick={()=>compare(100)} disabled={dragMode} aria-pressed={visible.orthophoto&&comparePercent===100} title="Ortofoto processada" className={`rounded-xl border px-4 py-2.5 text-sm font-semibold disabled:opacity-50 ${visible.orthophoto&&comparePercent===100?"border-emerald-800 bg-emerald-900 text-white shadow-sm":"border-emerald-200 bg-white text-emerald-950"}`}>Depois</button>
       </div>}
     </div>
+    {historyChoice&&orthophoto&&!privateMode&&orthoRendered&&ready&&<BeforeAfterRecorder getMapCanvas={()=>map.current?.getCanvas()??null} projectName={projectName} oldDate={historyMetadata?.date?`Imagem antiga: ${historicalDate(historyMetadata.date)}`:`Versão publicada: ${historyChoice.releaseDateLabel.split("-").reverse().join("/")}`} flightDate={flightDate?`Levantamento: ${flightDate.split("-").reverse().join("/")}`:"Levantamento: data não informada"} onRecordingChange={setRecordingVideo}/>}
     {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Arraste a barra “Antes/Depois” para comparar a imagem escolhida com a ortofoto.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={clipEditing||!!aligningId||placingReference||dragMode} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
 
     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
