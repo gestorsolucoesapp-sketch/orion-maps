@@ -140,13 +140,18 @@ export default function BeforeAfterRecorder({getMapCanvas,projectName,oldDate,fl
     const link=document.createElement("a");link.href=url.current;link.download=item.name;
     document.body.appendChild(link);link.click();link.remove();
   }
+  function discard(){
+    if(url.current){URL.revokeObjectURL(url.current);url.current=null;}
+    setBlob(null);setPreviewUrl(null);
+    setMessage("Gravação excluída desta página. Vídeos já salvos no aparelho permanecem disponíveis.");
+  }
 
   return <section aria-label="Gravar comparação antes e depois" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-950">
     <p className="font-semibold">Vídeo do antes e depois</p>
     <p className="mt-1 text-xs">Coloque a barra em “Antes”, toque em Gravar, mova a barra com o dedo e toque em Parar. Máximo de 20 segundos. O vídeo inclui as datas e os créditos da imagem.</p>
     <div className="mt-3 flex flex-wrap gap-2">
       {!recording?<button type="button" onClick={start} className="rounded-lg bg-emerald-900 px-4 py-2 font-semibold text-white">● Gravar transição</button>:<button type="button" onClick={stop} className="rounded-lg bg-red-700 px-4 py-2 font-semibold text-white">■ Parar · {elapsed}s</button>}
-      {blob&&!recording&&<><button type="button" onClick={()=>void share()} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 font-semibold">Compartilhar vídeo</button><button type="button" onClick={download} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 font-semibold">Baixar vídeo</button></>}
+      {blob&&!recording&&<><button type="button" onClick={()=>void share()} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 font-semibold">Compartilhar vídeo</button><button type="button" onClick={download} className="rounded-lg border border-emerald-700 bg-white px-4 py-2 font-semibold">Baixar vídeo</button><button type="button" onClick={discard} className="rounded-lg border border-red-300 bg-white px-4 py-2 font-semibold text-red-800">Excluir vídeo</button></>}
     </div>
     {previewUrl&&blob&&!recording&&<video src={previewUrl} controls playsInline className="mt-3 max-h-72 w-auto max-w-full rounded-lg bg-black" aria-label="Prévia do vídeo gravado"/>}
     {message&&<p role="status" className="mt-2 text-xs">{message}</p>}
