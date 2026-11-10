@@ -189,7 +189,7 @@ export default function ProcessingResults({results,error,surveyId,referencePoint
       })()}
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        {privateMode&&!clipSpec?<span className="rounded-2xl bg-slate-200 px-5 py-4 text-center text-sm font-semibold text-slate-600">Corrija o contorno para exportar PDF</span>:<a href={reportHref} target="_blank" rel="noreferrer" className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">{privateMode?"Exportar PDF recortado":"Exportar PDF"} ↗</a>}
+        {privateMode&&!clipSpec?<span className="rounded-2xl bg-slate-200 px-5 py-4 text-center text-sm font-semibold text-slate-600">Corrija o contorno para exportar PDF</span>:<a href={reportHref} className="rounded-2xl bg-emerald-900 px-5 py-4 text-center text-sm font-semibold text-white">{privateMode?"Abrir relatório recortado":"Abrir relatório para PDF"} →</a>}
         <button type="button" onClick={()=>document.getElementById("arquivos-tecnicos")?.scrollIntoView({behavior:"smooth",block:"start"})} className="rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-semibold text-emerald-950">Baixar arquivos ↓</button>
         <button type="button" onClick={()=>document.querySelector('[aria-label="Mapa dos resultados do processamento"]')?.scrollIntoView({behavior:"smooth",block:"center"})} className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm font-semibold text-slate-700">Voltar ao mapa ↑</button>
       </div>
