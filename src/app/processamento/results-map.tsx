@@ -394,8 +394,8 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
     if(!m.getSource("saved-flight-route")){
       m.addSource("saved-flight-route",{type:"geojson",data});
       const before=m.getLayer("privacy-cutline")?"privacy-cutline":undefined;
-      m.addLayer({id:"saved-flight-route-halo",type:"line",source:"saved-flight-route",paint:{"line-color":"#17221d","line-width":5,"line-opacity":0.9},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
-      m.addLayer({id:"saved-flight-route-line",type:"line",source:"saved-flight-route",paint:{"line-color":"#f9d943","line-width":2.8,"line-opacity":1},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
+      m.addLayer({id:"saved-flight-route-halo",type:"line",source:"saved-flight-route",paint:{"line-color":"#17221d","line-width":2,"line-opacity":0.7},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
+      m.addLayer({id:"saved-flight-route-line",type:"line",source:"saved-flight-route",paint:{"line-color":"#f9d943","line-width":1.25,"line-opacity":1},layout:{visibility:visible.flightRoute?"visible":"none"}},before);
     }else (m.getSource("saved-flight-route") as GeoJSONSource).setData(data);
   },[ready,flightLegs,visible.flightRoute]);
 
