@@ -80,10 +80,20 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
   if(!map||!editing)return;
   const releaseInteraction=lockMapToolInteraction(map);
   setMeasuringMap(map,true);map.getContainer().classList.add("orion-measuring");
-  const click=(e:MapMouseEvent)=>{const s=latest.current;if(s.busy||s.drawing.points.length>=200||(e.originalEvent.target as HTMLElement)?.closest("button,[data-map-tool-ui],.maplibregl-control-container"))return;const p=toOriginal([e.lngLat.lng,e.lngLat.lat]);if(isMeasurePoint(p))s.change({...s.drawing,points:[...s.drawing.points,p]});};
+   const click=(e:MapMouseEvent)=>{
+    const s=latest.current;
+    if(s.busy||(e.originalEvent.target as HTMLElement)?.closest("button,[data-map-tool-ui],.maplibregl-control-container"))return;
+    if(s.drawing.kind==="polygon"&&s.drawing.points.length>=3){
+     const first=map.project(toDisplay(s.drawing.points[0]));
+     if(Math.hypot(e.point.x-first.x,e.point.y-first.y)<=24){s.finish();return;}
+    }
+    if(s.drawing.points.length>=200)return;
+    const p=toOriginal([e.lngLat.lng,e.lngLat.lat]);
+    if(isMeasurePoint(p))s.change({...s.drawing,points:[...s.drawing.points,p]});
+   };
   map.on("click",click);
   return()=>{map.off("click",click);setMeasuringMap(map,false);map.getContainer().classList.remove("orion-measuring");releaseInteraction();};
- },[map,editing,toOriginal]);
+  },[map,editing,toDisplay,toOriginal]);
  useEffect(()=>{
   if(!map||!showDrawing)return;const features:GeoJSON.Feature[]=[];
   if(points.length>=2){const visiblePoints=points.map(toDisplay);features.push({type:"Feature",properties:{},geometry:drawing.kind==="polygon"&&finished&&points.length>=3?{type:"Polygon",coordinates:[[...visiblePoints,visiblePoints[0]]]}:{type:"LineString",coordinates:visiblePoints}});}
@@ -172,7 +182,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
  const quickHectares=measureNumber(finished?metrics.area_m2:null,10000)+" ha";
  const quickAlqueires=measureNumber(finished?metrics.area_m2:null,24200)+" alq. paulistas";
  const primary=tool==="slope"?"Inclinação no ponto":tool==="area"?(finished?quickArea:"Área em andamento"):quickDistance;
- const secondary=tool==="slope"?"Toque no terreno":tool==="area"?(finished?quickHectares+" · "+quickAlqueires+" · Perímetro: "+fmt(metrics.perimeter_m,"m"):"Toque no primeiro ponto ou em Concluir para fechar"):tool==="profile"?"Perfil · distância horizontal":"Distância horizontal";
+  const secondary=tool==="slope"?"Toque no terreno":tool==="area"?(finished?quickHectares+" · "+quickAlqueires+" · Perímetro: "+fmt(metrics.perimeter_m,"m"):"Toque perto do primeiro ponto ou em Concluir para fechar"):tool==="profile"?"Perfil · distância horizontal":"Distância horizontal";
  // Attach the live value to the geometry, keeping the last vertex free to drag.
  // Marker follows map navigation; the offset keeps the label inside the visible map.
  const labelTerrain=finished&&tool==="profile"&&terrainFeedback.state==="ready"
@@ -211,7 +221,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
  const host=map?.getContainer().parentElement;
  return <section className="orion-measurement" data-testid="measurement-tool" data-open={open?"true":"false"} data-editing={editing} data-tool={tool}>
   {!floating&&!railMode&&<button type="button" className="measure-launch" disabled={!map||disabled} aria-expanded={open} onClick={()=>setOpen(v=>!v)}>📏 {open?"Fechar medição":"Medir no mapa"}<span>Distância · área · perímetro</span></button>}
-  {floating&&host&&createPortal(<MapMeasureToolbar open={open} optionsOpen={optionsOpen} onToggleOptions={()=>setOptionsOpen(v=>!v)} tool={tool} finished={finished} points={points.length} valid={tool==="area"?points.length>=3:metrics.complete} busy={busy||disabled} showLengths={showSegmentLabels} onToggleLengths={()=>setShowSegmentLabels(v=>!v)} terrainAvailable={terrainAvailable} primary={primary} secondary={secondary} issue={tool!=="slope"?(drawingError||(tool==="area"&&!finished?"":metrics.issue)):undefined} hint={tool==="area"&&!finished&&points.length>=3?"Toque no primeiro ponto ou em Concluir para fechar a área.":undefined} feedback={terrainFeedback}
+  {floating&&host&&createPortal(<MapMeasureToolbar open={open} optionsOpen={optionsOpen} onToggleOptions={()=>setOptionsOpen(v=>!v)} tool={tool} finished={finished} points={points.length} valid={tool==="area"?points.length>=3:metrics.complete} busy={busy||disabled} showLengths={showSegmentLabels} onToggleLengths={()=>setShowSegmentLabels(v=>!v)} terrainAvailable={terrainAvailable} primary={primary} secondary={secondary} issue={tool!=="slope"?(drawingError||metrics.issue):undefined} hint={tool==="area"&&!finished&&points.length>=3?"Toque perto do primeiro ponto ou em Concluir para fechar a área.":undefined} feedback={terrainFeedback}
    canUndo={tool==="slope"?terrainFeedback.canUndo:state.past.length>0} canRedo={tool==="slope"?terrainFeedback.canRedo:state.future.length>0} canClear={tool==="slope"?terrainFeedback.canClear:points.length>0}
    picked={editing&&picked!==null&&picked<drawing.points.length?picked:null} onRemovePoint={()=>{if(picked!==null&&!busy)change({...drawing,points:drawing.points.filter((_,i)=>i!==picked)});}}
    onOpen={()=>{if(!busy&&!disabled){setOpen(true);setOptionsOpen(true);}}} onClose={()=>{setOpen(false);setOptionsOpen(false);setPicked(null);}} onTool={selectTool}
