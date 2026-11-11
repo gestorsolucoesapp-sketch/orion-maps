@@ -143,15 +143,7 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
   const [terrainCommand,setTerrainCommand]=useState<TerrainToolCommand|null>(null);
   const onTerrainAction=useCallback((action:TerrainToolAction)=>setTerrainCommand(v=>({sequence:(v?.sequence||0)+1,action})),[]);
    const [ready,setReady]=useState(false),[fallbackCoverage,setFallbackCoverage]=useState<Coverage|null>(null);
-   const [fullScreen,setFullScreen]=useState(false);
-   useEffect(()=>{
-     if(!fullScreen)return;
-     const previousOverflow=document.body.style.overflow;
-     document.body.style.overflow="hidden";
-     const leave=(event:KeyboardEvent)=>{if(event.key==="Escape")setFullScreen(false);};
-     window.addEventListener("keydown",leave);
-     return()=>{document.body.style.overflow=previousOverflow;window.removeEventListener("keydown",leave);};
-   },[fullScreen]);
+   const [mapExpanded,setMapExpanded]=useState(false);
   const [basemap,setBasemap]=useState<BaseMap>("satellite"),[layersOpen,setLayersOpen]=useState(false),[transparentOrtho,setTransparentOrtho]=useState<string|null>(null),[comparePercent,setComparePercent]=useState(100);
   const [historyOpen,setHistoryOpen]=useState(false),[historyBusy,setHistoryBusy]=useState(false),[historyError,setHistoryError]=useState("");
   const [historyItems,setHistoryItems]=useState<WaybackItem[]>([]),[historyChoice,setHistoryChoice]=useState<WaybackItem|null>(null);
@@ -682,9 +674,9 @@ export default function ResultsMap({results,surveyId,projectName="Levantamento",
     {historyChoice&&orthophoto&&!privateMode&&orthoRendered&&ready&&<BeforeAfterRecorder getMapCanvas={()=>map.current?.getCanvas()??null} projectName={projectName} oldDate={historyMetadata?.date?`Imagem antiga: ${historicalDate(historyMetadata.date)}`:`Versão publicada: ${historyChoice.releaseDateLabel.split("-").reverse().join("/")}`} flightDate={flightDate?`Levantamento: ${flightDate.split("-").reverse().join("/")}`:"Levantamento: data não informada"} planAvailable={flightLegs.length>0} planShown={visible.flightRoute} onPlanShownChange={value=>setVisible(v=>({...v,flightRoute:value}))} onRecordingChange={setRecordingVideo}/>}
     {orthophoto&&!privateMode&&<div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600"><p>Arraste a barra “Antes/Depois” para comparar a imagem escolhida com a ortofoto.</p><button type="button" onClick={measureAreaOnOrthophoto} disabled={clipEditing||!!aligningId||placingReference||dragMode} className="rounded-xl bg-emerald-900 px-4 py-2.5 font-semibold text-white disabled:opacity-50">Medir área na ortofoto</button></div>}
 
-     <div className={`overflow-hidden border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)] ${fullScreen?"fixed inset-0 z-[100] rounded-none":"relative rounded-[22px]"}`}>
-       <div ref={el} className={`orion-results-map w-full ${fullScreen?"h-[100dvh] min-h-0 max-h-none":"h-[58vh] min-h-[440px] max-h-[720px]"}`} aria-label="Mapa dos resultados do processamento" data-ortho-preview={privateMode?"server-protected-png-v2":"webp-v1"} data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
-       <button type="button" onClick={()=>setFullScreen(value=>!value)} aria-pressed={fullScreen} aria-label={fullScreen?"Sair da tela cheia do mapa":"Medir em tela cheia"} title={fullScreen?"Sair da tela cheia":"Tela cheia para medir"} className="absolute bottom-12 right-3 z-20 rounded-xl border border-white/80 bg-white/95 px-3 py-2.5 text-xs font-bold text-emerald-950 shadow-md backdrop-blur">{fullScreen?"↙ Sair da tela cheia":"⛶ Tela cheia"}</button>
+     <div className="relative overflow-hidden rounded-[22px] border border-emerald-200 bg-slate-100 shadow-[0_10px_30px_rgba(22,63,45,.10)]">
+       <div ref={el} className={`orion-results-map w-full ${mapExpanded?"h-[calc(100dvh-24px)] min-h-[440px] max-h-none":"h-[58vh] min-h-[440px] max-h-[720px]"}`} aria-label="Mapa dos resultados do processamento" data-ortho-preview={privateMode?"server-protected-png-v2":"webp-v1"} data-ortho-state={orthoError?"error":orthoRendered?"ready":"loading"} data-active-raster={[...rasterKinds,"dtm","dsm"].find(k=>visible[k])||"none"} data-layer-state={elevationBusy?"loading":elevationError?"error":"ready"} data-contour-state={contoursState} data-contour-count={contoursCount}/>
+       <button type="button" onClick={()=>{setLayersOpen(false);setMapExpanded(value=>!value);}} aria-pressed={mapExpanded} aria-label={mapExpanded?"Reduzir mapa":"Ampliar somente o mapa"} title={mapExpanded?"Reduzir mapa":"Ampliar mapa para medir"} className="absolute right-3 top-16 z-20 rounded-xl border border-white/80 bg-white/95 px-3 py-2.5 text-xs font-bold text-emerald-950 shadow-md backdrop-blur">{mapExpanded?"↙ Reduzir mapa":"⛶ Ampliar mapa"}</button>
       {dragMode&&<div className={`pointer-events-none absolute bottom-11 left-3 z-10 rounded-lg border px-3 py-2 text-xs font-bold shadow ${alignmentStatus&&alignmentStatus.total>=2&&alignmentStatus.matched===alignmentStatus.total?"border-green-700 bg-green-100 text-green-950":"border-amber-500 bg-white/95 text-amber-950"}`}>{alignmentStatus&&alignmentStatus.total>=2&&alignmentStatus.matched===alignmentStatus.total?"✓ Cruzes coincidem na tela":"Satélite embaixo · ortofoto 50% por cima"}</div>}
       {visible.orthophoto&&(orthoBusy||(!orthoRendered&&!!transparentOrtho))&&!orthoError&&<div role="status" className="absolute left-16 right-16 top-3 z-10 rounded-xl bg-white/95 p-3 text-center text-xs text-emerald-950 shadow">
         <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-700 border-t-transparent"/>
