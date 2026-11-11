@@ -24,13 +24,13 @@ const empty:GeoJSON.FeatureCollection={type:"FeatureCollection",features:[]};
 type DisplayTransform={original:AlignmentCoord[];aligned:AlignmentCoord[]};
 type Props={initialDrawing?:MeasureDrawing;embedded?:boolean;map:LibreMap|null;surveyId?:string|null;disabled?:boolean;displayTransform?:DisplayTransform|null;onActiveChange?:(active:boolean)=>void;onDrawingChange?:(drawing:MeasureDrawing,name:string)=>void;startAreaRevision?:number;startAreaImageSource?:MeasurementImageSource|null;startPathRevision?:number;floating?:boolean;railMode?:boolean;reportSourcesEnabled?:boolean;terrainAvailable?:boolean;terrainFeedback?:TerrainToolFeedback;onToolChange?:(tool:MapMeasureTool|null)=>void;onTerrainAction?:(action:TerrainToolAction)=>void};
 export default function MapMeasurement({initialDrawing,embedded=false,map,surveyId=null,disabled=false,displayTransform=null,onActiveChange,onDrawingChange,startAreaRevision=0,startAreaImageSource=null,startPathRevision=0,floating=false,railMode=false,reportSourcesEnabled=false,terrainAvailable=false,terrainFeedback=EMPTY_TERRAIN_FEEDBACK,onToolChange,onTerrainAction}:Props){
- const [state,dispatch]=useReducer(reducer,initialDrawing,(initial):State=>({drawing:initial?validateMeasureDrawing(initial):{kind:floating?"path":"polygon",points:[]},past:[],future:[]}));
+  const [state,dispatch]=useReducer(reducer,initialDrawing,(initial):State=>({drawing:initial?validateMeasureDrawing(initial):{kind:floating&&!reportSourcesEnabled?"path":"polygon",points:[]},past:[],future:[]}));
  const [open,setOpen]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState(""),[name,setName]=useState("Minha medição");
  const [areaUnit,setAreaUnit]=useState<AreaUnit>("m2"),[distanceUnit,setDistanceUnit]=useState<DistanceUnit>("m"),[picked,setPicked]=useState<number|null>(null);
  const [segmentEdit,setSegmentEdit]=useState<number|null>(null),[segmentsOpen,setSegmentsOpen]=useState(false),[desiredMetres,setDesiredMetres]=useState("");
  const [live,setLive]=useState<MeasurePoint[]|null>(null),[saved,setSaved]=useState<SavedMeasurement[]|null>(null);
  const requestId=useRef<string|null>(null),latest=useRef<{drawing:MeasureDrawing;busy:boolean;change:(d:MeasureDrawing)=>void;finish:()=>void}>({drawing:state.drawing,busy,change:()=>{},finish:()=>{}});
- const [tool,setTool]=useState<MapMeasureTool>(initialDrawing?.points.length?(initialDrawing.kind==="polygon"?"area":"distance"):floating?"distance":"area"),[finished,setFinished]=useState(()=>{try{return !!initialDrawing&&measureDrawing(initialDrawing).complete;}catch{return false;}}),[detailsOpen,setDetailsOpen]=useState(false);
+  const [tool,setTool]=useState<MapMeasureTool>(initialDrawing?.points.length?(initialDrawing.kind==="polygon"?"area":"distance"):floating&&!reportSourcesEnabled?"distance":"area"),[finished,setFinished]=useState(()=>{try{return !!initialDrawing&&measureDrawing(initialDrawing).complete;}catch{return false;}}),[detailsOpen,setDetailsOpen]=useState(false);
  const [drawingError,setDrawingError]=useState(""),[optionsOpen,setOptionsOpen]=useState(false),[showSegmentLabels,setShowSegmentLabels]=useState(false);
   const [imageSourceForSave,setImageSourceForSave]=useState<MeasurementImageSource|null>(null);
  const toDisplay=useCallback((p:MeasurePoint):MeasurePoint=>imageSourceForSave==="orthophoto"&&displayTransform?transformPreviewPoint(p,displayTransform.original,displayTransform.aligned):p,[imageSourceForSave,displayTransform]);
@@ -154,7 +154,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
   if(busy||disabled)return;
   setOpen(true);setOptionsOpen(false);setTool(next);setFinished(false);setDetailsOpen(false);setPicked(null);setDrawingError("");
   if(next!=="area")setImageSourceForSave(null);
-  if(next!=="slope"){const kind=next==="area"?"polygon":"path";if(drawing.kind!==kind)change({kind,points:[]});}
+   if(next!=="slope"){const kind=next==="area"?"polygon":"path";if(drawing.kind!==kind)change({...drawing,kind});}
  }
  function editOnMap(){
   if(busy||disabled)return;
