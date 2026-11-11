@@ -37,7 +37,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
  const toOriginal=useCallback((p:MeasurePoint):MeasurePoint=>imageSourceForSave==="orthophoto"&&displayTransform?inverseTransformPreviewPoint(p,displayTransform.original,displayTransform.aligned):p,[imageSourceForSave,displayTransform]);
  const detailsRef=useRef<HTMLDivElement>(null);
  const drawing=state.drawing,points=live||drawing.points;
- const editing=!!map&&!disabled&&open&&(!floating||(!finished&&tool!=="slope"));
+ const editing=!!map&&!disabled&&open&&!finished&&(!floating||tool!=="slope");
  const showDrawing=!disabled&&(floating?(tool!=="slope"&&(open||points.length>0)):open);
  const showPanel=!disabled&&(embedded?(finished||detailsOpen):floating?(detailsOpen||(points.length>0&&(finished||!open))):open);
  const metrics=useMemo(()=>{try{return measureDrawing({kind:drawing.kind,points});}catch(e){return {area_m2:null,perimeter_m:null,distance_m:0,complete:false,issue:e instanceof Error?e.message:"Revise os pontos."};}},[drawing.kind,points]);
@@ -73,7 +73,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
  },[map,disabled,floating,railMode]);
  useEffect(()=>{
   if(!map||!showDrawing)return;
-  if(!map.getSource("orion-measure")){map.addSource("orion-measure",{type:"geojson",data:empty});map.addLayer({id:"orion-measure-fill",source:"orion-measure",type:"fill",filter:["==",["geometry-type"],"Polygon"],paint:{"fill-color":"#fff6bb","fill-opacity":0.16}});map.addLayer({id:"orion-measure-line",source:"orion-measure",type:"line",paint:{"line-color":"#ffcf40","line-width":1.5}});}
+  if(!map.getSource("orion-measure")){map.addSource("orion-measure",{type:"geojson",data:empty});map.addLayer({id:"orion-measure-fill",source:"orion-measure",type:"fill",filter:["==",["geometry-type"],"Polygon"],paint:{"fill-color":"#fff6bb","fill-opacity":0.16}});map.addLayer({id:"orion-measure-line",source:"orion-measure",type:"line",paint:{"line-color":"#ffcf40","line-width":1}});}
   return()=>{try{for(const id of ["orion-measure-line","orion-measure-fill"])if(map.getLayer(id))map.removeLayer(id);if(map.getSource("orion-measure"))map.removeSource("orion-measure");}catch{/* Parent map may already be disposed. */}};
  },[map,showDrawing]);
  useEffect(()=>{
@@ -91,7 +91,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
   for(const id of ["orion-measure-fill","orion-measure-line"])if(map.getLayer(id))map.moveLayer(id);
  },[map,showDrawing,points,drawing.kind,finished,toDisplay]);
  useEffect(()=>{
-  if(!map||!showDrawing)return;const markers:Marker[]=[];
+  if(!map||!showDrawing||finished)return;const markers:Marker[]=[];
   function handle(p:MeasurePoint,index:number,midpoint:boolean){
    const element=document.createElement("button");element.type="button";element.className=midpoint?"orion-measure-midpoint":"orion-measure-vertex";
    const closesArea=editing&&!midpoint&&index===0&&drawing.kind==="polygon"&&drawing.points.length>=3;
@@ -109,7 +109,7 @@ export default function MapMeasurement({initialDrawing,embedded=false,map,survey
   drawing.points.forEach((p,i)=>handle(p,i,false));
   if(editing&&drawing.points.length<200){const n=drawing.points.length-1;for(let i=0;i<n;i++)handle(measureMidpoint(drawing.points[i],drawing.points[i+1]),i,true);}
   return()=>markers.forEach(m=>m.remove());
- },[map,showDrawing,drawing,busy,editing,toDisplay,toOriginal]);
+ },[map,showDrawing,drawing,busy,editing,finished,toDisplay,toOriginal]);
  useEffect(()=>{
   if(!map||!showDrawing||!showSegmentLabels||points.length<2)return;
   const count=drawing.kind==="polygon"&&finished&&points.length>=3?points.length:points.length-1;
