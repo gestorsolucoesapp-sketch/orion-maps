@@ -60,6 +60,7 @@ export default function LayoutEditor(){
   const [align,setAlign]=useState(true);
   const [basemap,setBasemap]=useState<"sat"|"street">("sat");
   const [msg,setMsg]=useState("");
+  const [fatal,setFatal]=useState("");
   const [rep,setRep]=useState({n:3,gap:0.1,dir:"u" as "u"|"v"});
   const hist=useRef<SiteLayout[]>([]);
   const drag=useRef<Drag|null>(null);
@@ -94,8 +95,15 @@ export default function LayoutEditor(){
   // ---------- mapa ----------
   useEffect(()=>{
     if(!box.current)return;
-    const m=new maplibregl.Map({container:box.current,center:[-46.888,-21.596],zoom:15,maxZoom:22,attributionControl:{compact:true},canvasContextAttributes:{preserveDrawingBuffer:true},
-      style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"bg",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});
+    const probe=document.createElement("canvas");
+    if(!(probe.getContext("webgl2")||probe.getContext("webgl"))){
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- aviso único quando o aparelho não tem WebGL
+      setFatal("Este navegador não liberou a aceleração gráfica (WebGL), que o mapa precisa. No iPhone, abra no Safari normal (fora do modo Economia de Energia) e recarregue.");return;
+    }
+    let m:maplibregl.Map;
+    try{m=new maplibregl.Map({container:box.current,center:[-46.888,-21.596],zoom:15,maxZoom:22,attributionControl:{compact:true},canvasContextAttributes:{preserveDrawingBuffer:true},
+      style:{version:8,sources:{basemap:{type:"raster",tiles:[esriImagery.url],tileSize:256,maxzoom:esriImagery.maxzoom,attribution:esriImagery.attribution}},layers:[{id:"bg",type:"background",paint:{"background-color":"#c9ccc3"}},{id:"basemap",type:"raster",source:"basemap"}]}});}
+    catch(err){setFatal(`O mapa não abriu: ${err instanceof Error?err.message:String(err)}`);return;}
     mapRef.current=m;setMap(m);
     m.addControl(new maplibregl.GeolocateControl({positionOptions:{enableHighAccuracy:true},trackUserLocation:false}),"top-right");
     m.addControl(new maplibregl.NavigationControl({showZoom:false,visualizePitch:false}),"top-right");
@@ -327,6 +335,8 @@ export default function LayoutEditor(){
 
   const area=cur.area,aClosed=cur.areaClosed&&area.length>=3;
   const areaInfo=aClosed?`${fmt(polygonArea(area))} m² · perímetro ${fmt(perimeter(area))} m`:area.length?`${area.length} ponto(s) · ${fmt(perimeter(area,false))} m`:"";
+
+  if(fatal)return <div className="lo-root lo-fatal"><div><b>Layout de área</b><p>{fatal}</p><button onClick={()=>location.reload()}>Recarregar</button> <Link href="/">Voltar ao início</Link></div></div>;
 
   return <div className="lo-root">
     <div ref={box} className={`lo-map ${tool!=="pan"?"is-drawing":""}`}/>

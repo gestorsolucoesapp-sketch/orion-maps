@@ -96,7 +96,20 @@ export function emptyLayout(name = "Novo layout"): SiteLayout {
 
 const KEY = "orion-site-layouts-v1";
 export function loadLayouts(): SiteLayout[] {
-  try { const v = JSON.parse(localStorage.getItem(KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) || "[]");
+    if (!Array.isArray(v)) return [];
+    const num = (n: unknown, d = 0) => (typeof n === "number" && Number.isFinite(n) ? n : d);
+    return v.filter(l => l && typeof l === "object" && typeof l.id === "string").map((l): SiteLayout => ({
+      ...emptyLayout(), ...l,
+      name: typeof l.name === "string" ? l.name : "Layout",
+      area: Array.isArray(l.area) ? l.area.filter((p: Pt) => p && Number.isFinite(p.x) && Number.isFinite(p.y)) : [],
+      shapes: Array.isArray(l.shapes) ? l.shapes.filter((s: Shape) => s && typeof s.id === "string" && typeof s.kind === "string")
+        .map((s: Shape) => ({ ...s, x: num(s.x), y: num(s.y), w: num(s.w, 1), h: num(s.h, 1), rot: num(s.rot) })) : [],
+      baseAngle: num(l.baseAngle),
+      origin: l.origin && Number.isFinite(l.origin.lng) && Number.isFinite(l.origin.lat) ? l.origin : null,
+    }));
+  } catch { return []; }
 }
 export function saveLayouts(list: SiteLayout[]) {
   try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch { return false; }

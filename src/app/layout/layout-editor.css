@@ -53,3 +53,7 @@
 body:has(.lo-root) .app-version-badge,body:has(.lo-root) .orion-app-navigation{display:none}
 .lo-root .maplibregl-ctrl-bottom-right,.lo-root .maplibregl-ctrl-bottom-left{bottom:calc(env(safe-area-inset-bottom) + 72px)}
 .lo-root .maplibregl-ctrl-attrib{font-size:9px}
+.lo-fatal{display:grid;place-items:center;padding:24px;color:#fff;text-align:center}
+.lo-fatal p{max-width:420px;line-height:1.5;color:#d5dbe5}
+.lo-fatal button{border:0;border-radius:10px;background:#ffc400;color:#1d2433;font-weight:700;padding:10px 16px;margin:8px}
+.lo-fatal a{color:#ffd84d}
