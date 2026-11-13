@@ -50,7 +50,16 @@ def process_running(entry: dict | None) -> bool:
         return False
     try:
         code = ctypes.c_ulong()
-        return bool(kernel.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259
+        if not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value != 259:
+            return False
+        class FileTime(ctypes.Structure):
+            _fields_ = [("low", ctypes.c_uint32), ("high", ctypes.c_uint32)]
+        created, exited, kernel_time, user_time = (FileTime() for _ in range(4))
+        if not kernel.GetProcessTimes(handle, ctypes.byref(created), ctypes.byref(exited),
+                                      ctypes.byref(kernel_time), ctypes.byref(user_time)):
+            return False
+        dotnet_ticks = (created.high << 32 | created.low) + 504911232000000000
+        return dotnet_ticks == int(entry.get("start_ticks", 0))
     finally:
         kernel.CloseHandle(handle)
 
