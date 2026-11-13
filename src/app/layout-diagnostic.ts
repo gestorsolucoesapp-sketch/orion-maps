@@ -1,0 +1,6 @@
+/** Script em ES5 puro, roda antes do React: mostra na tela qualquer erro da página /layout (para diagnosticar no celular). */
+export const LAYOUT_DIAGNOSTIC = `(function(){if(location.pathname.indexOf('/layout')!==0)return;
+function show(m){try{var d=document.getElementById('orion-diag');if(!d){d=document.createElement('div');d.id='orion-diag';d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#b3261e;color:#fff;font:12px/1.4 -apple-system,system-ui,sans-serif;padding:10px;border-radius:10px;white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow:auto';document.documentElement.appendChild(d);}d.textContent+=(d.textContent?'\\n':'Diagnóstico do Layout (tire um print):\\n')+m;}catch(x){}}
+window.addEventListener('error',function(e){var t=e.target;if(t&&t!==window&&(t.src||t.href)){show('Falhou ao carregar: '+(t.src||t.href));return;}show('Erro: '+(e.message||'?')+' @ '+String(e.filename||'').split('/').pop()+':'+(e.lineno||'')+':'+(e.colno||''));},true);
+window.addEventListener('unhandledrejection',function(e){var r=e.reason;show('Promessa: '+(r&&r.message?r.message:String(r)));});
+setTimeout(function(){if(!document.querySelector('.lo-root'))show('O editor não abriu em 10 s.\\n'+navigator.userAgent);},10000);})();`;
