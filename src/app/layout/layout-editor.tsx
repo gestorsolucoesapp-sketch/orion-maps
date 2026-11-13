@@ -98,7 +98,7 @@ export default function LayoutEditor(){
     const probe=document.createElement("canvas");
     if(!(probe.getContext("webgl2")||probe.getContext("webgl"))){
       // eslint-disable-next-line react-hooks/set-state-in-effect -- aviso único quando o aparelho não tem WebGL
-      setFatal("Este navegador não liberou a aceleração gráfica (WebGL), que o mapa precisa. No iPhone, abra no Safari normal (fora do modo Economia de Energia) e recarregue.");return;
+      setFatal("Este navegador não liberou a aceleração gráfica (WebGL), que o mapa precisa. Abra no Safari ou no Chrome atualizado e recarregue.");return;
     }
     let m:maplibregl.Map;
     try{m=new maplibregl.Map({container:box.current,center:[-46.888,-21.596],zoom:15,maxZoom:22,attributionControl:{compact:true},canvasContextAttributes:{preserveDrawingBuffer:true},
