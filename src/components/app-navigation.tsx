@@ -5,7 +5,7 @@ import Image from "next/image";
 import {usePathname} from "next/navigation";
 
 const groups=[
-  {name:"Planejamento",items:[{label:"Voo e Grid",href:"/waypoints"},{label:"Calculadora GSD",href:"/gsd"}]},
+  {name:"Planejamento",items:[{label:"Voo e Grid",href:"/waypoints"},{label:"Calculadora GSD",href:"/gsd"},{label:"Layout de área",href:"/layout"}]},
   {name:"Levantamentos",items:[{label:"Painel",href:"/painel"},{label:"Novo levantamento",href:"/painel/novo"}]},
   {name:"Processamento",items:[{label:"Produtos e fila",href:"/processamento"}]},
   {name:"Resultados",items:[{label:"Mapas e entregas",href:"/processamento/resultados"}]},
