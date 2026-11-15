@@ -130,6 +130,7 @@ export function compareKmzToPlan(file:InspectedKmz,expected:ExpectedKmz):string[
   if(flightDistance(actual[i],expected.route[i])>.02){issues.push(`Coordenada ou ordem diferente no WP ${i+1}.`);if(issues.length>=12)break;}
  }
  if(file.kind==="visualization")return issues;
+ if(file.finishAction!=="goHome")issues.push("Ação final do KMZ não é goHome. Não use este arquivo como missão com retorno automático.");
  let indexReported=false,heightReported=false,speedReported=false;
  for(let i=0;i<file.waypoints.length;i++){
   const waypoint=file.waypoints[i];

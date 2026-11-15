@@ -15,7 +15,7 @@ const basemaps={
  satellite:esriImagery,streets:streetBasemap,topo:topoBasemap,relief:reliefBasemap
 };
 export type Basemap=keyof typeof basemaps;
-type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];exclusions?:Coordinate[][];exclusionDraft?:Coordinate[];drawingExclusion?:boolean;onExclusionAdd?:(p:Coordinate)=>void;legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void;basemap:Basemap;tools?:ReactNode;measureAreaRevision?:number;measurePathRevision?:number;onMeasurementActiveChange?:(active:boolean)=>void};
+type Props={importedLocation?:ImportedMapLocation|null;adjustingPosition?:boolean;onPositionPick?:(p:Coordinate)=>void;markingTakeoff?:boolean;takeoffPoint?:Coordinate|null;onTakeoffPick?:(p:Coordinate)=>void;userPosition:{point:Coordinate;accuracy:number;source?:"manual"}|null;points:Coordinate[];exclusions?:Coordinate[][];exclusionDraft?:Coordinate[];editingExclusionIndex?:number|null;drawingExclusion?:boolean;onExclusionAdd?:(p:Coordinate)=>void;onExclusionMove?:(i:number,p:Coordinate)=>void;legs:Coordinate[][];polygon:boolean;drawing:boolean;center:Coordinate|null;fit:number;onAdd:(p:Coordinate)=>void;onMove:(i:number,p:Coordinate)=>void;basemap:Basemap;tools?:ReactNode;measureAreaRevision?:number;measurePathRevision?:number;onMeasurementActiveChange?:(active:boolean)=>void};
 export default function PlanningCanvas(props:Props){
  const el=useRef<HTMLDivElement>(null),map=useRef<maplibregl.Map|null>(null),latest=useRef(props),activeBasemap=useRef<Basemap>("satellite");
  const [ready,setReady]=useState(false),[error,setError]=useState("");
@@ -114,8 +114,8 @@ export default function PlanningCanvas(props:Props){
  useEffect(()=>{
   const m=map.current;if(!m||!ready)return;
   (m.getSource("boundary") as GeoJSONSource).setData({type:"FeatureCollection",features:props.polygon&&props.points.length>=3?[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[...props.points,props.points[0]]]}}]:[]});
-  (m.getSource("exclusions") as GeoJSONSource).setData({type:"FeatureCollection",features:(props.exclusions??[]).map((ring,i)=>({type:"Feature",properties:{index:i+1},geometry:{type:"Polygon",coordinates:[[...ring,ring[0]]]}}))});
-  (m.getSource("exclusion-draft") as GeoJSONSource).setData({type:"FeatureCollection",features:props.exclusionDraft&&props.exclusionDraft.length>=2?[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:props.exclusionDraft}}]:[]});
+  (m.getSource("exclusions") as GeoJSONSource).setData({type:"FeatureCollection",features:(props.exclusions??[]).flatMap((ring,i)=>i===props.editingExclusionIndex?[]:[{type:"Feature" as const,properties:{index:i+1},geometry:{type:"Polygon" as const,coordinates:[[...ring,ring[0]]]}}])});
+  (m.getSource("exclusion-draft") as GeoJSONSource).setData({type:"FeatureCollection",features:props.exclusionDraft&&props.exclusionDraft.length>=2?[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:props.exclusionDraft.length>=3?[...props.exclusionDraft,props.exclusionDraft[0]]:props.exclusionDraft}}]:[]});
   const surveyLegs=props.polygon?props.legs.filter(leg=>leg.length===2):props.legs;
   const connections=props.polygon?[
    ...props.legs.filter(leg=>leg.length>2),
@@ -125,7 +125,7 @@ export default function PlanningCanvas(props:Props){
   (m.getSource("connections") as GeoJSONSource).setData({type:"Feature",properties:{},geometry:{type:"MultiLineString",coordinates:connections}});
   const markers=(props.polygon&&showFlightWaypoints?[]:props.points).map((p,i)=>{const element=document.createElement("div");element.className="flight-marker";element.textContent=props.polygon?`V${i+1}`:String(i+1);element.title=props.polygon?`Vértice ${i+1} da área: arraste para ajustar`:`Waypoint ${i+1}: arraste para ajustar`;const marker=new maplibregl.Marker({element,draggable:!props.adjustingPosition&&!props.markingTakeoff}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const p=marker.getLngLat();latest.current.onMove(i,[p.lng,p.lat]);});return marker;});
   const flightMarkers=props.polygon&&showFlightWaypoints?props.legs.flat().map((p,i,route)=>{const element=document.createElement("div");element.className="flight-waypoint-marker";element.textContent=`WP${i+1}`;element.title=`Waypoint de voo ${i+1} de ${route.length}${i===0?" · primeiro da rota":i===route.length-1?" · último da rota":""}`;element.setAttribute("role","img");element.setAttribute("aria-label",element.title);return new maplibregl.Marker({element}).setLngLat(p).addTo(m);}):[];
-  const draftMarkers=(props.exclusionDraft??[]).map((p,i)=>{const element=document.createElement("div");element.className="exclusion-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1} da área isolada`;return new maplibregl.Marker({element}).setLngLat(p).addTo(m);});
+  const draftMarkers=(props.exclusionDraft??[]).map((p,i)=>{const element=document.createElement("div");element.className="exclusion-marker";element.textContent=String(i+1);element.title=`Ponto ${i+1} da área isolada: arraste para ajustar`;element.setAttribute("role","img");element.setAttribute("aria-label",element.title);const marker=new maplibregl.Marker({element,draggable:true}).setLngLat(p).addTo(m);marker.on("dragend",()=>{const moved=marker.getLngLat();latest.current.onExclusionMove?.(i,[moved.lng,moved.lat]);});return marker;});
   const arrowStep=Math.max(1,Math.ceil(surveyLegs.length/80));
   const directionMarkers=props.polygon?surveyLegs.flatMap((leg,i)=>{
    if(i%arrowStep)return [];
@@ -134,7 +134,7 @@ export default function PlanningCanvas(props:Props){
    return [new maplibregl.Marker({element,anchor:"center"}).setLngLat(midpoint).addTo(m)];
   }):[];
   m.getCanvas().style.cursor=(props.drawing||props.drawingExclusion||props.adjustingPosition||props.markingTakeoff)?"crosshair":"grab";return()=>[...markers,...flightMarkers,...draftMarkers,...directionMarkers].forEach(m=>m.remove());
- },[ready,props.points,props.exclusions,props.exclusionDraft,props.legs,props.polygon,props.drawing,props.drawingExclusion,props.adjustingPosition,props.markingTakeoff,showFlightWaypoints]);
+ },[ready,props.points,props.exclusions,props.exclusionDraft,props.editingExclusionIndex,props.legs,props.polygon,props.drawing,props.drawingExclusion,props.adjustingPosition,props.markingTakeoff,showFlightWaypoints]);
  useEffect(()=>{
   const m=map.current,p=props.takeoffPoint;if(!m||!ready||!p)return;
   const element=document.createElement("div");element.className="takeoff-marker";element.textContent="H";element.title="Ponto de decolagem escolhido";element.setAttribute("role","img");element.setAttribute("aria-label","Ponto de decolagem");
